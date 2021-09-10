@@ -194,7 +194,13 @@ pub fn term(input: &str) -> ParseResult<Term> {
                 map(identifier, |ident| {
                     Term::String(vec![StringFragment::String(ident.0)]).into()
                 }),
-                map(variable, |ident| Term::FunctionCall(ident, vec![]).into()),
+                map(variable, |ident| {
+                    Term::FunctionCall {
+                        name: ident,
+                        args: vec![],
+                    }
+                    .into()
+                }),
                 map(string, |t| Term::String(t).into()),
                 delimited(char('('), ws(query), char(')')),
             )),
@@ -205,7 +211,10 @@ pub fn term(input: &str) -> ParseResult<Term> {
                         terms
                             .into_iter()
                             .map(Term::into)
-                            .reduce(|lhs, rhs| Query::Pipe(Box::new(lhs), Box::new(rhs)))
+                            .reduce(|lhs, rhs| Query::Pipe {
+                                lhs: Box::new(lhs),
+                                rhs: Box::new(rhs),
+                            })
                     },
                 ),
                 success(None),
@@ -261,7 +270,10 @@ pub fn term(input: &str) -> ParseResult<Term> {
                     ),
                     pair(variable_or_module_variable, success(None)),
                 )),
-                |(name, args)| Term::FunctionCall(name, args.unwrap_or_default()),
+                |(name, args)| Term::FunctionCall {
+                    name,
+                    args: args.unwrap_or_default(),
+                },
             ),
             map(format, |name| Term::Format(name)),
             map(string, |s| Term::String(s)),
@@ -378,7 +390,9 @@ pub fn query(input: &str) -> ParseResult<Query> {
                             map(identifier, |ident| {
                                 Term::String(vec![StringFragment::String(ident.0)]).into()
                             }),
-                            map(variable, |ident| Term::FunctionCall(ident, vec![]).into()),
+                            map(variable, |name| {
+                                Term::FunctionCall { name, args: vec![] }.into()
+                            }),
                             map(string, |t| Term::String(t).into()),
                             delimited(char('('), ws(query), char(')')),
                         )),
@@ -414,14 +428,20 @@ pub fn query(input: &str) -> ParseResult<Query> {
         alt((
             map(
                 pair(funcdef, preceded(multispace0, query)),
-                |(func, query)| Query::WithFunc(func, Box::new(query)),
+                |(function, query)| Query::WithFunc {
+                    function,
+                    query: Box::new(query),
+                },
             ),
             map(
                 pair(
                     preceded(tag("try"), preceded(multispace0, query)),
                     opt(preceded(ws(tag("catch")), query10)),
                 ),
-                |(lhs, rhs)| Query::Try(Box::new(lhs), rhs.map(Box::new)),
+                |(lhs, rhs)| Query::Try {
+                    body: Box::new(lhs),
+                    catch: rhs.map(Box::new),
+                },
             ),
             map(
                 tuple((
@@ -429,7 +449,11 @@ pub fn query(input: &str) -> ParseResult<Query> {
                     separated_list1(ws(tag("?//")), bind_pattern),
                     preceded(ws(char('|')), query10),
                 )),
-                |(term, patterns, query)| Query::Bind(Box::new(term), patterns, Box::new(query)),
+                |(term, patterns, query)| Query::Bind {
+                    source: Box::new(term),
+                    patterns,
+                    body: Box::new(query),
+                },
             ),
             map(
                 tuple((
@@ -438,8 +462,11 @@ pub fn query(input: &str) -> ParseResult<Query> {
                     delimited(char('('), ws(query), char(';')),
                     terminated(ws(query), char(')')),
                 )),
-                |(term, pattern, q1, q2)| {
-                    Query::Reduce(Box::new(term), pattern, Box::new(q1), Box::new(q2))
+                |(term, pattern, q1, q2)| Query::Reduce {
+                    source: Box::new(term),
+                    pattern,
+                    initial: Box::new(q1),
+                    accumulator: Box::new(q2),
                 },
             ),
             map(
@@ -452,14 +479,12 @@ pub fn query(input: &str) -> ParseResult<Query> {
                         char(')'),
                     ),
                 )),
-                |(term, pattern, q1, (q2, q3))| {
-                    Query::ForEach(
-                        Box::new(term),
-                        pattern,
-                        Box::new(q1),
-                        Box::new(q2),
-                        q3.map(Box::new),
-                    )
+                |(term, pattern, q1, (q2, q3))| Query::ForEach {
+                    source: Box::new(term),
+                    pattern,
+                    initial: Box::new(q1),
+                    update: Box::new(q2),
+                    extract: q3.map(Box::new),
                 },
             ),
             map(
@@ -493,7 +518,10 @@ pub fn query(input: &str) -> ParseResult<Query> {
                     delimited(tag("label"), ws(variable), char('|')),
                     preceded(multispace0, query),
                 ),
-                |(var, query)| Query::Label(var, Box::new(query)),
+                |(var, query)| Query::Label {
+                    label: var,
+                    body: Box::new(query),
+                },
             ),
             query100,
         ))(input)
@@ -518,7 +546,11 @@ pub fn query(input: &str) -> ParseResult<Query> {
                 value(BinaryOp::Modulo, char('%')),
             ))),
             query9,
-            |lhs, op, rhs| Query::Operate(Box::new(lhs), op, Box::new(rhs)),
+            |lhs, operator, rhs| Query::Operate {
+                lhs: Box::new(lhs),
+                operator,
+                rhs: Box::new(rhs),
+            },
         )(input)
     }
     fn query7(input: &str) -> ParseResult<Query> {
@@ -528,42 +560,60 @@ pub fn query(input: &str) -> ParseResult<Query> {
                 value(BinaryOp::Subtract, char('-')),
             ))),
             query8,
-            |lhs, op, rhs| Query::Operate(Box::new(lhs), op, Box::new(rhs)),
+            |lhs, operator, rhs| Query::Operate {
+                lhs: Box::new(lhs),
+                operator,
+                rhs: Box::new(rhs),
+            },
         )(input)
     }
     fn query6(input: &str) -> ParseResult<Query> {
-        binop_no_assoc(ws(comparator), query7, |lhs, op, rhs| {
-            Query::Compare(Box::new(lhs), op, Box::new(rhs))
+        binop_no_assoc(ws(comparator), query7, |lhs, operator, rhs| {
+            Query::Compare {
+                lhs: Box::new(lhs),
+                operator,
+                rhs: Box::new(rhs),
+            }
         })(input)
     }
     fn query5(input: &str) -> ParseResult<Query> {
-        binop_chain_left_assoc(ws(tag("and")), query6, |lhs, _, rhs| {
-            Query::Operate(Box::new(lhs), BinaryOp::And, Box::new(rhs))
+        binop_chain_left_assoc(ws(tag("and")), query6, |lhs, _, rhs| Query::Operate {
+            lhs: Box::new(lhs),
+            operator: BinaryOp::And,
+            rhs: Box::new(rhs),
         })(input)
     }
     fn query4(input: &str) -> ParseResult<Query> {
-        binop_chain_left_assoc(ws(tag("or")), query5, |lhs, _, rhs| {
-            Query::Operate(Box::new(lhs), BinaryOp::Or, Box::new(rhs))
+        binop_chain_left_assoc(ws(tag("or")), query5, |lhs, _, rhs| Query::Operate {
+            lhs: Box::new(lhs),
+            operator: BinaryOp::Or,
+            rhs: Box::new(rhs),
         })(input)
     }
     fn query3(input: &str) -> ParseResult<Query> {
-        binop_no_assoc(ws(update_op), query4, |lhs, op, rhs| {
-            Query::Update(Box::new(lhs), op, Box::new(rhs))
+        binop_no_assoc(ws(update_op), query4, |lhs, operator, rhs| Query::Update {
+            lhs: Box::new(lhs),
+            operator,
+            rhs: Box::new(rhs),
         })(input)
     }
     fn query2(input: &str) -> ParseResult<Query> {
-        binop_chain_right_assoc(ws(tag("//")), query3, |lhs, _, rhs| {
-            Query::Operate(Box::new(lhs), BinaryOp::Alt, Box::new(rhs))
+        binop_chain_right_assoc(ws(tag("//")), query3, |lhs, _, rhs| Query::Operate {
+            lhs: Box::new(lhs),
+            operator: BinaryOp::Alt,
+            rhs: Box::new(rhs),
         })(input)
     }
     fn query1(input: &str) -> ParseResult<Query> {
-        binop_chain_left_assoc(ws(char(',')), query2, |lhs, _, rhs| {
-            Query::Concat(Box::new(lhs), Box::new(rhs))
+        binop_chain_left_assoc(ws(char(',')), query2, |lhs, _, rhs| Query::Concat {
+            lhs: Box::new(lhs),
+            rhs: Box::new(rhs),
         })(input)
     }
     fn query0(input: &str) -> ParseResult<Query> {
-        binop_chain_right_assoc(ws(char('|')), query1, |lhs, _, rhs| {
-            Query::Pipe(Box::new(lhs), Box::new(rhs))
+        binop_chain_right_assoc(ws(char('|')), query1, |lhs, _, rhs| Query::Pipe {
+            lhs: Box::new(lhs),
+            rhs: Box::new(rhs),
         })(input)
     }
 
@@ -629,11 +679,11 @@ mod test {
                 "",
                 vec![
                     String("abc"),
-                    Query(ast::Query::Operate(
-                        Box::new(Term::Number(1.into()).into()),
-                        BinaryOp::Add,
-                        Box::new(Term::Number(2.into()).into())
-                    )),
+                    Query(ast::Query::Operate {
+                        lhs: Box::new(Term::Number(1.into()).into()),
+                        operator: BinaryOp::Add,
+                        rhs: Box::new(Term::Number(2.into()).into())
+                    }),
                     String("def")
                 ]
             ))

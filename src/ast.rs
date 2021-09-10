@@ -117,7 +117,10 @@ pub enum Term<'a> {
     Suffix(Box<Term<'a>>, Vec<Suffix<'a>>),
 
     /// (<ident> | <moduleident>) ( '(' query (';' query)* ')' )? | (<var> | <modulevar>)
-    FunctionCall(Identifier<'a>, Vec<Query<'a>>),
+    FunctionCall {
+        name: Identifier<'a>,
+        args: Vec<Query<'a>>,
+    },
     /// '@' <ident-allowing-num-prefix> (<string>)?
     Format(Identifier<'a>),
     /// '(' <query> ')'
@@ -137,28 +140,41 @@ pub enum Query<'a> {
     /// <term> | <query> '?'
     Term(Box<Term<'a>>),
     /// 'def' <ident> ':' <query> ';' <query>
-    WithFunc(FuncDef<'a>, Box<Query<'a>>),
+    WithFunc {
+        function: FuncDef<'a>,
+        query: Box<Query<'a>>,
+    },
     /// <query> ('|' <query>)+
-    Pipe(Box<Query<'a>>, Box<Query<'a>>),
+    Pipe {
+        lhs: Box<Query<'a>>,
+        rhs: Box<Query<'a>>,
+    },
     /// <query> (',' <query>)+
-    Concat(Box<Query<'a>>, Box<Query<'a>>),
+    Concat {
+        lhs: Box<Query<'a>>,
+        rhs: Box<Query<'a>>,
+    },
     /// <term> 'as' <pattern> ('?//' <pattern>)* '|' <query>
-    Bind(Box<Term<'a>>, Vec<BindPattern<'a>>, Box<Query<'a>>),
+    Bind {
+        source: Box<Term<'a>>,
+        patterns: Vec<BindPattern<'a>>,
+        body: Box<Query<'a>>,
+    },
     /// 'reduce' <term> 'as' <pattern> '(' <query> ';' <query> ')'
-    Reduce(
-        Box<Term<'a>>,
-        BindPattern<'a>,
-        Box<Query<'a>>,
-        Box<Query<'a>>,
-    ),
+    Reduce {
+        source: Box<Term<'a>>,
+        pattern: BindPattern<'a>,
+        initial: Box<Query<'a>>,
+        accumulator: Box<Query<'a>>,
+    },
     /// 'foreach' <term> 'as' <pattern> '(' <query> ';' <query> (';' <query>)? ')'
-    ForEach(
-        Box<Term<'a>>,
-        BindPattern<'a>,
-        Box<Query<'a>>,
-        Box<Query<'a>>,
-        Option<Box<Query<'a>>>,
-    ),
+    ForEach {
+        source: Box<Term<'a>>,
+        pattern: BindPattern<'a>,
+        initial: Box<Query<'a>>,
+        update: Box<Query<'a>>,
+        extract: Option<Box<Query<'a>>>,
+    },
     /// 'if' <query> 'then' <query> ('elif' <query> 'then' <query>)* ('else' <query>)? 'end'
     If {
         cond: Box<Query<'a>>,
@@ -166,16 +182,34 @@ pub enum Query<'a> {
         negative: Option<Box<Query<'a>>>,
     },
     /// 'try' <query> ('catch' <query>)?
-    Try(Box<Query<'a>>, Option<Box<Query<'a>>>),
+    Try {
+        body: Box<Query<'a>>,
+        catch: Option<Box<Query<'a>>>,
+    },
     /// 'label' <variable> '|' <query>
-    Label(Identifier<'a>, Box<Query<'a>>),
+    Label {
+        label: Identifier<'a>,
+        body: Box<Query<'a>>,
+    },
 
     /// <query> ('//' | '+' | '-' | '*' | '/' | '%' | 'and' | 'or') <query>
-    Operate(Box<Query<'a>>, BinaryOp, Box<Query<'a>>),
+    Operate {
+        lhs: Box<Query<'a>>,
+        operator: BinaryOp,
+        rhs: Box<Query<'a>>,
+    },
     /// <query> ('=' | '|=' | '//=' | '+=' | '-=' | '*=' | '/=' | '%=') <query>
-    Update(Box<Query<'a>>, UpdateOp, Box<Query<'a>>),
+    Update {
+        lhs: Box<Query<'a>>,
+        operator: UpdateOp,
+        rhs: Box<Query<'a>>,
+    },
     /// <query> <comparator> <query>
-    Compare(Box<Query<'a>>, Comparator, Box<Query<'a>>),
+    Compare {
+        lhs: Box<Query<'a>>,
+        operator: Comparator,
+        rhs: Box<Query<'a>>,
+    },
 }
 
 impl<'a> Into<Term<'a>> for Query<'a> {
