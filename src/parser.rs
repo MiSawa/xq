@@ -170,7 +170,6 @@ pub fn term(input: &str) -> ParseResult<Term> {
         delimited(
             terminated(char('['), multispace0),
             alt((
-                success(Suffix::Explode),
                 map(preceded(terminated(char(':'), multispace0), query), |q| {
                     Suffix::Slice(None, Some(Box::new(q)))
                 }),
@@ -184,6 +183,7 @@ pub fn term(input: &str) -> ParseResult<Term> {
                         }
                     },
                 ),
+                success(Suffix::Explode),
             )),
             preceded(multispace0, char(']')),
         )(input)
@@ -335,7 +335,7 @@ pub fn term(input: &str) -> ParseResult<Term> {
         map(preceded(pair(char('+'), multispace0), term), |t| {
             Term::Unary(UnaryOp::Plus, Box::new(t))
         }),
-        term_inner,
+        term_with_suffix,
     ))(input)
 }
 
@@ -623,9 +623,13 @@ pub fn query(input: &str) -> ParseResult<Query> {
 #[cfg(test)]
 mod test {
     use crate::{
-        ast::{BinaryOp, Identifier, StringFragment, Term, UnaryOp},
+        ast::{BinaryOp, Identifier, StringFragment, Suffix, Term, UnaryOp},
         parser::{format, identifier, string, term, variable},
     };
+
+    fn string_term(s: &str) -> Term {
+        Term::String(vec![StringFragment::String(s)])
+    }
 
     #[test]
     fn test_identifier() {
@@ -652,12 +656,72 @@ mod test {
         assert_eq!(term("true"), Ok(("", Term::True)));
         assert_eq!(term("false"), Ok(("", Term::False)));
         assert_eq!(term("null"), Ok(("", Term::Null)));
-        assert_eq!(term("[ ]"), Ok(("", Term::Array(None))));
         assert_eq!(
             term("-123"),
             Ok((
                 "",
                 Term::Unary(UnaryOp::Minus, Box::new(Term::Number(123.into())))
+            ))
+        );
+        assert_eq!(term("[ ]"), Ok(("", Term::Array(None))));
+        assert_eq!(
+            term(". [ ]"),
+            Ok((
+                "",
+                Term::Suffix(Box::new(Term::Identity), vec![Suffix::Explode])
+            ))
+        );
+        assert_eq!(
+            term(". \"foo\""),
+            Ok((
+                "",
+                Term::Suffix(
+                    Box::new(Term::Identity),
+                    vec![Suffix::Query(Box::new(string_term("foo").into()))]
+                )
+            ))
+        );
+        assert_eq!(
+            term(". [ \"foo\" ]"),
+            Ok((
+                "",
+                Term::Suffix(
+                    Box::new(Term::Identity),
+                    vec![Suffix::Query(Box::new(string_term("foo").into()))]
+                )
+            ))
+        );
+        assert_eq!(
+            term(". foo"),
+            Ok((
+                "",
+                Term::Suffix(
+                    Box::new(Term::Identity),
+                    vec![Suffix::Index(Identifier("foo"))]
+                )
+            ))
+        );
+        assert_eq!(
+            term(". foo [ ]"),
+            Ok((
+                "",
+                Term::Suffix(
+                    Box::new(Term::Identity),
+                    vec![Suffix::Index(Identifier("foo")), Suffix::Explode]
+                )
+            ))
+        );
+        assert_eq!(
+            term(". foo [ 4 ]"),
+            Ok((
+                "",
+                Term::Suffix(
+                    Box::new(Term::Identity),
+                    vec![
+                        Suffix::Index(Identifier("foo")),
+                        Suffix::Query(Box::new(Term::Number(4.into()).into()))
+                    ]
+                )
             ))
         );
     }
