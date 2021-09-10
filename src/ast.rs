@@ -212,6 +212,40 @@ pub enum Query<'a> {
     },
 }
 
+#[derive(Debug, Clone, Eq, PartialEq)]
+enum ConstantPrimitive {
+    Null,
+    False,
+    True,
+    Number(Number),
+    String(String),
+}
+#[derive(Debug, Clone, Eq, PartialEq)]
+enum ConstantJson {
+    Primitive(ConstantPrimitive),
+    Array(ConstantArray),
+    Object(ConstantObject),
+}
+#[derive(Debug, Clone, Eq, PartialEq)]
+struct ConstantArray(Vec<ConstantJson>);
+#[derive(Debug, Clone, Eq, PartialEq)]
+struct ConstantObject(Vec<(String, ConstantJson)>);
+
+#[derive(Debug, Clone, Eq, PartialEq)]
+struct Import<'a> {
+    path: String,
+    alias: Identifier<'a>,
+    meta: ConstantObject,
+}
+
+#[derive(Debug, Clone, Eq, PartialEq)]
+struct Program<'a> {
+    module_header: Option<ConstantObject>,
+    imports: Vec<Import<'a>>,
+    functions: Vec<FuncDef<'a>>,
+    query: Query<'a>,
+}
+
 impl<'a> Into<Term<'a>> for Query<'a> {
     fn into(self) -> Term<'a> {
         if let Query::Term(term) = self {

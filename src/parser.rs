@@ -4,15 +4,16 @@ use crate::ast::{
 };
 use nom::{
     branch::alt,
-    bytes::complete::{is_not, tag},
-    character::complete::{alpha1, alphanumeric1, char, digit1, multispace0, one_of},
-    combinator::{map, map_res, opt, recognize, success, value},
+    bytes::complete::{is_not, tag, take_while_m_n},
+    character::complete::{alpha1, alphanumeric1, char, digit1, multispace0},
+    combinator::{map, map_res, opt, recognize, success, value, verify},
     error::ParseError,
     multi::{fold_many0, many0, separated_list0, separated_list1},
     number::complete::double,
     sequence::{delimited, pair, preceded, terminated, tuple},
     IResult, Parser,
 };
+use std::convert::TryFrom;
 
 pub type ParseResult<'a, T> = IResult<&'a str, T>;
 
@@ -132,25 +133,71 @@ fn format(input: &str) -> ParseResult<Identifier> {
     )(input)
 }
 
+fn escaped_char(input: &str) -> ParseResult<std::primitive::char> {
+    fn codepoint(input: &str) -> ParseResult<std::primitive::char> {
+        preceded(
+            char('u'),
+            map(
+                take_while_m_n(4, 4, |c: std::primitive::char| c.is_ascii_hexdigit()),
+                |digits: &str| char::try_from(u32::from_str_radix(digits, 16).unwrap()).unwrap(),
+            ),
+        )(input)
+    }
+    preceded(
+        char('\\'),
+        alt((
+            value('\n', char('n')),
+            value('\r', char('r')),
+            value('\t', char('t')),
+            value('\u{08}', char('b')),
+            value('\u{0C}', char('f')),
+            value('\\', char('\\')),
+            value('/', char('/')),
+            value('"', char('"')),
+            codepoint,
+        )),
+    )(input)
+}
+
+fn literal_string_fragment1(input: &str) -> ParseResult<&str> {
+    let not_quote_slash = is_not("\"\\");
+    verify(not_quote_slash, |s: &str| !s.is_empty())(input)
+}
+
+fn const_string(input: &str) -> ParseResult<String> {
+    enum Fragment<'a> {
+        Str(&'a str),
+        Char(char),
+    }
+    fn fragment(input: &str) -> ParseResult<Fragment> {
+        alt((
+            map(escaped_char, Fragment::Char),
+            map(literal_string_fragment1, Fragment::Str),
+        ))(input)
+    }
+
+    delimited(
+        char('"'),
+        fold_many0(fragment, String::new, |mut acc: String, f| {
+            match f {
+                Fragment::Char(c) => acc.push(c),
+                Fragment::Str(s) => acc.push_str(s),
+            }
+            acc
+        }),
+        char('"'),
+    )(input)
+}
+
 fn string(input: &str) -> ParseResult<Vec<StringFragment>> {
     fn string_fragment(input: &str) -> ParseResult<StringFragment> {
         alt((
-            map(is_not("\\\""), |s| StringFragment::String(s)),
-            preceded(
-                char('\\'),
-                alt((
-                    map(one_of("\"\\/"), |c| StringFragment::Char(c)),
-                    map(char('b'), |_| StringFragment::Char('\x08')),
-                    map(char('f'), |_| StringFragment::Char('\x0C')),
-                    map(char('n'), |_| StringFragment::Char('\n')),
-                    map(char('r'), |_| StringFragment::Char('\r')),
-                    map(char('t'), |_| StringFragment::Char('\t')),
-                    delimited(
-                        char('('),
-                        map(ws(query), |q| StringFragment::Query(q)),
-                        char(')'),
-                    ),
-                )),
+            map(literal_string_fragment1, |s| StringFragment::String(s)),
+            map(escaped_char, |c| StringFragment::Char(c)),
+            delimited(
+                tag("\\("),
+                map(ws(query), |q| StringFragment::Query(q)),
+                char(')'),
             ),
         ))(input)
     }
