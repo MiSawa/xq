@@ -215,37 +215,39 @@ pub enum Query<'a> {
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
-enum ConstantPrimitive {
+pub enum ConstantPrimitive {
     Null,
     False,
     True,
     Number(Number),
     String(String),
 }
+
 #[derive(Debug, Clone, Eq, PartialEq)]
-enum ConstantJson {
+pub enum ConstantJson {
     Primitive(ConstantPrimitive),
     Array(ConstantArray),
     Object(ConstantObject),
 }
-#[derive(Debug, Clone, Eq, PartialEq)]
-struct ConstantArray(Vec<ConstantJson>);
-#[derive(Debug, Clone, Eq, PartialEq)]
-struct ConstantObject(Vec<(String, ConstantJson)>);
 
 #[derive(Debug, Clone, Eq, PartialEq)]
-struct Import<'a> {
-    path: String,
-    alias: Identifier<'a>,
-    meta: ConstantObject,
+pub struct ConstantArray(pub Vec<ConstantJson>);
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub struct ConstantObject(pub Vec<(String, ConstantJson)>);
+
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub struct Import<'a> {
+    pub path: String,
+    pub alias: Identifier<'a>,
+    pub meta: ConstantObject,
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
-struct Program<'a> {
-    module_header: Option<ConstantObject>,
-    imports: Vec<Import<'a>>,
-    functions: Vec<FuncDef<'a>>,
-    query: Query<'a>,
+pub struct Program<'a> {
+    pub module_header: Option<ConstantObject>,
+    pub imports: Vec<Import<'a>>,
+    pub functions: Vec<FuncDef<'a>>,
+    pub query: Query<'a>,
 }
 
 impl<'a> Into<Term<'a>> for Query<'a> {

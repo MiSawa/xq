@@ -1,7 +1,10 @@
 use crate::ast::{
-    BinaryOp, BindPattern, Comparator, FuncDef, Identifier, ObjectBindPatternEntry, Query,
-    StringFragment, Suffix, Term, UnaryOp, UpdateOp,
+    BinaryOp, BindPattern, Comparator, ConstantArray, ConstantJson, ConstantObject,
+    ConstantPrimitive, FuncDef, Identifier, ObjectBindPatternEntry, Query, StringFragment, Suffix,
+    Term, UnaryOp, UpdateOp,
 };
+use crate::Number;
+use nom::sequence::separated_pair;
 use nom::{
     branch::alt,
     bytes::complete::{is_not, tag, take_while_m_n},
@@ -133,6 +136,13 @@ fn format(input: &str) -> ParseResult<Identifier> {
     )(input)
 }
 
+fn number(input: &str) -> ParseResult<Number> {
+    alt((
+        map_res(digit1, |s: &str| s.parse().map(|n: i64| n.into())),
+        map(double, |x| x.into()),
+    ))(input)
+}
+
 fn escaped_char(input: &str) -> ParseResult<std::primitive::char> {
     fn codepoint(input: &str) -> ParseResult<std::primitive::char> {
         preceded(
@@ -186,6 +196,43 @@ fn const_string(input: &str) -> ParseResult<String> {
             acc
         }),
         char('"'),
+    )(input)
+}
+
+fn constant_json(input: &str) -> ParseResult<ConstantJson> {
+    fn primitive(input: &str) -> ParseResult<ConstantPrimitive> {
+        alt((
+            value(ConstantPrimitive::Null, tag("null")),
+            value(ConstantPrimitive::True, tag("true")),
+            value(ConstantPrimitive::False, tag("false")),
+            map(number, ConstantPrimitive::Number),
+            map(const_string, ConstantPrimitive::String),
+        ))(input)
+    }
+    alt((
+        delimited(
+            terminated(char('['), multispace0),
+            map(separated_list0(ws(char(',')), constant_json), |v| {
+                ConstantJson::Array(ConstantArray(v))
+            }),
+            preceded(multispace0, char(']')),
+        ),
+        map(const_object, ConstantJson::Object),
+        map(primitive, ConstantJson::Primitive),
+    ))(input)
+}
+fn const_object(input: &str) -> ParseResult<ConstantObject> {
+    fn entry(input: &str) -> ParseResult<(String, ConstantJson)> {
+        separated_pair(
+            alt((const_string, map(identifier, |ident| ident.0.to_string()))),
+            ws(char(':')),
+            constant_json,
+        )(input)
+    }
+    delimited(
+        terminated(char('{'), multispace0),
+        map(separated_list0(ws(char(',')), entry), ConstantObject),
+        preceded(multispace0, char('}')),
     )(input)
 }
 
@@ -273,10 +320,7 @@ pub fn term(input: &str) -> ParseResult<Term> {
             value(Term::Null, tag("null")),
             value(Term::False, tag("false")),
             value(Term::True, tag("true")),
-            map_res(digit1, |s: &str| {
-                s.parse().map(|n: i64| Term::Number(n.into()))
-            }),
-            map(double, |x| Term::Number(x.into())),
+            map(number, Term::Number),
             map(
                 delimited(
                     terminated(char('('), multispace0),
