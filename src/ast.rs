@@ -65,7 +65,29 @@ pub enum StringFragment<'a> {
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
-pub struct StringWithInterpolation<'a>(pub Vec<StringFragment<'a>>);
+pub enum ObjectBindPatternEntry<'a> {
+    /// (<ident> | <variable> | <keyword> | <string> | '(' <query> ')') ':' pattern
+    KeyValue(Box<Query<'a>>, Box<BindPattern<'a>>),
+    /// <variable>
+    KeyOnly(Identifier<'a>),
+}
+
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub enum BindPattern<'a> {
+    /// <variable>
+    Variable(Identifier<'a>),
+    /// '[' <patten> (',' <pattern>)* ']'
+    Array(Vec<BindPattern<'a>>),
+    /// '{' <object pattern elem> (',' <object pattern elem>)* '}'
+    Object(Vec<ObjectBindPatternEntry<'a>>),
+}
+
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub struct FuncDef<'a> {
+    pub name: Identifier<'a>,
+    pub args: Vec<Identifier<'a>>,
+    pub body: Box<Query<'a>>,
+}
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum Term<'a> {
@@ -113,25 +135,40 @@ pub enum Query<'a> {
     /// <term>
     Term(Box<Term<'a>>),
     /// 'def' <ident> ':' <query> ';' <query>
-    WithFunc(Box<Query<'a>>),
+    WithFunc(FuncDef<'a>, Box<Query<'a>>),
     /// <query> ('|' <query>)+
-    Pipe(Vec<Query<'a>>),
+    Pipe(Box<Query<'a>>, Box<Query<'a>>),
     /// <query> (',' <query>)+
-    Concat(Vec<Query<'a>>),
+    Concat(Box<Query<'a>>, Box<Query<'a>>),
     /// <term> 'as' <pattern> ('?//' <pattern>)* '|' <query>
-    Bind(Box<Query<'a>>),
+    Bind(Box<Term<'a>>, Vec<BindPattern<'a>>, Box<Query<'a>>),
     /// 'reduce' <term> 'as' <pattern> '(' <query> ';' <query> ')'
-    Reduce(),
+    Reduce(
+        Box<Term<'a>>,
+        BindPattern<'a>,
+        Box<Query<'a>>,
+        Box<Query<'a>>,
+    ),
     /// 'foreach' <term> 'as' <pattern> '(' <query> ';' <query> (';' <query>)? ')'
-    ForEach(),
+    ForEach(
+        Box<Term<'a>>,
+        BindPattern<'a>,
+        Box<Query<'a>>,
+        Box<Query<'a>>,
+        Option<Box<Query<'a>>>,
+    ),
     /// 'if' <query> 'then' <query> ('elif' <query> 'then' <query>)* ('else' <query>)? 'end'
-    If(),
+    If {
+        cond: Box<Query<'a>>,
+        positive: Box<Query<'a>>,
+        negative: Option<Box<Query<'a>>>,
+    },
     /// 'try' <query> ('catch' <query>)?
-    Try(),
+    Try(Box<Query<'a>>, Option<Box<Query<'a>>>),
     /// 'label' <variable> '|' <query>
-    Label(),
+    Label(Identifier<'a>, Box<Query<'a>>),
     /// <query> '?'
-    Optional(),
+    Optional(Box<Query<'a>>),
 
     /// <query> ('//' | '+' | '-' | '*' | '/' | '%' | 'and' | 'or') <query>
     Operate(Box<Query<'a>>, BinaryOp, Box<Query<'a>>),
