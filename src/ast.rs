@@ -47,15 +47,15 @@ pub enum Comparator {
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum Suffix<'a> {
-    /// '?'
+    /// `'?'`
     Optional,
-    /// '[' ']'
+    /// `'[' ']'`
     Explode,
-    /// '.' <ident>
+    /// `'.' <ident>`
     Index(Identifier<'a>),
-    /// '[' query ']' | '.' <string>
+    /// `'[' query ']' | '.' <string>`
     Query(Box<Query<'a>>),
-    /// '[' (<query>)? ':' (<query>)? ']' except '[' ':' ']'
+    /// `'[' (<query>)? ':' (<query>)? ']' except '[' ':' ']'`
     Slice(Option<Box<Query<'a>>>, Option<Box<Query<'a>>>),
 }
 
@@ -68,19 +68,19 @@ pub enum StringFragment<'a> {
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum ObjectBindPatternEntry<'a> {
-    /// (<ident> | <variable> | <keyword> | <string> | '(' <query> ')') ':' pattern
+    /// `(<ident> | <variable> | <keyword> | <string> | '(' <query> ')') ':' pattern`
     KeyValue(Box<Query<'a>>, Box<BindPattern<'a>>),
-    /// <variable>
+    /// `<variable>`
     KeyOnly(Identifier<'a>),
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum BindPattern<'a> {
-    /// <variable>
+    /// `<variable>`
     Variable(Identifier<'a>),
-    /// '[' <patten> (',' <pattern>)* ']'
+    /// `'[' <patten> (',' <pattern>)* ']'`
     Array(Vec<BindPattern<'a>>),
-    /// '{' <object pattern elem> (',' <object pattern elem>)* '}'
+    /// `'{' <object pattern elem> (',' <object pattern elem>)* '}'`
     Object(Vec<ObjectBindPatternEntry<'a>>),
 }
 
@@ -93,81 +93,83 @@ pub struct FuncDef<'a> {
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum Term<'a> {
-    /// 'null'
+    /// `'null'`
     Null,
-    /// 'true'
+    /// `'true'`
     True,
-    /// 'false'
+    /// `'false'`
     False,
-    /// <number>
+    /// `<number>`
     Number(Number),
-    /// <string>
+    /// `<string>`
     String(Vec<StringFragment<'a>>),
 
-    /// '.'
+    /// `'.'`
     Identity,
-    /// '..'
+    /// `'..'`
     Recurse,
+    /// ```text
     /// '.' '[' ( | <query> | (<query>)? ':' (<query>)? ) ']'
     /// '.' (<ident> | <string>)
     /// <term> '[' ( | <query> | (<query>)? ':' (<query>)? ) ']'
     /// <term> '.' '[' ( | <query> | (<query>)? ':' (<query>)? ) ']'
     /// <term> '?'
     /// <term> '.' (<ident> | <string>)
+    /// ```
     Suffix(Box<Term<'a>>, Vec<Suffix<'a>>),
 
-    /// (<ident> | <moduleident>) ( '(' query (';' query)* ')' )? | (<var> | <modulevar>)
+    /// `(<ident> | <moduleident>) ( '(' query (';' query)* ')' )? | (<var> | <modulevar>)`
     FunctionCall {
         name: Identifier<'a>,
         args: Vec<Query<'a>>,
     },
-    /// '@' <ident-allowing-num-prefix> (<string>)?
+    /// `'@' <ident-allowing-num-prefix> (<string>)?`
     Format(Identifier<'a>),
-    /// '(' <query> ')'
+    /// `'(' <query> ')'`
     Query(Box<Query<'a>>),
-    /// ('+' | '-') <term>
+    /// `('+' | '-') <term>`
     Unary(UnaryOp, Box<Term<'a>>),
-    /// '{' (<ident> | <variable> | <keyword> | <string> | '(' <query> ')') (':' <term> ('|' <term>)*)? (',' ....)* '}'
+    /// `'{' (<ident> | <variable> | <keyword> | <string> | '(' <query> ')') (':' <term> ('|' <term>)*)? (',' ....)* '}'`
     Object(Vec<(Query<'a>, Option<Query<'a>>)>),
-    /// '[' (<query>)? ']'
+    /// `'[' (<query>)? ']'`
     Array(Option<Box<Query<'a>>>),
-    /// 'break' <variable>
+    /// `'break' <variable>`
     Break(Identifier<'a>),
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum Query<'a> {
-    /// <term> | <query> '?'
+    /// `<term> | <query> '?'`
     Term(Box<Term<'a>>),
-    /// 'def' <ident> ':' <query> ';' <query>
+    /// `'def' <ident> ':' <query> ';' <query>`
     WithFunc {
         function: FuncDef<'a>,
         query: Box<Query<'a>>,
     },
-    /// <query> ('|' <query>)+
+    /// `<query> ('|' <query>)+`
     Pipe {
         lhs: Box<Query<'a>>,
         rhs: Box<Query<'a>>,
     },
-    /// <query> (',' <query>)+
+    /// `<query> (',' <query>)+`
     Concat {
         lhs: Box<Query<'a>>,
         rhs: Box<Query<'a>>,
     },
-    /// <term> 'as' <pattern> ('?//' <pattern>)* '|' <query>
+    /// `<term> 'as' <pattern> ('?//' <pattern>)* '|' <query>`
     Bind {
         source: Box<Term<'a>>,
         patterns: Vec<BindPattern<'a>>,
         body: Box<Query<'a>>,
     },
-    /// 'reduce' <term> 'as' <pattern> '(' <query> ';' <query> ')'
+    /// `'reduce' <term> 'as' <pattern> '(' <query> ';' <query> ')'`
     Reduce {
         source: Box<Term<'a>>,
         pattern: BindPattern<'a>,
         initial: Box<Query<'a>>,
         accumulator: Box<Query<'a>>,
     },
-    /// 'foreach' <term> 'as' <pattern> '(' <query> ';' <query> (';' <query>)? ')'
+    /// `'foreach' <term> 'as' <pattern> '(' <query> ';' <query> (';' <query>)? ')'`
     ForEach {
         source: Box<Term<'a>>,
         pattern: BindPattern<'a>,
@@ -175,36 +177,36 @@ pub enum Query<'a> {
         update: Box<Query<'a>>,
         extract: Option<Box<Query<'a>>>,
     },
-    /// 'if' <query> 'then' <query> ('elif' <query> 'then' <query>)* ('else' <query>)? 'end'
+    /// `'if' <query> 'then' <query> ('elif' <query> 'then' <query>)* ('else' <query>)? 'end'`
     If {
         cond: Box<Query<'a>>,
         positive: Box<Query<'a>>,
         negative: Option<Box<Query<'a>>>,
     },
-    /// 'try' <query> ('catch' <query>)?
+    /// `'try' <query> ('catch' <query>)?`
     Try {
         body: Box<Query<'a>>,
         catch: Option<Box<Query<'a>>>,
     },
-    /// 'label' <variable> '|' <query>
+    /// `'label' <variable> '|' <query>`
     Label {
         label: Identifier<'a>,
         body: Box<Query<'a>>,
     },
 
-    /// <query> ('//' | '+' | '-' | '*' | '/' | '%' | 'and' | 'or') <query>
+    /// `<query> ('//' | '+' | '-' | '*' | '/' | '%' | 'and' | 'or') <query>`
     Operate {
         lhs: Box<Query<'a>>,
         operator: BinaryOp,
         rhs: Box<Query<'a>>,
     },
-    /// <query> ('=' | '|=' | '//=' | '+=' | '-=' | '*=' | '/=' | '%=') <query>
+    /// `<query> ('=' | '|=' | '//=' | '+=' | '-=' | '*=' | '/=' | '%=') <query>`
     Update {
         lhs: Box<Query<'a>>,
         operator: UpdateOp,
         rhs: Box<Query<'a>>,
     },
-    /// <query> <comparator> <query>
+    /// `<query> <comparator> <query>`
     Compare {
         lhs: Box<Query<'a>>,
         operator: Comparator,
