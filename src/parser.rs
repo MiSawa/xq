@@ -1,6 +1,6 @@
 use crate::ast::{
     BinaryOp, BindPattern, Comparator, FuncDef, Identifier, ObjectBindPatternEntry, Query,
-    StringFragment, Term, UnaryOp, UpdateOp,
+    StringFragment, Suffix, Term, UnaryOp, UpdateOp,
 };
 use nom::{
     branch::alt,
@@ -166,18 +166,36 @@ fn string(input: &str) -> ParseResult<Vec<StringFragment>> {
 }
 
 pub fn term(input: &str) -> ParseResult<Term> {
+    fn suffix(input: &str) -> ParseResult<Suffix> {
+        delimited(
+            terminated(char('['), multispace0),
+            alt((
+                success(Suffix::Explode),
+                map(preceded(terminated(char(':'), multispace0), query), |q| {
+                    Suffix::Slice(None, Some(Box::new(q)))
+                }),
+                map(
+                    pair(query, opt(preceded(ws(char(':')), opt(query)))),
+                    |(lower, upper)| match upper {
+                        None => Suffix::Query(Box::new(lower)),
+                        Some(None) => Suffix::Slice(Some(Box::new(lower)), None),
+                        Some(Some(upper)) => {
+                            Suffix::Slice(Some(Box::new(lower)), Some(Box::new(upper)))
+                        }
+                    },
+                ),
+            )),
+            preceded(multispace0, char(']')),
+        )(input)
+    }
     fn object_term_entry(input: &str) -> ParseResult<(Query, Option<Query>)> {
         pair(
             alt((
                 map(identifier, |ident| {
-                    Query::Term(Box::new(Term::String(vec![StringFragment::String(
-                        ident.0,
-                    )])))
+                    Term::String(vec![StringFragment::String(ident.0)]).into()
                 }),
-                map(variable, |ident| {
-                    Query::Term(Box::new(Term::FunctionCall(ident, vec![])))
-                }),
-                map(string, |t| Query::Term(Box::new(Term::String(t)))),
+                map(variable, |ident| Term::FunctionCall(ident, vec![]).into()),
+                map(string, |t| Term::String(t).into()),
                 delimited(char('('), ws(query), char(')')),
             )),
             alt((
@@ -186,7 +204,7 @@ pub fn term(input: &str) -> ParseResult<Term> {
                     |terms| {
                         terms
                             .into_iter()
-                            .map(|t| Query::Term(Box::new(t)))
+                            .map(Term::into)
                             .reduce(|lhs, rhs| Query::Pipe(Box::new(lhs), Box::new(rhs)))
                     },
                 ),
@@ -209,7 +227,7 @@ pub fn term(input: &str) -> ParseResult<Term> {
                     query,
                     preceded(multispace0, char(')')),
                 ),
-                |q| Term::Query(Box::new(q)),
+                Query::into,
             ),
             map(
                 delimited(
@@ -247,9 +265,55 @@ pub fn term(input: &str) -> ParseResult<Term> {
             ),
             map(format, |name| Term::Format(name)),
             map(string, |s| Term::String(s)),
+            preceded(
+                char('.'),
+                preceded(
+                    multispace0,
+                    map(
+                        alt((
+                            map(identifier, Suffix::Index),
+                            map(string, |s| Suffix::Query(Box::new(Term::String(s).into()))),
+                            suffix,
+                        )),
+                        |suffix| Term::Suffix(Box::new(Term::Identity), vec![suffix]),
+                    ),
+                ),
+            ),
             value(Term::Recurse, tag("..")),
             value(Term::Identity, char('.')),
         ))(input)
+    }
+    fn term_with_suffix(input: &str) -> ParseResult<Term> {
+        map(
+            pair(
+                term_inner,
+                many0(preceded(
+                    multispace0,
+                    alt((
+                        value(Suffix::Optional, char('?')),
+                        preceded(
+                            terminated(char('.'), multispace0),
+                            alt((
+                                map(identifier, Suffix::Index),
+                                map(string, |s| Suffix::Query(Box::new(Term::String(s).into()))),
+                                suffix,
+                            )),
+                        ),
+                        suffix,
+                    )),
+                )),
+            ),
+            |(term, suffixes)| {
+                if suffixes.is_empty() {
+                    term
+                } else if let Term::Suffix(term, mut original) = term {
+                    original.extend(suffixes);
+                    Term::Suffix(term, original)
+                } else {
+                    Term::Suffix(Box::new(term), suffixes)
+                }
+            },
+        )(input)
     }
 
     alt((
@@ -312,14 +376,10 @@ pub fn query(input: &str) -> ParseResult<Query> {
                     pair(
                         alt((
                             map(identifier, |ident| {
-                                Query::Term(Box::new(Term::String(vec![StringFragment::String(
-                                    ident.0,
-                                )])))
+                                Term::String(vec![StringFragment::String(ident.0)]).into()
                             }),
-                            map(variable, |ident| {
-                                Query::Term(Box::new(Term::FunctionCall(ident, vec![])))
-                            }),
-                            map(string, |t| Query::Term(Box::new(Term::String(t)))),
+                            map(variable, |ident| Term::FunctionCall(ident, vec![]).into()),
+                            map(string, |t| Term::String(t).into()),
                             delimited(char('('), ws(query), char(')')),
                         )),
                         preceded(ws(char(':')), bind_pattern),
@@ -348,7 +408,7 @@ pub fn query(input: &str) -> ParseResult<Query> {
     }
 
     fn query100(input: &str) -> ParseResult<Query> {
-        map(term, |t| Query::Term(Box::new(t)))(input)
+        map(term, Term::into)(input)
     }
     fn query10(input: &str) -> ParseResult<Query> {
         alt((
@@ -443,7 +503,7 @@ pub fn query(input: &str) -> ParseResult<Query> {
             pair(query10, opt(preceded(multispace0, char('?')))),
             |(q, opt)| {
                 if opt.is_some() {
-                    Query::Optional(Box::new(q))
+                    Term::Suffix(Box::new(q.into()), vec![Suffix::Optional]).into()
                 } else {
                     q
                 }
@@ -570,9 +630,9 @@ mod test {
                 vec![
                     String("abc"),
                     Query(ast::Query::Operate(
-                        Box::new(ast::Query::Term(Box::new(Term::Number(1.into())))),
+                        Box::new(Term::Number(1.into()).into()),
                         BinaryOp::Add,
-                        Box::new(ast::Query::Term(Box::new(Term::Number(2.into()))))
+                        Box::new(Term::Number(2.into()).into())
                     )),
                     String("def")
                 ]

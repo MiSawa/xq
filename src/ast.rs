@@ -46,12 +46,14 @@ pub enum Comparator {
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
-pub enum Index<'a> {
+pub enum Suffix<'a> {
+    /// '?'
+    Optional,
     /// '[' ']'
     Explode,
-    /// '.' <ident> | '.' <string>
-    Index(&'a str),
-    /// '[' query ']'
+    /// '.' <ident>
+    Index(Identifier<'a>),
+    /// '[' query ']' | '.' <string>
     Query(Box<Query<'a>>),
     /// '[' (<query>)? ':' (<query>)? ']' except '[' ':' ']'
     Slice(Option<Box<Query<'a>>>, Option<Box<Query<'a>>>),
@@ -112,7 +114,7 @@ pub enum Term<'a> {
     /// <term> '.' '[' ( | <query> | (<query>)? ':' (<query>)? ) ']'
     /// <term> '?'
     /// <term> '.' (<ident> | <string>)
-    Index(Box<Term<'a>>, Vec<Index<'a>>),
+    Suffix(Box<Term<'a>>, Vec<Suffix<'a>>),
 
     /// (<ident> | <moduleident>) ( '(' query (';' query)* ')' )? | (<var> | <modulevar>)
     FunctionCall(Identifier<'a>, Vec<Query<'a>>),
@@ -132,7 +134,7 @@ pub enum Term<'a> {
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum Query<'a> {
-    /// <term>
+    /// <term> | <query> '?'
     Term(Box<Term<'a>>),
     /// 'def' <ident> ':' <query> ';' <query>
     WithFunc(FuncDef<'a>, Box<Query<'a>>),
@@ -167,8 +169,6 @@ pub enum Query<'a> {
     Try(Box<Query<'a>>, Option<Box<Query<'a>>>),
     /// 'label' <variable> '|' <query>
     Label(Identifier<'a>, Box<Query<'a>>),
-    /// <query> '?'
-    Optional(Box<Query<'a>>),
 
     /// <query> ('//' | '+' | '-' | '*' | '/' | '%' | 'and' | 'or') <query>
     Operate(Box<Query<'a>>, BinaryOp, Box<Query<'a>>),
@@ -176,4 +176,24 @@ pub enum Query<'a> {
     Update(Box<Query<'a>>, UpdateOp, Box<Query<'a>>),
     /// <query> <comparator> <query>
     Compare(Box<Query<'a>>, Comparator, Box<Query<'a>>),
+}
+
+impl<'a> Into<Term<'a>> for Query<'a> {
+    fn into(self) -> Term<'a> {
+        if let Query::Term(term) = self {
+            *term
+        } else {
+            Term::Query(Box::new(self))
+        }
+    }
+}
+
+impl<'a> Into<Query<'a>> for Term<'a> {
+    fn into(self) -> Query<'a> {
+        if let Term::Query(query) = self {
+            *query
+        } else {
+            Query::Term(Box::new(self))
+        }
+    }
 }
