@@ -50,10 +50,13 @@ fn main() -> Result<()> {
         log::trace!("Read query from file {:?}", path);
         std::fs::read_to_string(path)?
     } else {
-        log::trace!("Read from query in arg {:?}", args.query);
+        log::trace!(
+            "Read from query in arg (if it wasn't the default value): `{}`",
+            args.query
+        );
         args.query
     };
     let ast = xq::parser::parse_query(&query).with_context(|| "Parse query")?;
-    log::info!("Parsed program = {:?}", ast);
+    log::info!("Parsed query = {:?}", ast);
     Ok(())
 }

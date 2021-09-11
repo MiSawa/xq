@@ -9,7 +9,7 @@ use crate::{
 use nom::{
     branch::alt,
     bytes::complete::{is_not, tag, take_while_m_n},
-    character::complete::{alpha1, alphanumeric1, char, digit1, multispace0},
+    character::complete::{alpha1, alphanumeric1, char, digit1, multispace0, multispace1},
     combinator::{eof, map, map_res, opt, recognize, success, value, verify},
     error::{Error, ParseError},
     multi::{fold_many0, many0, separated_list0, separated_list1},
@@ -100,7 +100,25 @@ where
     )
 }
 
+const KEYWORDS: [&'static str; 21] = [
+    "or", "and", "module", "import", "include", "def", "as", "label", "break", "null", "true",
+    "false", "if", "then", "elif", "else", "end", "try", "catch", "reduce", "foreach",
+];
+
 fn identifier(input: &str) -> ParseResult<Identifier> {
+    map(
+        verify(
+            recognize(pair(
+                alt((alpha1, tag("_"))),
+                many0(alt((alphanumeric1, tag("_")))),
+            )),
+            |s| !KEYWORDS.contains(s),
+        ),
+        Identifier::from,
+    )(input)
+}
+
+fn identifier_allow_keyword(input: &str) -> ParseResult<Identifier> {
     map(
         recognize(pair(
             alt((alpha1, tag("_"))),
@@ -111,19 +129,32 @@ fn identifier(input: &str) -> ParseResult<Identifier> {
 }
 
 fn variable(input: &str) -> ParseResult<Identifier> {
-    map(recognize(preceded(char('$'), identifier)), Identifier::from)(input)
-}
-
-fn identifier_or_module_identifier(input: &str) -> ParseResult<Identifier> {
     map(
-        recognize(separated_list1(tag("::"), identifier)),
+        recognize(preceded(char('$'), identifier_allow_keyword)),
         Identifier::from,
     )(input)
 }
 
+fn identifier_or_module_identifier(input: &str) -> ParseResult<Identifier> {
+    alt((
+        identifier,
+        map(
+            recognize(tuple((
+                identifier_allow_keyword,
+                tag("::"),
+                separated_list1(tag("::"), identifier_allow_keyword),
+            ))),
+            Identifier::from,
+        ),
+    ))(input)
+}
+
 fn variable_or_module_variable(input: &str) -> ParseResult<Identifier> {
     map(
-        recognize(preceded(char('$'), identifier_or_module_identifier)),
+        recognize(preceded(
+            char('$'),
+            separated_list1(tag("::"), identifier_allow_keyword),
+        )),
         Identifier::from,
     )(input)
 }
@@ -598,15 +629,18 @@ fn query(input: &str) -> ParseResult<Query> {
                 },
             ),
             map(
-                tuple((
-                    delimited(terminated(tag("if"), multispace0), query, ws(tag("then"))),
-                    query,
-                    many0(pair(
-                        preceded(ws(tag("elif")), query),
-                        preceded(ws(tag("then")), query),
+                terminated(
+                    tuple((
+                        delimited(terminated(tag("if"), multispace1), query, ws(tag("then"))),
+                        query,
+                        many0(pair(
+                            preceded(ws(tag("elif")), query),
+                            preceded(ws(tag("then")), query),
+                        )),
+                        opt(preceded(ws(tag("else")), query)),
                     )),
-                    opt(preceded(ws(tag("else")), query)),
-                )),
+                    preceded(multispace0, tag("end")),
+                ),
                 |(cond, body, chain, other)| {
                     let mut o = other.map(Box::new);
                     for (c, b) in chain.into_iter().rev() {
@@ -766,7 +800,9 @@ fn program(input: &str) -> ParseResult<Program> {
             alt((
                 pair(success(vec![]), query),
                 pair(
-                    separated_list0(multispace0, funcdef),
+                    // This eats the following spaces... It's fine but all the other places are not made in that way.
+                    // This is because `separated_list0` doesn't behave well with `multispace0`.
+                    many0(terminated(funcdef, multispace0)),
                     success(Term::Identity.into()),
                 ),
             )),
@@ -786,7 +822,8 @@ pub fn parse_query(input: &str) -> Result<Program, Error<String>> {
         .map(|(rest, program)| {
             assert!(
                 rest.is_empty(),
-                "Failed to parse to the end of the file. Rest: {}",
+                "Failed to parse to the end of the file. \nParsed: {:?}\nRest: {}",
+                program,
                 rest
             );
             program
