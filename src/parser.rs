@@ -106,34 +106,35 @@ fn identifier(input: &str) -> ParseResult<Identifier> {
             alt((alpha1, tag("_"))),
             many0(alt((alphanumeric1, tag("_")))),
         )),
-        Identifier,
+        Identifier::from,
     )(input)
 }
 
 fn variable(input: &str) -> ParseResult<Identifier> {
-    map(recognize(preceded(char('$'), identifier)), Identifier)(input)
+    map(recognize(preceded(char('$'), identifier)), Identifier::from)(input)
 }
 
 fn identifier_or_module_identifier(input: &str) -> ParseResult<Identifier> {
     map(
         recognize(separated_list1(tag("::"), identifier)),
-        Identifier,
+        Identifier::from,
     )(input)
 }
 
 fn variable_or_module_variable(input: &str) -> ParseResult<Identifier> {
     map(
         recognize(preceded(char('$'), identifier_or_module_identifier)),
-        Identifier,
+        Identifier::from,
     )(input)
 }
 
 fn format(input: &str) -> ParseResult<Identifier> {
     preceded(
         char('@'),
-        map(recognize(many0(alt((alphanumeric1, tag("_"))))), |s| {
-            Identifier(s)
-        }),
+        map(
+            recognize(many0(alt((alphanumeric1, tag("_"))))),
+            Identifier::from,
+        ),
     )(input)
 }
 
@@ -225,7 +226,7 @@ fn constant_json(input: &str) -> ParseResult<ConstantJson> {
 fn const_object(input: &str) -> ParseResult<ConstantObject> {
     fn entry(input: &str) -> ParseResult<(String, ConstantJson)> {
         separated_pair(
-            alt((const_string, map(identifier, |ident| ident.0.to_string()))),
+            alt((const_string, map(identifier, |ident| ident.0))),
             ws(char(':')),
             constant_json,
         )(input)
@@ -238,18 +239,39 @@ fn const_object(input: &str) -> ParseResult<ConstantObject> {
 }
 
 fn string(input: &str) -> ParseResult<Vec<StringFragment>> {
-    fn string_fragment(input: &str) -> ParseResult<StringFragment> {
+    enum Fragment<'a> {
+        Str(&'a str),
+        Char(char),
+        Query(Query),
+    }
+    fn string_fragment(input: &str) -> ParseResult<Fragment> {
         alt((
-            map(literal_string_fragment1, |s| StringFragment::String(s)),
-            map(escaped_char, StringFragment::Char),
-            delimited(tag("\\("), map(ws(query), StringFragment::Query), char(')')),
+            map(literal_string_fragment1, Fragment::Str),
+            map(escaped_char, Fragment::Char),
+            delimited(tag("\\("), map(ws(query), Fragment::Query), char(')')),
         ))(input)
     }
 
     delimited(
         char('"'),
         fold_many0(string_fragment, Vec::new, |mut vec, s| {
-            vec.push(s);
+            match s {
+                Fragment::Char(c) => {
+                    if let Some(StringFragment::String(last)) = vec.last_mut() {
+                        last.push(c)
+                    } else {
+                        vec.push(StringFragment::String(c.to_string()))
+                    }
+                }
+                Fragment::Str(s) => {
+                    if let Some(StringFragment::String(last)) = vec.last_mut() {
+                        last.push_str(s)
+                    } else {
+                        vec.push(StringFragment::String(s.to_string()))
+                    }
+                }
+                Fragment::Query(q) => vec.push(StringFragment::Query(q)),
+            }
             vec
         }),
         char('"'),
@@ -775,32 +797,32 @@ pub fn parse_query(input: &str) -> Result<Program, Error<String>> {
 #[cfg(test)]
 mod test {
     use crate::{
-        ast::{BinaryOp, Identifier, StringFragment, Suffix, Term, UnaryOp},
+        ast::{BinaryOp, StringFragment, Suffix, Term, UnaryOp},
         parser::{format, identifier, string, term, variable},
     };
 
     fn string_term(s: &str) -> Term {
-        Term::String(vec![StringFragment::String(s)])
+        Term::String(vec![StringFragment::String(s.to_string())])
     }
 
     #[test]
     fn test_identifier() {
-        assert_eq!(identifier("ab_c"), Ok(("", Identifier("ab_c"))));
-        assert_eq!(identifier("ab+c"), Ok(("+c", Identifier("ab"))));
+        assert_eq!(identifier("ab_c"), Ok(("", "ab_c".into())));
+        assert_eq!(identifier("ab+c"), Ok(("+c", "ab".into())));
         assert!(identifier("123abc").is_err());
     }
 
     #[test]
     fn test_variable() {
-        assert_eq!(variable("$ab12+c"), Ok(("+c", Identifier("$ab12"))));
+        assert_eq!(variable("$ab12+c"), Ok(("+c", "$ab12".into())));
         assert!(variable("$12abc").is_err());
         assert!(variable("$ abc").is_err());
     }
 
     #[test]
     fn test_format() {
-        assert_eq!(format("@tsv"), Ok(("", Identifier("tsv"))));
-        assert_eq!(format("@123"), Ok(("", Identifier("123"))));
+        assert_eq!(format("@tsv"), Ok(("", "tsv".into())));
+        assert_eq!(format("@123"), Ok(("", "123".into())));
     }
 
     #[test]
@@ -847,10 +869,7 @@ mod test {
             term(". foo"),
             Ok((
                 "",
-                Term::Suffix(
-                    Box::new(Term::Identity),
-                    vec![Suffix::Index(Identifier("foo"))]
-                )
+                Term::Suffix(Box::new(Term::Identity), vec![Suffix::Index("foo".into())])
             ))
         );
         assert_eq!(
@@ -859,7 +878,7 @@ mod test {
                 "",
                 Term::Suffix(
                     Box::new(Term::Identity),
-                    vec![Suffix::Index(Identifier("foo")), Suffix::Explode]
+                    vec![Suffix::Index("foo".into()), Suffix::Explode]
                 )
             ))
         );
@@ -870,7 +889,7 @@ mod test {
                 Term::Suffix(
                     Box::new(Term::Identity),
                     vec![
-                        Suffix::Index(Identifier("foo")),
+                        Suffix::Index("foo".into()),
                         Suffix::Query(Box::new(Term::Number(4.into()).into()))
                     ]
                 )
@@ -884,23 +903,20 @@ mod test {
         use StringFragment::*;
         assert_eq!(
             string(r#""\rabc\"\n\\""#),
-            Ok((
-                "",
-                vec![Char('\r'), String("abc"), Char('"'), Char('\n'), Char('\\')]
-            ))
+            Ok(("", vec![String("\rabc\"\n\\".to_string())]))
         );
         assert_eq!(
             string(r#""abc\( 1 + 2 )def""#),
             Ok((
                 "",
                 vec![
-                    String("abc"),
+                    String("abc".to_string()),
                     Query(ast::Query::Operate {
                         lhs: Box::new(Term::Number(1.into()).into()),
                         operator: BinaryOp::Add,
                         rhs: Box::new(Term::Number(2.into()).into())
                     }),
-                    String("def")
+                    String("def".to_string())
                 ]
             ))
         );

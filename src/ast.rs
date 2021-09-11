@@ -1,9 +1,7 @@
 use crate::Number;
 
-#[derive(Debug, Copy, Clone, Eq, PartialEq)]
-pub struct Identifier<'a>(pub &'a str);
-#[derive(Debug, Copy, Clone, Eq, PartialEq)]
-pub struct ModuleIdent<'a>(pub &'a str);
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub struct Identifier(pub String);
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub enum UnaryOp {
@@ -46,53 +44,52 @@ pub enum Comparator {
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
-pub enum Suffix<'a> {
+pub enum Suffix {
     /// `'?'`
     Optional,
     /// `'[' ']'`
     Explode,
     /// `'.' <ident>`
-    Index(Identifier<'a>),
+    Index(Identifier),
     /// `'[' query ']' | '.' <string>`
-    Query(Box<Query<'a>>),
+    Query(Box<Query>),
     /// `'[' (<query>)? ':' (<query>)? ']' except '[' ':' ']'`
-    Slice(Option<Box<Query<'a>>>, Option<Box<Query<'a>>>),
+    Slice(Option<Box<Query>>, Option<Box<Query>>),
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
-pub enum StringFragment<'a> {
-    String(&'a str),
-    Char(char),
-    Query(Query<'a>),
+pub enum StringFragment {
+    String(String),
+    Query(Query),
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
-pub enum ObjectBindPatternEntry<'a> {
+pub enum ObjectBindPatternEntry {
     /// `(<ident> | <variable> | <keyword> | <string> | '(' <query> ')') ':' pattern`
-    KeyValue(Box<Query<'a>>, Box<BindPattern<'a>>),
+    KeyValue(Box<Query>, Box<BindPattern>),
     /// `<variable>`
-    KeyOnly(Identifier<'a>),
+    KeyOnly(Identifier),
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
-pub enum BindPattern<'a> {
+pub enum BindPattern {
     /// `<variable>`
-    Variable(Identifier<'a>),
+    Variable(Identifier),
     /// `'[' <patten> (',' <pattern>)* ']'`
-    Array(Vec<BindPattern<'a>>),
+    Array(Vec<BindPattern>),
     /// `'{' <object pattern elem> (',' <object pattern elem>)* '}'`
-    Object(Vec<ObjectBindPatternEntry<'a>>),
+    Object(Vec<ObjectBindPatternEntry>),
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
-pub struct FuncDef<'a> {
-    pub name: Identifier<'a>,
-    pub args: Vec<Identifier<'a>>,
-    pub body: Box<Query<'a>>,
+pub struct FuncDef {
+    pub name: Identifier,
+    pub args: Vec<Identifier>,
+    pub body: Box<Query>,
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
-pub enum Term<'a> {
+pub enum Term {
     /// `'null'`
     Null,
     /// `'true'`
@@ -102,7 +99,7 @@ pub enum Term<'a> {
     /// `<number>`
     Number(Number),
     /// `<string>`
-    String(Vec<StringFragment<'a>>),
+    String(Vec<StringFragment>),
 
     /// `'.'`
     Identity,
@@ -116,101 +113,89 @@ pub enum Term<'a> {
     /// <term> '?'
     /// <term> '.' (<ident> | <string>)
     /// ```
-    Suffix(Box<Term<'a>>, Vec<Suffix<'a>>),
+    Suffix(Box<Term>, Vec<Suffix>),
 
     /// `(<ident> | <moduleident>) ( '(' query (';' query)* ')' )? | (<var> | <modulevar>)`
-    FunctionCall {
-        name: Identifier<'a>,
-        args: Vec<Query<'a>>,
-    },
+    FunctionCall { name: Identifier, args: Vec<Query> },
     /// `'@' <ident-allowing-num-prefix> (<string>)?`
-    Format(Identifier<'a>),
+    Format(Identifier),
     /// `'(' <query> ')'`
-    Query(Box<Query<'a>>),
+    Query(Box<Query>),
     /// `('+' | '-') <term>`
-    Unary(UnaryOp, Box<Term<'a>>),
+    Unary(UnaryOp, Box<Term>),
     /// `'{' (<ident> | <variable> | <keyword> | <string> | '(' <query> ')') (':' <term> ('|' <term>)*)? (',' ....)* '}'`
-    Object(Vec<(Query<'a>, Option<Query<'a>>)>),
+    Object(Vec<(Query, Option<Query>)>),
     /// `'[' (<query>)? ']'`
-    Array(Option<Box<Query<'a>>>),
+    Array(Option<Box<Query>>),
     /// `'break' <variable>`
-    Break(Identifier<'a>),
+    Break(Identifier),
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
-pub enum Query<'a> {
+pub enum Query {
     /// `<term> | <query> '?'`
-    Term(Box<Term<'a>>),
+    Term(Box<Term>),
     /// `'def' <ident> ':' <query> ';' <query>`
     WithFunc {
-        function: FuncDef<'a>,
-        query: Box<Query<'a>>,
+        function: FuncDef,
+        query: Box<Query>,
     },
     /// `<query> ('|' <query>)+`
-    Pipe {
-        lhs: Box<Query<'a>>,
-        rhs: Box<Query<'a>>,
-    },
+    Pipe { lhs: Box<Query>, rhs: Box<Query> },
     /// `<query> (',' <query>)+`
-    Concat {
-        lhs: Box<Query<'a>>,
-        rhs: Box<Query<'a>>,
-    },
+    Concat { lhs: Box<Query>, rhs: Box<Query> },
     /// `<term> 'as' <pattern> ('?//' <pattern>)* '|' <query>`
     Bind {
-        source: Box<Term<'a>>,
-        patterns: Vec<BindPattern<'a>>,
-        body: Box<Query<'a>>,
+        source: Box<Term>,
+        patterns: Vec<BindPattern>,
+        body: Box<Query>,
     },
     /// `'reduce' <term> 'as' <pattern> '(' <query> ';' <query> ')'`
     Reduce {
-        source: Box<Term<'a>>,
-        pattern: BindPattern<'a>,
-        initial: Box<Query<'a>>,
-        accumulator: Box<Query<'a>>,
+        source: Box<Term>,
+        pattern: BindPattern,
+        initial: Box<Query>,
+        accumulator: Box<Query>,
     },
     /// `'foreach' <term> 'as' <pattern> '(' <query> ';' <query> (';' <query>)? ')'`
     ForEach {
-        source: Box<Term<'a>>,
-        pattern: BindPattern<'a>,
-        initial: Box<Query<'a>>,
-        update: Box<Query<'a>>,
-        extract: Option<Box<Query<'a>>>,
+        source: Box<Term>,
+        pattern: BindPattern,
+        initial: Box<Query>,
+        update: Box<Query>,
+        extract: Option<Box<Query>>,
     },
     /// `'if' <query> 'then' <query> ('elif' <query> 'then' <query>)* ('else' <query>)? 'end'`
     If {
-        cond: Box<Query<'a>>,
-        positive: Box<Query<'a>>,
-        negative: Option<Box<Query<'a>>>,
+        cond: Box<Query>,
+        positive: Box<Query>,
+        negative: Option<Box<Query>>,
     },
     /// `'try' <query> ('catch' <query>)?`
     Try {
-        body: Box<Query<'a>>,
-        catch: Option<Box<Query<'a>>>,
+        body: Box<Query>,
+        catch: Option<Box<Query>>,
     },
     /// `'label' <variable> '|' <query>`
-    Label {
-        label: Identifier<'a>,
-        body: Box<Query<'a>>,
-    },
+    Label { label: Identifier, body: Box<Query> },
 
     /// `<query> ('//' | '+' | '-' | '*' | '/' | '%' | 'and' | 'or') <query>`
     Operate {
-        lhs: Box<Query<'a>>,
+        lhs: Box<Query>,
         operator: BinaryOp,
-        rhs: Box<Query<'a>>,
+        rhs: Box<Query>,
     },
     /// `<query> ('=' | '|=' | '//=' | '+=' | '-=' | '*=' | '/=' | '%=') <query>`
     Update {
-        lhs: Box<Query<'a>>,
+        lhs: Box<Query>,
         operator: UpdateOp,
-        rhs: Box<Query<'a>>,
+        rhs: Box<Query>,
     },
     /// `<query> <comparator> <query>`
     Compare {
-        lhs: Box<Query<'a>>,
+        lhs: Box<Query>,
         operator: Comparator,
-        rhs: Box<Query<'a>>,
+        rhs: Box<Query>,
     },
 }
 
@@ -237,22 +222,28 @@ pub struct ConstantArray(pub Vec<ConstantJson>);
 pub struct ConstantObject(pub Vec<(String, ConstantJson)>);
 
 #[derive(Debug, Clone, Eq, PartialEq)]
-pub struct Import<'a> {
+pub struct Import {
     pub path: String,
-    pub alias: Option<Identifier<'a>>,
+    pub alias: Option<Identifier>,
     pub meta: Option<ConstantObject>,
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
-pub struct Program<'a> {
+pub struct Program {
     pub module_header: Option<ConstantObject>,
-    pub imports: Vec<Import<'a>>,
-    pub functions: Vec<FuncDef<'a>>,
-    pub query: Query<'a>,
+    pub imports: Vec<Import>,
+    pub functions: Vec<FuncDef>,
+    pub query: Query,
 }
 
-impl<'a> From<Term<'a>> for Query<'a> {
-    fn from(term: Term<'a>) -> Self {
+impl From<&str> for Identifier {
+    fn from(s: &str) -> Self {
+        Self(s.to_string())
+    }
+}
+
+impl From<Term> for Query {
+    fn from(term: Term) -> Self {
         if let Term::Query(query) = term {
             *query
         } else {
@@ -261,8 +252,8 @@ impl<'a> From<Term<'a>> for Query<'a> {
     }
 }
 
-impl<'a> From<Query<'a>> for Term<'a> {
-    fn from(query: Query<'a>) -> Self {
+impl From<Query> for Term {
+    fn from(query: Query) -> Self {
         if let Query::Term(term) = query {
             *term
         } else {
