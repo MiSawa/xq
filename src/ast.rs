@@ -1,6 +1,6 @@
 use crate::Number;
 
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub struct Identifier(pub String);
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
