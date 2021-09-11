@@ -232,14 +232,15 @@ pub enum ConstantJson {
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct ConstantArray(pub Vec<ConstantJson>);
+
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct ConstantObject(pub Vec<(String, ConstantJson)>);
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct Import<'a> {
     pub path: String,
-    pub alias: Identifier<'a>,
-    pub meta: ConstantObject,
+    pub alias: Option<Identifier<'a>>,
+    pub meta: Option<ConstantObject>,
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]

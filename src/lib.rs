@@ -1,6 +1,4 @@
-#[allow(dead_code)]
 pub mod ast;
-#[allow(dead_code)]
 pub mod parser;
 
 #[derive(Debug, Copy, Clone, PartialEq)]
@@ -22,8 +20,4 @@ impl From<f64> for Number {
     fn from(value: f64) -> Self {
         Self::Real(value)
     }
-}
-
-pub fn main() {
-    println!("Hello!");
 }

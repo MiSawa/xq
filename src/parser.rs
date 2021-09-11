@@ -1,20 +1,21 @@
-use crate::ast::{
-    BinaryOp, BindPattern, Comparator, ConstantArray, ConstantJson, ConstantObject,
-    ConstantPrimitive, FuncDef, Identifier, ObjectBindPatternEntry, Query, StringFragment, Suffix,
-    Term, UnaryOp, UpdateOp,
+use crate::{
+    ast::{
+        BinaryOp, BindPattern, Comparator, ConstantArray, ConstantJson, ConstantObject,
+        ConstantPrimitive, FuncDef, Identifier, Import, ObjectBindPatternEntry, Program, Query,
+        StringFragment, Suffix, Term, UnaryOp, UpdateOp,
+    },
+    Number,
 };
-use crate::Number;
-use nom::sequence::separated_pair;
 use nom::{
     branch::alt,
     bytes::complete::{is_not, tag, take_while_m_n},
     character::complete::{alpha1, alphanumeric1, char, digit1, multispace0},
-    combinator::{map, map_res, opt, recognize, success, value, verify},
-    error::ParseError,
+    combinator::{eof, map, map_res, opt, recognize, success, value, verify},
+    error::{Error, ParseError},
     multi::{fold_many0, many0, separated_list0, separated_list1},
     number::complete::double,
-    sequence::{delimited, pair, preceded, terminated, tuple},
-    IResult, Parser,
+    sequence::{delimited, pair, preceded, separated_pair, terminated, tuple},
+    Finish, IResult, Parser,
 };
 use std::convert::TryFrom;
 
@@ -259,7 +260,7 @@ fn string(input: &str) -> ParseResult<Vec<StringFragment>> {
     )(input)
 }
 
-pub fn term(input: &str) -> ParseResult<Term> {
+fn term(input: &str) -> ParseResult<Term> {
     fn suffix(input: &str) -> ParseResult<Suffix> {
         delimited(
             terminated(char('['), multispace0),
@@ -449,7 +450,7 @@ fn funcdef(input: &str) -> ParseResult<FuncDef> {
     )(input)
 }
 
-pub fn query(input: &str) -> ParseResult<Query> {
+fn query(input: &str) -> ParseResult<Query> {
     fn comparator(input: &str) -> ParseResult<Comparator> {
         alt((
             value(Comparator::Eq, tag("==")),
@@ -709,6 +710,70 @@ pub fn query(input: &str) -> ParseResult<Query> {
     }
 
     query0(input)
+}
+
+fn import(input: &str) -> ParseResult<Import> {
+    map(
+        alt((
+            preceded(
+                tag("import"),
+                tuple((
+                    ws(const_string),
+                    preceded(tag("as"), ws(map(alt((identifier, variable)), Some))),
+                    terminated(opt(terminated(const_object, multispace0)), char(':')),
+                )),
+            ),
+            preceded(
+                tag("include"),
+                tuple((
+                    ws(const_string),
+                    success(None),
+                    terminated(opt(terminated(const_object, multispace0)), char(':')),
+                )),
+            ),
+        )),
+        |(path, alias, meta)| Import { path, alias, meta },
+    )(input)
+}
+
+fn program(input: &str) -> ParseResult<Program> {
+    map(
+        tuple((
+            opt(delimited(
+                tag("module"),
+                ws(const_object),
+                terminated(char(';'), multispace0),
+            )),
+            many0(terminated(import, multispace0)),
+            alt((
+                pair(success(vec![]), query),
+                pair(
+                    separated_list0(multispace0, funcdef),
+                    success(Term::Identity.into()),
+                ),
+            )),
+        )),
+        |(module_header, imports, (functions, query))| Program {
+            module_header,
+            imports,
+            functions,
+            query,
+        },
+    )(input)
+}
+
+pub fn parse_query(input: &str) -> Result<Program, Error<String>> {
+    terminated(ws(program), eof)(input)
+        .finish()
+        .map(|(rest, program)| {
+            assert!(
+                rest.is_empty(),
+                "Failed to parse to the end of the file. Rest: {}",
+                rest
+            );
+            program
+        })
+        .map_err(|e| Error::new(e.input.into(), e.code))
 }
 
 #[cfg(test)]
