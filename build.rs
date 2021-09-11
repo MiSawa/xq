@@ -1,6 +1,6 @@
 use std::process::Command;
 
-fn main(){
+fn main() {
     let package_version = env!("CARGO_PKG_VERSION");
     let git_output = Command::new("git")
         .args(&["rev-parse", "HEAD"])
@@ -11,5 +11,8 @@ fn main(){
         .expect("Unable to interpret the output of `git rev-parse HEAD` as an UTF-8 string")
         .trim()
         .to_string();
-    println!("cargo:rustc-env=LONG_VERSION={}-{}", package_version, git_revision);
+    println!(
+        "cargo:rustc-env=LONG_VERSION={}-{}",
+        package_version, git_revision
+    );
 }

@@ -106,7 +106,7 @@ fn identifier(input: &str) -> ParseResult<Identifier> {
             alt((alpha1, tag("_"))),
             many0(alt((alphanumeric1, tag("_")))),
         )),
-        |s| Identifier(s),
+        Identifier,
     )(input)
 }
 
@@ -241,12 +241,8 @@ fn string(input: &str) -> ParseResult<Vec<StringFragment>> {
     fn string_fragment(input: &str) -> ParseResult<StringFragment> {
         alt((
             map(literal_string_fragment1, |s| StringFragment::String(s)),
-            map(escaped_char, |c| StringFragment::Char(c)),
-            delimited(
-                tag("\\("),
-                map(ws(query), |q| StringFragment::Query(q)),
-                char(')'),
-            ),
+            map(escaped_char, StringFragment::Char),
+            delimited(tag("\\("), map(ws(query), StringFragment::Query), char(')')),
         ))(input)
     }
 
@@ -344,11 +340,11 @@ fn term(input: &str) -> ParseResult<Term> {
                     separated_list0(char(','), ws(object_term_entry)),
                     preceded(multispace0, char('}')),
                 ),
-                |entries| Term::Object(entries),
+                Term::Object,
             ),
             map(
                 preceded(pair(tag("break"), multispace0), variable),
-                |ident| Term::Break(ident),
+                Term::Break,
             ),
             map(
                 alt((
@@ -367,8 +363,8 @@ fn term(input: &str) -> ParseResult<Term> {
                     args: args.unwrap_or_default(),
                 },
             ),
-            map(format, |name| Term::Format(name)),
-            map(string, |s| Term::String(s)),
+            map(format, Term::Format),
+            map(string, Term::String),
             preceded(
                 char('.'),
                 preceded(

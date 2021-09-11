@@ -9,7 +9,13 @@ use std::path::PathBuf;
 struct Args {
     #[clap(default_value("."))]
     query: String,
-    #[clap(short('f'), long("from-file"), parse(from_os_str), conflicts_with("query"), value_hint(ValueHint::FilePath))]
+    #[clap(
+        short('f'),
+        long("from-file"),
+        parse(from_os_str),
+        conflicts_with("query"),
+        value_hint(ValueHint::FilePath)
+    )]
     query_file: Option<PathBuf>,
 }
 

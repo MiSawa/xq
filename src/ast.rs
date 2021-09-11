@@ -251,22 +251,22 @@ pub struct Program<'a> {
     pub query: Query<'a>,
 }
 
-impl<'a> Into<Term<'a>> for Query<'a> {
-    fn into(self) -> Term<'a> {
-        if let Query::Term(term) = self {
-            *term
+impl<'a> From<Term<'a>> for Query<'a> {
+    fn from(term: Term<'a>) -> Self {
+        if let Term::Query(query) = term {
+            *query
         } else {
-            Term::Query(Box::new(self))
+            Query::Term(Box::new(term))
         }
     }
 }
 
-impl<'a> Into<Query<'a>> for Term<'a> {
-    fn into(self) -> Query<'a> {
-        if let Term::Query(query) = self {
-            *query
+impl<'a> From<Query<'a>> for Term<'a> {
+    fn from(query: Query<'a>) -> Self {
+        if let Query::Term(term) = query {
+            *term
         } else {
-            Query::Term(Box::new(self))
+            Term::Query(Box::new(query))
         }
     }
 }
