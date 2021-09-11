@@ -27,17 +27,33 @@ struct Args {
     verbosity: u8,
 }
 
+fn init_log(verbosity: u8) -> Result<()> {
+    // TODO: Use https://github.com/rust-cli/clap-verbosity-flag if it supports clap_derive at some day, or find an alternative.
+    use log::LevelFilter::*;
+    use simplelog::{ColorChoice, CombinedLogger, Config, TermLogger, TerminalMode};
+    let levels = [Off, Error, Warn, Info, Debug, Trace];
+    let level = levels[(verbosity as usize).clamp(0, levels.len() - 1)];
+    CombinedLogger::init(vec![TermLogger::new(
+        level,
+        Config::default(),
+        TerminalMode::Mixed,
+        ColorChoice::Auto,
+    )])
+    .with_context(|| "Unable to initialize logger")
+}
+
 fn main() -> Result<()> {
     let args: Args = Args::parse();
-    if args.verbosity > 2 {
-        eprintln!("{:?}", args);
-    }
+    init_log(args.verbosity)?;
+    log::debug!("Parsed argument: {:?}", args);
     let query = if let Some(path) = args.query_file {
+        log::trace!("Read query from file {:?}", path);
         std::fs::read_to_string(path)?
     } else {
+        log::trace!("Read from query in arg {:?}", args.query);
         args.query
     };
     let ast = xq::parser::parse_query(&query).with_context(|| "Parse query")?;
-    println!("{:?}", ast);
+    log::info!("Parsed program = {:?}", ast);
     Ok(())
 }

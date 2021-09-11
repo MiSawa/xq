@@ -12,9 +12,11 @@ required-features = ["build-binary"]
 
 [features]
 default = ["build-binary"]
-build-binary = ["anyhow", "clap"]
+build-binary = ["anyhow", "clap", "simplelog"]
 
 [dependencies]
 anyhow = { version = "1.0", optional = true }
-clap = { version = "3.0.0-beta.4", optional = true}
+clap = { version = "3.0.0-beta.4", optional = true }
+log = "0.4.14"
 nom = "7.0.0"
+simplelog = { version = "0.10.0", optional = true }
