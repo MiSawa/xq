@@ -6,7 +6,7 @@ use std::path::PathBuf;
 #[clap(author, about, version)]
 #[clap(long_version(option_env!("LONG_VERSION").unwrap_or(env!("CARGO_PKG_VERSION"))))]
 #[clap(setting(AppSettings::ColoredHelp))]
-struct Opts {
+struct Args {
     #[clap(default_value("."))]
     query: String,
     #[clap(short('f'), long("from-file"), parse(from_os_str), conflicts_with("query"), value_hint(ValueHint::FilePath))]
@@ -14,11 +14,11 @@ struct Opts {
 }
 
 fn main() -> Result<()> {
-    let opts: Opts = Opts::parse();
-    let query = if let Some(path) = opts.query_file {
+    let args: Args = Args::parse();
+    let query = if let Some(path) = args.query_file {
         std::fs::read_to_string(path)?
     } else {
-        opts.query
+        args.query
     };
     let ast = xq::parser::parse_query(&query).with_context(|| "Parse query")?;
     println!("{:?}", ast);
