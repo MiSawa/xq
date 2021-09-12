@@ -1,6 +1,6 @@
 use crate::{
     ast::{
-        BinaryOp, BindPattern, Comparator, ConstantArray, ConstantJson, ConstantObject,
+        BinaryOp, BindPattern, Comparator, ConstantArray, ConstantValue, ConstantObject,
         ConstantPrimitive, FuncDef, Identifier, Import, ObjectBindPatternEntry, Program, Query,
         StringFragment, Suffix, Term, UnaryOp, UpdateOp,
     },
@@ -207,7 +207,7 @@ fn literal_string_fragment1(input: &str) -> ParseResult<&str> {
     verify(not_quote_slash, |s: &str| !s.is_empty())(input)
 }
 
-fn const_string(input: &str) -> ParseResult<String> {
+fn constant_string(input: &str) -> ParseResult<String> {
     enum Fragment<'a> {
         Str(&'a str),
         Char(char),
@@ -232,34 +232,34 @@ fn const_string(input: &str) -> ParseResult<String> {
     )(input)
 }
 
-fn constant_json(input: &str) -> ParseResult<ConstantJson> {
+fn constant_value(input: &str) -> ParseResult<ConstantValue> {
     fn primitive(input: &str) -> ParseResult<ConstantPrimitive> {
         alt((
             value(ConstantPrimitive::Null, tag("null")),
             value(ConstantPrimitive::True, tag("true")),
             value(ConstantPrimitive::False, tag("false")),
             map(number, ConstantPrimitive::Number),
-            map(const_string, ConstantPrimitive::String),
+            map(constant_string, ConstantPrimitive::String),
         ))(input)
     }
     alt((
         delimited(
             terminated(char('['), multispace0),
-            map(separated_list0(ws(char(',')), constant_json), |v| {
-                ConstantJson::Array(ConstantArray(v))
+            map(separated_list0(ws(char(',')), constant_value), |v| {
+                ConstantValue::Array(ConstantArray(v))
             }),
             preceded(multispace0, char(']')),
         ),
-        map(const_object, ConstantJson::Object),
-        map(primitive, ConstantJson::Primitive),
+        map(constant_object, ConstantValue::Object),
+        map(primitive, ConstantValue::Primitive),
     ))(input)
 }
-fn const_object(input: &str) -> ParseResult<ConstantObject> {
-    fn entry(input: &str) -> ParseResult<(String, ConstantJson)> {
+fn constant_object(input: &str) -> ParseResult<ConstantObject> {
+    fn entry(input: &str) -> ParseResult<(String, ConstantValue)> {
         separated_pair(
-            alt((const_string, map(identifier, |ident| ident.0))),
+            alt((constant_string, map(identifier, |ident| ident.0))),
             ws(char(':')),
-            constant_json,
+            constant_value,
         )(input)
     }
     delimited(
@@ -770,17 +770,17 @@ fn import(input: &str) -> ParseResult<Import> {
             preceded(
                 tag("import"),
                 tuple((
-                    ws(const_string),
+                    ws(constant_string),
                     preceded(tag("as"), ws(map(alt((identifier, variable)), Some))),
-                    terminated(opt(terminated(const_object, multispace0)), char(':')),
+                    terminated(opt(terminated(constant_object, multispace0)), char(':')),
                 )),
             ),
             preceded(
                 tag("include"),
                 tuple((
-                    ws(const_string),
+                    ws(constant_string),
                     success(None),
-                    terminated(opt(terminated(const_object, multispace0)), char(':')),
+                    terminated(opt(terminated(constant_object, multispace0)), char(':')),
                 )),
             ),
         )),
@@ -793,7 +793,7 @@ fn program(input: &str) -> ParseResult<Program> {
         tuple((
             opt(delimited(
                 tag("module"),
-                ws(const_object),
+                ws(constant_object),
                 terminated(char(';'), multispace0),
             )),
             many0(terminated(import, multispace0)),

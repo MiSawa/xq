@@ -209,17 +209,17 @@ pub enum ConstantPrimitive {
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
-pub enum ConstantJson {
+pub enum ConstantValue {
     Primitive(ConstantPrimitive),
     Array(ConstantArray),
     Object(ConstantObject),
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
-pub struct ConstantArray(pub Vec<ConstantJson>);
+pub struct ConstantArray(pub Vec<ConstantValue>);
 
 #[derive(Debug, Clone, Eq, PartialEq)]
-pub struct ConstantObject(pub Vec<(String, ConstantJson)>);
+pub struct ConstantObject(pub Vec<(String, ConstantValue)>);
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct Import {
