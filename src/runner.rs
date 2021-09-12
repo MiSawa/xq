@@ -248,7 +248,7 @@ fn run_term(env: &Env, term: &Term, consumer: &mut dyn Consumer) {
             consumer.consume(&env.object_changed(&Rc::new(Json::False)));
         }
         Term::Number(v) => {
-            consumer.consume(&env.object_changed(&Rc::new(Json::Number(v.clone()))));
+            consumer.consume(&env.object_changed(&Rc::new(Json::Number(*v))));
         }
         Term::String(s) => {
             struct ConcatenatedStr<'a, C>(&'a String, &'a mut C);
@@ -279,7 +279,7 @@ fn run_term(env: &Env, term: &Term, consumer: &mut dyn Consumer) {
                                 if let Some(obj) = &env.current_object {
                                     match obj.borrow() {
                                         Json::String(s) => {
-                                            let mut new_consumer = ConcatenatedStr(&s, self.1);
+                                            let mut new_consumer = ConcatenatedStr(s, self.1);
                                             run_term(
                                                 env,
                                                 &Term::String(self.0.clone()),
@@ -300,19 +300,19 @@ fn run_term(env: &Env, term: &Term, consumer: &mut dyn Consumer) {
                 consumer.consume(&env.object_changed(&Rc::new(Json::String("".to_string()))))
             }
         }
-        Term::Identity => consumer.consume(&env),
+        Term::Identity => consumer.consume(env),
         Term::Recurse => {
             if let Some(obj) = &env.current_object {
-                consumer.consume(&env);
+                consumer.consume(env);
                 match obj.borrow() {
                     Json::Array(v) => {
                         for i in 0..v.len() {
-                            run_term(&mut env.indexed(Index::Array(i)), term, consumer)
+                            run_term(&env.indexed(Index::Array(i)), term, consumer)
                         }
                     }
                     Json::Object(map) => {
                         for key in map.keys() {
-                            run_term(&mut env.indexed(Index::Object(key.clone())), term, consumer)
+                            run_term(&env.indexed(Index::Object(key.clone())), term, consumer)
                         }
                     }
                     _ => {}
@@ -388,7 +388,7 @@ fn run_term(env: &Env, term: &Term, consumer: &mut dyn Consumer) {
                     consumer.consume(env)
                 }
             }
-            run_term(env, term, &mut S(&suffixes, &mut Box::new(consumer)))
+            run_term(env, term, &mut S(suffixes, &mut Box::new(consumer)))
         }
         Term::FunctionCall { .. } => {}
         Term::Format(_) => {}

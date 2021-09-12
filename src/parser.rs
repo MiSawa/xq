@@ -1,7 +1,7 @@
 use crate::{
     ast::{
-        BinaryOp, BindPattern, Comparator, ConstantArray, ConstantValue, ConstantObject,
-        ConstantPrimitive, FuncDef, Identifier, Import, ObjectBindPatternEntry, Program, Query,
+        BinaryOp, BindPattern, Comparator, ConstantArray, ConstantObject, ConstantPrimitive,
+        ConstantValue, FuncDef, Identifier, Import, ObjectBindPatternEntry, Program, Query,
         StringFragment, Suffix, Term, UnaryOp, UpdateOp,
     },
     Number,
@@ -100,10 +100,22 @@ where
     )
 }
 
-const KEYWORDS: [&'static str; 21] = [
+const KEYWORDS: [&str; 21] = [
     "or", "and", "module", "import", "include", "def", "as", "label", "break", "null", "true",
     "false", "if", "then", "elif", "else", "end", "try", "catch", "reduce", "foreach",
 ];
+
+pub fn keyword(keyword: &'static str) -> impl Fn(&str) -> ParseResult<()> {
+    move |input: &str| {
+        map(
+            verify(
+                pair(tag(keyword), opt(alt((alphanumeric1, tag("_"))))),
+                |(_, x)| x.is_none(),
+            ),
+            |_| (),
+        )(input)
+    }
+}
 
 fn identifier(input: &str) -> ParseResult<Identifier> {
     map(
@@ -235,9 +247,9 @@ fn constant_string(input: &str) -> ParseResult<String> {
 fn constant_value(input: &str) -> ParseResult<ConstantValue> {
     fn primitive(input: &str) -> ParseResult<ConstantPrimitive> {
         alt((
-            value(ConstantPrimitive::Null, tag("null")),
-            value(ConstantPrimitive::True, tag("true")),
-            value(ConstantPrimitive::False, tag("false")),
+            value(ConstantPrimitive::Null, keyword("null")),
+            value(ConstantPrimitive::True, keyword("true")),
+            value(ConstantPrimitive::False, keyword("false")),
             map(number, ConstantPrimitive::Number),
             map(constant_string, ConstantPrimitive::String),
         ))(input)
@@ -257,7 +269,10 @@ fn constant_value(input: &str) -> ParseResult<ConstantValue> {
 fn constant_object(input: &str) -> ParseResult<ConstantObject> {
     fn entry(input: &str) -> ParseResult<(String, ConstantValue)> {
         separated_pair(
-            alt((constant_string, map(identifier, |ident| ident.0))),
+            alt((
+                constant_string,
+                map(identifier_allow_keyword, |ident| ident.0),
+            )),
             ws(char(':')),
             constant_value,
         )(input)
@@ -335,7 +350,7 @@ fn term(input: &str) -> ParseResult<Term> {
     fn object_term_entry(input: &str) -> ParseResult<(Query, Option<Query>)> {
         pair(
             alt((
-                map(identifier, |ident| {
+                map(identifier_allow_keyword, |ident| {
                     Term::String(vec![StringFragment::String(ident.0)]).into()
                 }),
                 map(variable, |ident| {
@@ -367,9 +382,9 @@ fn term(input: &str) -> ParseResult<Term> {
     }
     fn term_inner(input: &str) -> ParseResult<Term> {
         alt((
-            value(Term::Null, tag("null")),
-            value(Term::False, tag("false")),
-            value(Term::True, tag("true")),
+            value(Term::Null, keyword("null")),
+            value(Term::False, keyword("false")),
+            value(Term::True, keyword("true")),
             map(number, Term::Number),
             map(
                 delimited(
@@ -396,7 +411,7 @@ fn term(input: &str) -> ParseResult<Term> {
                 Term::Object,
             ),
             map(
-                preceded(pair(tag("break"), multispace0), variable),
+                preceded(pair(keyword("break"), multispace0), variable),
                 Term::Break,
             ),
             map(
@@ -483,7 +498,7 @@ fn term(input: &str) -> ParseResult<Term> {
 fn funcdef(input: &str) -> ParseResult<FuncDef> {
     map(
         tuple((
-            preceded(tag("def"), ws(identifier)),
+            preceded(keyword("def"), ws(identifier)),
             opt(delimited(
                 char('('),
                 separated_list1(char(';'), ws(alt((identifier, variable)))),
@@ -576,8 +591,8 @@ fn query(input: &str) -> ParseResult<Query> {
             ),
             map(
                 pair(
-                    preceded(tag("try"), preceded(multispace0, query)),
-                    opt(preceded(ws(tag("catch")), query10)),
+                    preceded(keyword("try"), preceded(multispace0, query)),
+                    opt(preceded(ws(keyword("catch")), query10)),
                 ),
                 |(lhs, rhs)| Query::Try {
                     body: Box::new(lhs),
@@ -586,7 +601,7 @@ fn query(input: &str) -> ParseResult<Query> {
             ),
             map(
                 tuple((
-                    terminated(term, ws(tag("as"))),
+                    terminated(term, ws(keyword("as"))),
                     separated_list1(ws(tag("?//")), bind_pattern),
                     preceded(ws(char('|')), query10),
                 )),
@@ -598,7 +613,7 @@ fn query(input: &str) -> ParseResult<Query> {
             ),
             map(
                 tuple((
-                    delimited(tag("reduce"), ws(term), tag("as")),
+                    delimited(keyword("reduce"), ws(term), keyword("as")),
                     ws(bind_pattern),
                     delimited(char('('), ws(query), char(';')),
                     terminated(ws(query), char(')')),
@@ -612,7 +627,7 @@ fn query(input: &str) -> ParseResult<Query> {
             ),
             map(
                 tuple((
-                    delimited(tag("foreach"), ws(term), tag("as")),
+                    delimited(keyword("foreach"), ws(term), keyword("as")),
                     ws(bind_pattern),
                     delimited(char('('), ws(query), char(';')),
                     terminated(
@@ -631,15 +646,19 @@ fn query(input: &str) -> ParseResult<Query> {
             map(
                 terminated(
                     tuple((
-                        delimited(terminated(tag("if"), multispace1), query, ws(tag("then"))),
+                        delimited(
+                            terminated(keyword("if"), multispace1),
+                            query,
+                            ws(keyword("then")),
+                        ),
                         query,
                         many0(pair(
-                            preceded(ws(tag("elif")), query),
-                            preceded(ws(tag("then")), query),
+                            preceded(ws(keyword("elif")), query),
+                            preceded(ws(keyword("then")), query),
                         )),
-                        opt(preceded(ws(tag("else")), query)),
+                        opt(preceded(ws(keyword("else")), query)),
                     )),
-                    preceded(multispace0, tag("end")),
+                    preceded(multispace0, keyword("end")),
                 ),
                 |(cond, body, chain, other)| {
                     let mut o = other.map(Box::new);
@@ -659,7 +678,7 @@ fn query(input: &str) -> ParseResult<Query> {
             ),
             map(
                 pair(
-                    delimited(tag("label"), ws(variable), char('|')),
+                    delimited(keyword("label"), ws(variable), char('|')),
                     preceded(multispace0, query),
                 ),
                 |(var, query)| Query::Label {
@@ -721,14 +740,14 @@ fn query(input: &str) -> ParseResult<Query> {
         })(input)
     }
     fn query5(input: &str) -> ParseResult<Query> {
-        binop_chain_left_assoc(ws(tag("and")), query6, |lhs, _, rhs| Query::Operate {
+        binop_chain_left_assoc(ws(keyword("and")), query6, |lhs, _, rhs| Query::Operate {
             lhs: Box::new(lhs),
             operator: BinaryOp::And,
             rhs: Box::new(rhs),
         })(input)
     }
     fn query4(input: &str) -> ParseResult<Query> {
-        binop_chain_left_assoc(ws(tag("or")), query5, |lhs, _, rhs| Query::Operate {
+        binop_chain_left_assoc(ws(keyword("or")), query5, |lhs, _, rhs| Query::Operate {
             lhs: Box::new(lhs),
             operator: BinaryOp::Or,
             rhs: Box::new(rhs),
@@ -768,15 +787,15 @@ fn import(input: &str) -> ParseResult<Import> {
     map(
         alt((
             preceded(
-                tag("import"),
+                keyword("import"),
                 tuple((
                     ws(constant_string),
-                    preceded(tag("as"), ws(map(alt((identifier, variable)), Some))),
+                    preceded(keyword("as"), ws(map(alt((identifier, variable)), Some))),
                     terminated(opt(terminated(constant_object, multispace0)), char(':')),
                 )),
             ),
             preceded(
-                tag("include"),
+                keyword("include"),
                 tuple((
                     ws(constant_string),
                     success(None),
@@ -792,7 +811,7 @@ fn program(input: &str) -> ParseResult<Program> {
     map(
         tuple((
             opt(delimited(
-                tag("module"),
+                keyword("module"),
                 ws(constant_object),
                 terminated(char(';'), multispace0),
             )),
