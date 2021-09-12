@@ -1,5 +1,5 @@
 use crate::{
-    ast::{FuncDef, Identifier, Program, Query, StringFragment, Suffix, Term},
+    ast::{FuncDef, Identifier, Program, Query, StringFragment, Suffix, Term, UnaryOp},
     Number,
 };
 use num::ToPrimitive;
@@ -10,7 +10,7 @@ use serde::{
 };
 use std::{borrow::Borrow, collections::HashMap, fmt::Formatter, rc::Rc};
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Json {
     Null,
     True,
@@ -166,19 +166,25 @@ pub enum Index {
     Object(Rc<String>),
 }
 
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub enum FuncLike {
+    Function(Rc<FuncDef>),
+    Variable(Rc<Json>),
+}
+
 #[derive(Clone, Default, Debug)]
 pub struct Env {
     pub root_object: Option<Rc<Json>>,
     pub current_object: Option<Rc<Json>>,
     pub path: im_rc::Vector<Index>,
-    pub functions: im_rc::HashMap<Identifier, Rc<FuncDef>>,
+    pub functions: im_rc::HashMap<(Identifier, usize), FuncLike>,
 }
 
 impl Env {
-    pub fn object_changed(&self, json: &Rc<Json>) -> Self {
+    pub fn object_changed(&self, json: Rc<Json>) -> Self {
         Env {
             root_object: Some(json.clone()),
-            current_object: Some(json.clone()),
+            current_object: Some(json),
             path: im_rc::Vector::default(),
             functions: self.functions.clone(),
         }
@@ -213,7 +219,19 @@ impl Env {
 
     fn func_defined(&self, func: &FuncDef) -> Self {
         let mut new_functions = self.functions.clone();
-        new_functions.insert(func.name.clone(), Rc::new(func.clone()));
+        new_functions.insert(
+            (func.name.clone(), func.args.len()),
+            FuncLike::Function(Rc::new(func.clone())),
+        );
+        Env {
+            functions: new_functions,
+            ..self.clone()
+        }
+    }
+
+    fn variable_defined(&self, name: &Identifier, content: Rc<Json>) -> Self {
+        let mut new_functions = self.functions.clone();
+        new_functions.insert((name.clone(), 0), FuncLike::Variable(content));
         Env {
             functions: new_functions,
             ..self.clone()
@@ -239,16 +257,16 @@ impl<'a> Consumer for Box<&mut (dyn Consumer + 'a)> {
 fn run_term(env: &Env, term: &Term, consumer: &mut dyn Consumer) {
     match term {
         Term::Null => {
-            consumer.consume(&env.object_changed(&Rc::new(Json::Null)));
+            consumer.consume(&env.object_changed(Rc::new(Json::Null)));
         }
         Term::True => {
-            consumer.consume(&env.object_changed(&Rc::new(Json::True)));
+            consumer.consume(&env.object_changed(Rc::new(Json::True)));
         }
         Term::False => {
-            consumer.consume(&env.object_changed(&Rc::new(Json::False)));
+            consumer.consume(&env.object_changed(Rc::new(Json::False)));
         }
         Term::Number(v) => {
-            consumer.consume(&env.object_changed(&Rc::new(Json::Number(*v))));
+            consumer.consume(&env.object_changed(Rc::new(Json::Number(*v))));
         }
         Term::String(s) => {
             struct ConcatenatedStr<'a, C>(&'a String, &'a mut C);
@@ -257,7 +275,7 @@ fn run_term(env: &Env, term: &Term, consumer: &mut dyn Consumer) {
                     if let Some(obj) = &env.current_object {
                         match obj.borrow() {
                             Json::String(s) => self.1.consume(
-                                &env.object_changed(&Rc::new(Json::String(s.to_string() + self.0))),
+                                &env.object_changed(Rc::new(Json::String(s.to_string() + self.0))),
                             ),
                             _ => todo!(),
                         }
@@ -297,7 +315,7 @@ fn run_term(env: &Env, term: &Term, consumer: &mut dyn Consumer) {
                     }
                 }
             } else {
-                consumer.consume(&env.object_changed(&Rc::new(Json::String("".to_string()))))
+                consumer.consume(&env.object_changed(Rc::new(Json::String("".to_string()))))
             }
         }
         Term::Identity => consumer.consume(env),
@@ -320,12 +338,6 @@ fn run_term(env: &Env, term: &Term, consumer: &mut dyn Consumer) {
             }
         }
         Term::Suffix(term, suffixes) => {
-            struct S<'a, C>(&'a [Suffix], &'a mut C);
-            impl<'a, C: Consumer> Consumer for S<'a, C> {
-                fn consume(&mut self, env: &Env) {
-                    suffix(env, self.0, self.1)
-                }
-            }
             fn suffix(env: &Env, suffixes: &[Suffix], consumer: &mut dyn Consumer) {
                 if let Some((last, other)) = suffixes.split_last() {
                     match last {
@@ -388,15 +400,83 @@ fn run_term(env: &Env, term: &Term, consumer: &mut dyn Consumer) {
                     consumer.consume(env)
                 }
             }
-            run_term(env, term, &mut S(suffixes, &mut Box::new(consumer)))
+            run_term(env, term, &mut |e: &Env| suffix(e, suffixes, consumer))
         }
-        Term::FunctionCall { .. } => {}
-        Term::Format(_) => {}
+        Term::FunctionCall { name, args } => {
+            if let Some(func_def) = env.functions.get(&(name.clone(), args.len())) {
+                match func_def {
+                    FuncLike::Function(func_def) => {
+                        fn call(
+                            env: &Env,
+                            func_def: &FuncDef,
+                            args: &[Query],
+                            consumer: &mut dyn Consumer,
+                        ) {
+                            if let Some((last, other)) = args.split_last() {
+                                run_query(env, last, &mut |e: &Env| {
+                                    if let Some(obj) = &e.current_object {
+                                        call(
+                                            &env.variable_defined(
+                                                &func_def.args[args.len() - 1],
+                                                obj.clone(),
+                                            ),
+                                            func_def,
+                                            other,
+                                            consumer,
+                                        )
+                                    }
+                                });
+                            } else {
+                                consumer.consume(env)
+                            }
+                        }
+                        call(env, func_def, args, consumer)
+                    }
+                    FuncLike::Variable(content) => {
+                        assert!(args.is_empty());
+                        consumer.consume(&env.object_changed(content.clone()))
+                    }
+                }
+            } else {
+                todo!("Error handling: function not found")
+            }
+        }
+        Term::Format(_) => {
+            unimplemented!()
+        }
         Term::Query(q) => run_query(env, q, consumer),
-        Term::Unary(_, _) => {}
-        Term::Object(_) => {}
-        Term::Array(_) => {}
-        Term::Break(_) => {}
+        Term::Unary(op, term) => {
+            run_term(env, term, &mut |e: &Env| {
+                if let Some(o) = &e.current_object {
+                    match (op, o.borrow()) {
+                        (UnaryOp::Plus, Json::Number(_)) => consumer.consume(e),
+                        (UnaryOp::Minus, Json::Number(Number::Integer(v))) => consumer.consume(
+                            &e.object_changed(Rc::new(Json::Number(Number::Integer(-*v)))),
+                        ),
+                        (UnaryOp::Minus, Json::Number(Number::Real(v))) => consumer
+                            .consume(&e.object_changed(Rc::new(Json::Number(Number::Real(-*v))))),
+                        _ => unimplemented!(),
+                    }
+                }
+            });
+        }
+        Term::Object(_) => {
+            unimplemented!()
+        }
+        Term::Array(query) => {
+            let mut v = im_rc::Vector::new();
+            if let Some(query) = query {
+                run_query(env, query, &mut |e: &Env| {
+                    if let Some(o) = &e.current_object {
+                        v.push_back(o.clone())
+                    }
+                });
+            }
+            consumer.consume(&env.object_changed(Rc::new(Json::Array(v))))
+        }
+        Term::Break(_) => {
+            unimplemented!()
+        }
     }
 }
 
@@ -406,16 +486,7 @@ fn run_query(env: &Env, query: &Query, consumer: &mut dyn Consumer) {
         Query::WithFunc { function, query } => {
             run_query(&env.func_defined(function), query, consumer)
         }
-        Query::Pipe { lhs, rhs } => {
-            struct Piped<'a, C>(&'a Query, &'a mut C);
-            impl<'a, C: Consumer> Consumer for Piped<'a, C> {
-                fn consume(&mut self, env: &Env) {
-                    run_query(env, self.0, self.1)
-                }
-            }
-            let mut c = Box::new(consumer);
-            run_query(env, lhs, &mut Piped(rhs, &mut c))
-        }
+        Query::Pipe { lhs, rhs } => run_query(env, lhs, &mut |e: &Env| run_query(e, rhs, consumer)),
         Query::Concat { lhs, rhs } => {
             run_query(env, lhs, consumer);
             run_query(env, rhs, consumer);

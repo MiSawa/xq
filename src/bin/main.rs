@@ -71,7 +71,7 @@ fn main() -> Result<()> {
         let elem = elem?;
 
         run_with_env(
-            &env.object_changed(&Rc::new(elem)),
+            &env.object_changed(Rc::new(elem)),
             &ast,
             &mut |env: &Env| {
                 if let Some(obj) = &env.current_object {
