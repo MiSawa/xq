@@ -6,7 +6,7 @@ use std::{
     path::PathBuf,
     rc::Rc,
 };
-use xq::runner::{run_with_env, Env, Json};
+use xq::simple::runner::{run_with_env, Env, Json};
 
 #[derive(Clap, Debug)]
 #[clap(author, about, version)]

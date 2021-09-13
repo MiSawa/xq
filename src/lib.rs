@@ -1,6 +1,6 @@
 pub mod ast;
 pub mod parser;
-pub mod runner;
+pub mod simple;
 
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub enum Number {
