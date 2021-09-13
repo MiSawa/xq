@@ -1,5 +1,6 @@
 use crate::{
     ast::{FuncDef, Identifier, Program, Query, StringFragment, Suffix, Term, UnaryOp},
+    number::IntOrReal,
     Number,
 };
 use num::ToPrimitive;
@@ -31,8 +32,12 @@ impl Serialize for Json {
             Json::Null => serializer.serialize_none(),
             Json::True => serializer.serialize_bool(true),
             Json::False => serializer.serialize_bool(false),
-            Json::Number(Number::Real(v)) => serializer.serialize_f64(*v),
-            Json::Number(Number::Integer(v)) => serializer.serialize_i64(*v),
+            Json::Number(v) => {
+                match v.as_int_or_real() {
+                    IntOrReal::Integer(v) => serializer.serialize_i64(v.to_i64().unwrap()), // TODO
+                    IntOrReal::Real(v) => serializer.serialize_f64(*v),
+                }
+            }
             Json::String(s) => serializer.serialize_str(s),
             Json::Array(v) => {
                 let mut seq = serializer.serialize_seq(Some(v.len()))?;
@@ -84,25 +89,21 @@ impl<'de> Deserialize<'de> for Json {
             where
                 E: serde::de::Error,
             {
-                Ok(Json::Number(Number::Integer(v)))
+                Ok(Json::Number(Number::from_integer(v.into())))
             }
 
             fn visit_u64<E>(self, v: u64) -> Result<Self::Value, E>
             where
                 E: serde::de::Error,
             {
-                if let Some(v) = v.to_i64() {
-                    Ok(Json::Number(Number::Integer(v)))
-                } else {
-                    Ok(Json::Number(Number::Real(v.to_f64().unwrap())))
-                }
+                Ok(Json::Number(Number::from_integer(v.into())))
             }
 
             fn visit_f64<E>(self, v: f64) -> Result<Self::Value, E>
             where
                 E: serde::de::Error,
             {
-                Ok(Json::Number(Number::Real(v)))
+                Ok(Json::Number(Number::from_real(v)))
             }
 
             fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
@@ -266,7 +267,7 @@ fn run_term(env: &Env, term: &Term, consumer: &mut dyn Consumer) {
             consumer.consume(&env.object_changed(Rc::new(Json::False)));
         }
         Term::Number(v) => {
-            consumer.consume(&env.object_changed(Rc::new(Json::Number(*v))));
+            consumer.consume(&env.object_changed(Rc::new(Json::Number(v.clone()))));
         }
         Term::String(s) => {
             struct ConcatenatedStr<'a, C>(&'a String, &'a mut C);
@@ -373,9 +374,9 @@ fn run_term(env: &Env, term: &Term, consumer: &mut dyn Consumer) {
                                     match obj.borrow() {
                                         Json::Number(v) => {
                                             suffix(env, other, &mut |e: &Env| {
-                                                let i = match v {
-                                                    Number::Integer(v) => v.to_usize(),
-                                                    Number::Real(v) => v.round().to_usize(),
+                                                let i = match v.as_int_or_real() {
+                                                    IntOrReal::Integer(v) => v.to_usize(),
+                                                    IntOrReal::Real(v) => v.round().to_usize(), // TODO
                                                 };
                                                 if let Some(i) = i {
                                                     consumer.consume(&e.indexed(Index::Array(i)))
@@ -450,11 +451,9 @@ fn run_term(env: &Env, term: &Term, consumer: &mut dyn Consumer) {
                 if let Some(o) = &e.current_object {
                     match (op, o.borrow()) {
                         (UnaryOp::Plus, Json::Number(_)) => consumer.consume(e),
-                        (UnaryOp::Minus, Json::Number(Number::Integer(v))) => consumer.consume(
-                            &e.object_changed(Rc::new(Json::Number(Number::Integer(-*v)))),
-                        ),
-                        (UnaryOp::Minus, Json::Number(Number::Real(v))) => consumer
-                            .consume(&e.object_changed(Rc::new(Json::Number(Number::Real(-*v))))),
+                        (UnaryOp::Minus, Json::Number(v)) => {
+                            consumer.consume(&e.object_changed(Rc::new(Json::Number(-v.clone()))))
+                        }
                         _ => unimplemented!(),
                     }
                 }
