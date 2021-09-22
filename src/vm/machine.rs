@@ -1,7 +1,7 @@
 use crate::{
     data_structure::{PStack, PVector},
     vm::{
-        bytecode::NamedFunction,
+        bytecode::{Closure, NamedFunction},
         error::{
             QueryExecutionError, RecoverableError, RecoverableErrorWrapper, UnrecoverableError,
             UnrecoverableErrorWrapper,
@@ -14,7 +14,7 @@ use crate::{
 #[derive(Debug, Clone)]
 struct Scope {
     slots: PVector<Option<Value>>,
-    closure_slots: PVector<Option<Address>>,
+    closure_slots: PVector<Option<Closure>>,
 }
 
 impl Scope {
@@ -44,6 +44,7 @@ struct State {
 
     scopes: PVector<(Option<Scope>, PStack<Scope>)>,
     scope_stack: PStack<(Address, ScopeId)>, // (pc, pushed_scope)
+    closure_stack: PStack<Closure>,
 }
 
 impl Environment {
@@ -65,6 +66,7 @@ impl State {
             stack: Default::default(),
             scopes: Default::default(),
             scope_stack: Default::default(),
+            closure_stack: Default::default(),
         }
     }
 
@@ -83,6 +85,16 @@ impl State {
         Ok(())
     }
 
+    fn push_closure(&mut self, closure: Closure) {
+        self.closure_stack.push(closure)
+    }
+
+    fn pop_closure(&mut self) -> Result<Closure, UnrecoverableError> {
+        self.closure_stack
+            .pop()
+            .ok_or(UnrecoverableError::PopEmptyStack)
+    }
+
     fn slot(&mut self, scoped_slot: &ScopedSlot) -> Result<&mut Option<Value>, UnrecoverableError> {
         let scope = self
             .scopes
@@ -91,6 +103,21 @@ impl State {
             .ok_or(UnrecoverableError::UninitializedScope)?;
         scope
             .slots
+            .get_mut(scoped_slot.1)
+            .ok_or(UnrecoverableError::UnknownSlot)
+    }
+
+    fn closure_slot(
+        &mut self,
+        scoped_slot: &ScopedSlot,
+    ) -> Result<&mut Option<Closure>, UnrecoverableError> {
+        let scope = self
+            .scopes
+            .get_mut(scoped_slot.0 .0)
+            .and_then(|(x, _)| x.as_mut())
+            .ok_or(UnrecoverableError::UninitializedScope)?;
+        scope
+            .closure_slots
             .get_mut(scoped_slot.1)
             .ok_or(UnrecoverableError::UnknownSlot)
     }
@@ -194,7 +221,13 @@ fn run_code(env: &mut Environment) -> Result<Option<Result<Value>>, Unrecoverabl
                 let value = state.pop()?;
                 state.slot(scoped_slot)?.replace(value);
             }
-            StoreClosure(_) => todo!("Implement {:?}", code),
+            PushClosure(closure) => {
+                state.push_closure(*closure);
+            }
+            StoreClosure(slot) => {
+                let closure = state.pop_closure()?;
+                state.closure_slot(slot)?.replace(closure);
+            }
             Object => todo!("Implement {:?}", code),
             Append(scoped_slot) => {
                 let value = state.pop()?;
@@ -233,8 +266,17 @@ fn run_code(env: &mut Environment) -> Result<Option<Result<Value>>, Unrecoverabl
                     continue;
                 }
             }
-            PushClosure(_) => todo!("Implement {:?}", code),
-            CallClosure { .. } => todo!("Implement {:?}", code),
+            CallClosure {
+                slot,
+                return_address,
+            } => {
+                let closure = state
+                    .closure_slot(slot)?
+                    .ok_or(UnrecoverableError::UninitializedSlot)?;
+                assert_eq!(call_pc.replace(*return_address), None);
+                state.pc = closure.0;
+                continue;
+            }
             Call {
                 function,
                 return_address,
@@ -255,7 +297,11 @@ fn run_code(env: &mut Environment) -> Result<Option<Result<Value>>, Unrecoverabl
                     .expect("NewScope should be called after Call");
                 state.push_scope(*id, *variable_cnt, *closure_cnt, return_address);
             }
-            Ret => {}
+            Ret => {
+                let return_address = state.pop_scope()?;
+                state.pc = return_address;
+                continue;
+            }
             Output => {
                 return if let Some(err) = err {
                     Ok(Some(Err(err.into())))

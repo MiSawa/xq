@@ -7,6 +7,9 @@ pub struct NamedFunction<F: Clone + ?Sized> {
     pub func: F,
 }
 
+#[derive(Debug, Copy, Clone, Hash, Ord, PartialOrd, Eq, PartialEq)]
+pub(crate) struct Closure(pub(crate) Address);
+
 pub type NamedFn1 = NamedFunction<Box<fn(Value) -> Result<Value>>>;
 pub type NamedFn2 = NamedFunction<Box<fn(Value, Value) -> Result<Value>>>;
 
@@ -27,6 +30,7 @@ pub(crate) enum ByteCode {
     Const(Value),
     Load(ScopedSlot),
     Store(ScopedSlot),
+    PushClosure(Closure),
     StoreClosure(ScopedSlot),
     Object,
     Append(ScopedSlot),
@@ -40,7 +44,6 @@ pub(crate) enum ByteCode {
     Backtrack,
     Jump(Address),
     JumpUnless(Address),
-    PushClosure(Address),
     CallClosure {
         slot: ScopedSlot,
         return_address: Address,

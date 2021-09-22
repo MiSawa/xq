@@ -1,8 +1,8 @@
 use crate::{
-    ast::{self, Comparator, FuncArg, FuncDef, Identifier, Query, StringFragment, Term, UnaryOp},
+    ast::{self, FuncArg, FuncDef, Identifier, Query, StringFragment, Term, UnaryOp},
     data_structure::{PHashMap, PVector},
     vm::{
-        bytecode::{NamedFn1, NamedFn2, NamedFunction},
+        bytecode::{Closure, NamedFn1, NamedFunction},
         intrinsic, Address, ByteCode, Program, ScopeId, ScopedSlot, Value,
     },
 };
@@ -307,8 +307,9 @@ impl Compiler {
             .ok_or_else(|| CompileError::UnknownFunction(function.0.clone()))
     }
 
-    fn compile_function_inner(&mut self, args: &Vec<FuncArg>, body: &Query) -> Result<Address> {
+    fn compile_function_inner(&mut self, args: &[FuncArg], body: &Query) -> Result<Address> {
         let scope_id = self.enter_scope();
+        #[allow(clippy::needless_collect)] // This collect is needed to unborrow `self`
         let slots: Vec<_> = args
             .iter()
             .map(|arg| match arg {
@@ -340,7 +341,7 @@ impl Compiler {
     }
 
     fn compile_closure(&mut self, closure: &Query) -> Result<Address> {
-        self.compile_function_inner(&vec![], closure)
+        self.compile_function_inner(&[], closure)
     }
 
     fn compile_funcdef(&mut self, func: &FuncDef) -> Result<()> {
@@ -363,7 +364,7 @@ impl Compiler {
     fn compile_func_call(
         &mut self,
         function: &FunctionOrClosure,
-        args: &Vec<Query>,
+        args: &[Query],
         next: Address,
     ) -> Result<Address> {
         Ok(match function {
@@ -374,8 +375,10 @@ impl Compiler {
                     next = match ty {
                         ArgType::Closure => {
                             let closure_address = self.compile_closure(arg)?;
-                            self.emitter
-                                .emit_normal_op(ByteCode::PushClosure(closure_address), next)
+                            self.emitter.emit_normal_op(
+                                ByteCode::PushClosure(Closure(closure_address)),
+                                next,
+                            )
                         }
                         ArgType::Value => self.compile_query(arg, next)?,
                     }
@@ -419,16 +422,17 @@ impl Compiler {
             Term::Recurse => todo!(),
             Term::Suffix(_, _) => todo!(),
             Term::Variable(name) => {
-                let slot = self.lookup_variable(name)?.clone();
+                let slot = *self.lookup_variable(name)?;
                 let load = self.emitter.emit_normal_op(ByteCode::Load(slot), next);
                 self.emitter.emit_normal_op(ByteCode::Pop, load)
             }
             Term::FunctionCall { name, args } => {
                 // TODO: How to avoid name.clone()?
-                let resolved =
-                    self.lookup_function(&FunctionIdentifier(name.clone(), args.len()))?;
                 // TODO: How to avoid resolved.clone()?....
-                self.compile_func_call(&resolved.clone(), args, next)?
+                let resolved = self
+                    .lookup_function(&FunctionIdentifier(name.clone(), args.len()))?
+                    .clone();
+                self.compile_func_call(&resolved, args, next)?
             }
             Term::Format(_) => todo!(),
             Term::Query(query) => self.compile_query(query, next)?,
@@ -513,68 +517,7 @@ impl Compiler {
             Query::Operate { .. } => todo!(),
             Query::Update { .. } => todo!(),
             Query::Compare { lhs, operator, rhs } => {
-                let operator = match operator {
-                    Comparator::Eq => NamedFn2 {
-                        name: "Equal",
-                        func: Box::new(|lhs, rhs| {
-                            Ok(if intrinsic::compare(lhs, rhs).is_eq() {
-                                Value::True
-                            } else {
-                                Value::False
-                            })
-                        }),
-                    },
-                    Comparator::Neq => NamedFn2 {
-                        name: "NotEqual",
-                        func: Box::new(|lhs, rhs| {
-                            Ok(if intrinsic::compare(lhs, rhs).is_ne() {
-                                Value::True
-                            } else {
-                                Value::False
-                            })
-                        }),
-                    },
-                    Comparator::Gt => NamedFn2 {
-                        name: "GreaterThan",
-                        func: Box::new(|lhs, rhs| {
-                            Ok(if intrinsic::compare(lhs, rhs).is_gt() {
-                                Value::True
-                            } else {
-                                Value::False
-                            })
-                        }),
-                    },
-                    Comparator::Ge => NamedFn2 {
-                        name: "GreaterOrEqual",
-                        func: Box::new(|lhs, rhs| {
-                            Ok(if intrinsic::compare(lhs, rhs).is_ge() {
-                                Value::True
-                            } else {
-                                Value::False
-                            })
-                        }),
-                    },
-                    Comparator::Lt => NamedFn2 {
-                        name: "LessThan",
-                        func: Box::new(|lhs, rhs| {
-                            Ok(if intrinsic::compare(lhs, rhs).is_lt() {
-                                Value::True
-                            } else {
-                                Value::False
-                            })
-                        }),
-                    },
-                    Comparator::Le => NamedFn2 {
-                        name: "LessOrEqual",
-                        func: Box::new(|lhs, rhs| {
-                            Ok(if intrinsic::compare(lhs, rhs).is_le() {
-                                Value::True
-                            } else {
-                                Value::False
-                            })
-                        }),
-                    },
-                };
+                let operator = intrinsic::comparator(operator);
                 let next = self
                     .emitter
                     .emit_normal_op(ByteCode::Intrinsic2(operator), next);
