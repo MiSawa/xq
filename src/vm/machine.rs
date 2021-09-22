@@ -197,150 +197,152 @@ impl Iterator for Machine {
 fn run_code(env: &mut Environment) -> Option<Result<Value>> {
     let mut err: Option<QueryExecutionError> = None;
     let mut call_pc: Option<Address> = None;
-    let mut state = env.pop_fork()?;
-    while let Some(code) = env.program.fetch_code(state.pc) {
-        use ByteCode::*;
-        match code {
-            Unreachable => panic!("Reached to the unreachable"),
-            PlaceHolder => panic!("Reached to a place holder"),
-            Nop => {}
-            Push(v) => {
-                state.push(v.clone());
-            }
-            Pop => {
-                state.pop();
-            }
-            Dup => {
-                state.dup();
-            }
-            Const(v) => {
-                state.pop();
-                state.push(v.clone())
-            }
-            Load(scoped_slot) => {
-                let value = state
-                    .slot(scoped_slot)
-                    .as_ref()
-                    .ok_or(ProgramError::UninitializedSlot)
-                    .unwrap()
-                    .clone();
-                state.push(value);
-            }
-            Store(scoped_slot) => {
-                let value = state.pop();
-                state.slot(scoped_slot).replace(value);
-            }
-            PushClosure(closure) => {
-                state.push_closure(*closure);
-            }
-            StoreClosure(slot) => {
-                let closure = state.pop_closure();
-                state.closure_slot(slot).replace(closure);
-            }
-            Object => todo!("Implement {:?}", code),
-            Append(scoped_slot) => {
-                let value = state.pop();
-                let slot_item = state
-                    .slot(scoped_slot)
-                    .as_mut()
-                    .ok_or(ProgramError::UninitializedSlot)
-                    .unwrap();
-                match slot_item {
-                    Value::Array(v) => {
-                        v.push_back(value);
-                    }
-                    _ => {
-                        panic!("expected a array to append to, but was not an array");
-                    }
+    'backtrack: loop {
+        let mut state = env.pop_fork()?;
+        'cycle: loop {
+            let code = env.program.fetch_code(state.pc)?;
+            use ByteCode::*;
+            match code {
+                Unreachable => panic!("Reached to the unreachable"),
+                PlaceHolder => panic!("Reached to a place holder"),
+                Nop => {}
+                Push(v) => {
+                    state.push(v.clone());
                 }
-            }
-            Fork { fork_pc } => {
-                let fork_pc = *fork_pc;
-                env.push_fork(&state, fork_pc);
-            }
-            ForkTryBegin => todo!("Implement {:?}", code),
-            ForkTryEnd => todo!("Implement {:?}", code),
-            ForkAlt => todo!("Implement {:?}", code),
-            ForkLabel => todo!("Implement {:?}", code),
-            Backtrack => todo!("Implement {:?}", code),
-            Jump(address) => {
-                state.pc = *address;
-                continue;
-            }
-            JumpUnless(address) => {
-                let value = state.pop();
-                if !truthy(value) {
-                    state.pc = *address;
-                    continue;
+                Pop => {
+                    state.pop();
                 }
-            }
-            CallClosure {
-                slot,
-                return_address,
-            } => {
-                let closure = state
-                    .closure_slot(slot)
-                    .ok_or(ProgramError::UninitializedSlot)
-                    .unwrap();
-                assert_eq!(call_pc.replace(*return_address), None);
-                state.pc = closure.0;
-                continue;
-            }
-            Call {
-                function,
-                return_address,
-            } => {
-                assert_eq!(call_pc.replace(*return_address), None);
-                state.pc = *function;
-                continue;
-            }
-            PushPC => todo!("Implement {:?}", code),
-            CallPC => todo!("Implement {:?}", code),
-            NewScope {
-                id,
-                variable_cnt,
-                closure_cnt,
-            } => {
-                let return_address = call_pc
-                    .take()
-                    .expect("NewScope should be called after Call");
-                state.push_scope(*id, *variable_cnt, *closure_cnt, return_address);
-            }
-            Ret => {
-                let return_address = state.pop_scope();
-                state.pc = return_address;
-                continue;
-            }
-            Output => {
-                return if let Some(err) = err {
-                    Some(Err(err))
-                } else {
+                Dup => {
+                    state.dup();
+                }
+                Const(v) => {
+                    state.pop();
+                    state.push(v.clone())
+                }
+                Load(scoped_slot) => {
+                    let value = state
+                        .slot(scoped_slot)
+                        .as_ref()
+                        .ok_or(ProgramError::UninitializedSlot)
+                        .unwrap()
+                        .clone();
+                    state.push(value);
+                }
+                Store(scoped_slot) => {
                     let value = state.pop();
-                    Some(Ok(value))
+                    state.slot(scoped_slot).replace(value);
+                }
+                PushClosure(closure) => {
+                    state.push_closure(*closure);
+                }
+                StoreClosure(slot) => {
+                    let closure = state.pop_closure();
+                    state.closure_slot(slot).replace(closure);
+                }
+                Object => todo!("Implement {:?}", code),
+                Append(scoped_slot) => {
+                    let value = state.pop();
+                    let slot_item = state
+                        .slot(scoped_slot)
+                        .as_mut()
+                        .ok_or(ProgramError::UninitializedSlot)
+                        .unwrap();
+                    match slot_item {
+                        Value::Array(v) => {
+                            v.push_back(value);
+                        }
+                        _ => {
+                            panic!("expected a array to append to, but was not an array");
+                        }
+                    }
+                }
+                Fork { fork_pc } => {
+                    let fork_pc = *fork_pc;
+                    env.push_fork(&state, fork_pc);
+                }
+                ForkTryBegin => todo!("Implement {:?}", code),
+                ForkTryEnd => todo!("Implement {:?}", code),
+                ForkAlt => todo!("Implement {:?}", code),
+                ForkLabel => todo!("Implement {:?}", code),
+                Backtrack => continue 'backtrack,
+                Jump(address) => {
+                    state.pc = *address;
+                    continue 'cycle;
+                }
+                JumpUnless(address) => {
+                    let value = state.pop();
+                    if !truthy(value) {
+                        state.pc = *address;
+                        continue 'cycle;
+                    }
+                }
+                CallClosure {
+                    slot,
+                    return_address,
+                } => {
+                    let closure = state
+                        .closure_slot(slot)
+                        .ok_or(ProgramError::UninitializedSlot)
+                        .unwrap();
+                    assert_eq!(call_pc.replace(*return_address), None);
+                    state.pc = closure.0;
+                    continue 'cycle;
+                }
+                Call {
+                    function,
+                    return_address,
+                } => {
+                    assert_eq!(call_pc.replace(*return_address), None);
+                    state.pc = *function;
+                    continue 'cycle;
+                }
+                PushPC => todo!("Implement {:?}", code),
+                CallPC => todo!("Implement {:?}", code),
+                NewScope {
+                    id,
+                    variable_cnt,
+                    closure_cnt,
+                } => {
+                    let return_address = call_pc
+                        .take()
+                        .expect("NewScope should be called after Call");
+                    state.push_scope(*id, *variable_cnt, *closure_cnt, return_address);
+                }
+                Ret => {
+                    let return_address = state.pop_scope();
+                    state.pc = return_address;
+                    continue 'cycle;
+                }
+                Output => {
+                    return if let Some(err) = err {
+                        Some(Err(err))
+                    } else {
+                        let value = state.pop();
+                        Some(Ok(value))
+                    }
+                }
+                Each => todo!("Implement {:?}", code),
+                ExpBegin => todo!("Implement {:?}", code),
+                ExpEnd => todo!("Implement {:?}", code),
+                PathBegin => todo!("Implement {:?}", code),
+                PathEnd => todo!("Implement {:?}", code),
+                Intrinsic1(NamedFunction { name: _name, func }) => {
+                    let arg = state.pop();
+                    match func(arg) {
+                        Ok(value) => state.push(value),
+                        Err(e) => err = Some(e),
+                    }
+                }
+                Intrinsic2(NamedFunction { name: _name, func }) => {
+                    let rhs = state.pop();
+                    let lhs = state.pop();
+                    match func(lhs, rhs) {
+                        Ok(value) => state.push(value),
+                        Err(e) => err = Some(e),
+                    }
                 }
             }
-            Each => todo!("Implement {:?}", code),
-            ExpBegin => todo!("Implement {:?}", code),
-            ExpEnd => todo!("Implement {:?}", code),
-            PathBegin => todo!("Implement {:?}", code),
-            PathEnd => todo!("Implement {:?}", code),
-            Intrinsic1(NamedFunction { name: _name, func }) => {
-                let arg = state.pop();
-                match func(arg) {
-                    Ok(value) => state.push(value),
-                    Err(e) => err = Some(e),
-                }
-            }
-            Intrinsic2(NamedFunction { name: _name, func }) => {
-                let rhs = state.pop();
-                let lhs = state.pop();
-                match func(lhs, rhs) {
-                    Ok(value) => state.push(value),
-                    Err(e) => err = Some(e),
-                }
-            }
+            state.pc.next();
         }
-        state.pc.next();
     }
-    None
 }
