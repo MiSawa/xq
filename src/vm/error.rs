@@ -9,4 +9,6 @@ pub enum QueryExecutionError {
     ObjectIndexByNonString(Value),
     #[error("Object was indexed by non-integer value `{0:?}`")]
     ArrayIndexByNonInt(Value),
+    #[error("Unary {0:?} negation was applied to non-numeric value `{1:?}`")]
+    UnaryOnNonNumeric(&'static str, Value),
 }

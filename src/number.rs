@@ -223,7 +223,9 @@ impl Div for Number {
 
     fn div(self, rhs: Self) -> Self::Output {
         match (self, rhs) {
-            (Self(IntOrReal::Integer(lhs)), Self(IntOrReal::Integer(rhs))) => {
+            (Self(IntOrReal::Integer(lhs)), Self(IntOrReal::Integer(rhs)))
+                if (&lhs % &rhs).is_zero() =>
+            {
                 Self::from_integer(lhs / rhs)
             }
             (lhs, rhs) => Self::from_real(lhs.as_f64() / rhs.as_f64()),

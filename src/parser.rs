@@ -732,7 +732,7 @@ fn query(input: &str) -> ParseResult<Query> {
         binop_no_assoc(ws(comparator), query7, |lhs, operator, rhs| {
             Query::Compare {
                 lhs: Box::new(lhs),
-                operator,
+                comparator: operator,
                 rhs: Box::new(rhs),
             }
         })(input)

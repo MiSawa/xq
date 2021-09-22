@@ -1,10 +1,7 @@
 use crate::{
-    ast::{self, FuncArg, FuncDef, Identifier, Query, StringFragment, Term, UnaryOp},
+    ast::{self, FuncArg, FuncDef, Identifier, Query, StringFragment, Term},
     data_structure::{PHashMap, PVector},
-    vm::{
-        bytecode::{Closure, NamedFn1, NamedFunction},
-        intrinsic, Address, ByteCode, Program, ScopeId, ScopedSlot, Value,
-    },
+    vm::{bytecode::Closure, intrinsic, Address, ByteCode, Program, ScopeId, ScopedSlot, Value},
 };
 use std::rc::Rc;
 use thiserror::Error;
@@ -436,21 +433,12 @@ impl Compiler {
             }
             Term::Format(_) => todo!(),
             Term::Query(query) => self.compile_query(query, next)?,
-            Term::Unary(op, term) => {
-                let intrinsic: NamedFn1 = match op {
-                    UnaryOp::Plus => NamedFunction {
-                        name: "UnaryPlus",
-                        func: Box::new(intrinsic::unary_plus),
-                    },
-                    UnaryOp::Minus => NamedFunction {
-                        name: "UnaryMinus",
-                        func: Box::new(intrinsic::unary_minus),
-                    },
-                };
-                let op = self
+            Term::Unary(operator, term) => {
+                let operator = intrinsic::unary(operator);
+                let next = self
                     .emitter
-                    .emit_normal_op(ByteCode::Intrinsic1(intrinsic), next);
-                self.compile_term(term, op)?
+                    .emit_normal_op(ByteCode::Intrinsic1(operator), next);
+                self.compile_term(term, next)?
             }
             Term::Object(_) => todo!(),
             Term::Array(query) => match query {
@@ -516,7 +504,11 @@ impl Compiler {
             Query::Label { .. } => todo!(),
             Query::Operate { .. } => todo!(),
             Query::Update { .. } => todo!(),
-            Query::Compare { lhs, operator, rhs } => {
+            Query::Compare {
+                lhs,
+                comparator: operator,
+                rhs,
+            } => {
                 let operator = intrinsic::comparator(operator);
                 let next = self
                     .emitter

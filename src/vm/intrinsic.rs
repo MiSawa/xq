@@ -1,15 +1,14 @@
 use crate::{
-    ast::Comparator,
-    vm::{bytecode::NamedFn2, Result, Value},
+    ast::{Comparator, UnaryOp},
+    vm::{
+        bytecode::{NamedFn1, NamedFn2},
+        QueryExecutionError, Result, Value,
+    },
 };
-use std::cmp::Ordering;
+use std::{borrow::Borrow, cmp::Ordering, rc::Rc};
 
 pub fn truthy(value: Value) -> bool {
     !matches!(value, Value::Null | Value::False)
-}
-
-pub fn compare(_lhs: Value, _rhs: Value) -> Ordering {
-    todo!()
 }
 
 pub fn comparator(comparator: &Comparator) -> NamedFn2 {
@@ -77,18 +76,41 @@ pub fn comparator(comparator: &Comparator) -> NamedFn2 {
     }
 }
 
-pub fn unary_plus(_value: Value) -> Result<Value> {
+pub fn unary(operator: &UnaryOp) -> NamedFn1 {
+    match operator {
+        UnaryOp::Plus => NamedFn1 {
+            name: "UnaryPlus",
+            func: Box::new(unary_plus),
+        },
+        UnaryOp::Minus => NamedFn1 {
+            name: "UnaryMinus",
+            func: Box::new(unary_minus),
+        },
+    }
+}
+
+fn compare(_lhs: Value, _rhs: Value) -> Ordering {
     todo!()
 }
 
-pub fn unary_minus(_value: Value) -> Result<Value> {
+fn unary_plus(value: Value) -> Result<Value> {
+    match value {
+        Value::Number(_) => Ok(value),
+        _ => Err(QueryExecutionError::UnaryOnNonNumeric("plus", value)),
+    }
+}
+
+fn unary_minus(value: Value) -> Result<Value> {
+    match value {
+        Value::Number(n) => Ok(Value::Number(Rc::new(-(*n).clone()))),
+        _ => Err(QueryExecutionError::UnaryOnNonNumeric("minus", value)),
+    }
+}
+
+fn add(_lhs: Value, _rhs: Value) -> Result<Value> {
     todo!()
 }
 
-pub fn add(_lhs: Value, _rhs: Value) -> Result<Value> {
-    todo!()
-}
-
-pub fn subtract(_lhs: Value, _rhs: Value) -> Result<Value> {
+fn subtract(_lhs: Value, _rhs: Value) -> Result<Value> {
     todo!()
 }

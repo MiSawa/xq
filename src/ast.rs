@@ -209,7 +209,7 @@ pub enum Query {
     /// `<query> <comparator> <query>`
     Compare {
         lhs: Box<Query>,
-        operator: Comparator,
+        comparator: Comparator,
         rhs: Box<Query>,
     },
 }
