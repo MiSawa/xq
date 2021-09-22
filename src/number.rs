@@ -32,6 +32,7 @@ impl Number {
 
     fn normalize(&mut self) {
         if let Self(IntOrReal::Real(n)) = self {
+            #[allow(clippy::float_cmp)]
             if *n == n.trunc() {
                 if let Some(n) = BigInt::from_f64(*n) {
                     *self = Self(IntOrReal::Integer(n))

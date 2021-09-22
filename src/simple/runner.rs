@@ -1,7 +1,7 @@
+use crate::ast::FuncArg;
 use crate::{
     ast::{FuncDef, Identifier, Program, Query, StringFragment, Suffix, Term, UnaryOp},
-    number::IntOrReal,
-    Number,
+    IntOrReal, Number,
 };
 use num::ToPrimitive;
 use serde::{
@@ -403,6 +403,7 @@ fn run_term(env: &Env, term: &Term, consumer: &mut dyn Consumer) {
             }
             run_term(env, term, &mut |e: &Env| suffix(e, suffixes, consumer))
         }
+        Term::Variable(_) => unimplemented!(),
         Term::FunctionCall { name, args } => {
             if let Some(func_def) = env.functions.get(&(name.clone(), args.len())) {
                 match func_def {
@@ -416,11 +417,12 @@ fn run_term(env: &Env, term: &Term, consumer: &mut dyn Consumer) {
                             if let Some((last, other)) = args.split_last() {
                                 run_query(env, last, &mut |e: &Env| {
                                     if let Some(obj) = &e.current_object {
+                                        let arg_name = match &func_def.args[args.len() - 1] {
+                                            FuncArg::Variable(name) => name,
+                                            FuncArg::Closure(_) => todo!(),
+                                        };
                                         call(
-                                            &env.variable_defined(
-                                                &func_def.args[args.len() - 1],
-                                                obj.clone(),
-                                            ),
+                                            &env.variable_defined(arg_name, obj.clone()),
                                             func_def,
                                             other,
                                             consumer,

@@ -1,3 +1,4 @@
+use crate::ast::FuncArg;
 use crate::{
     ast::{
         BinaryOp, BindPattern, Comparator, ConstantArray, ConstantObject, ConstantPrimitive,
@@ -353,13 +354,7 @@ fn term(input: &str) -> ParseResult<Term> {
                 map(identifier_allow_keyword, |ident| {
                     Term::String(vec![StringFragment::String(ident.0)]).into()
                 }),
-                map(variable, |ident| {
-                    Term::FunctionCall {
-                        name: ident,
-                        args: vec![],
-                    }
-                    .into()
-                }),
+                map(variable, |ident| Term::Variable(ident).into()),
                 map(string, |t| Term::String(t).into()),
                 delimited(char('('), ws(query), char(')')),
             )),
@@ -501,7 +496,13 @@ fn funcdef(input: &str) -> ParseResult<FuncDef> {
             preceded(keyword("def"), ws(identifier)),
             opt(delimited(
                 char('('),
-                separated_list1(char(';'), ws(alt((identifier, variable)))),
+                separated_list1(
+                    char(';'),
+                    ws(alt((
+                        map(identifier, FuncArg::Closure),
+                        map(variable, FuncArg::Variable),
+                    ))),
+                ),
                 terminated(char(')'), multispace0),
             )),
             delimited(char(':'), ws(query), char(';')),
@@ -546,9 +547,7 @@ fn query(input: &str) -> ParseResult<Query> {
                             map(identifier, |ident| {
                                 Term::String(vec![StringFragment::String(ident.0)]).into()
                             }),
-                            map(variable, |name| {
-                                Term::FunctionCall { name, args: vec![] }.into()
-                            }),
+                            map(variable, |name| Term::Variable(name).into()),
                             map(string, |t| Term::String(t).into()),
                             delimited(char('('), ws(query), char(')')),
                         )),

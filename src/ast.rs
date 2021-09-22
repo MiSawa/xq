@@ -1,7 +1,14 @@
 use crate::Number;
+use std::fmt::{Display, Formatter};
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub struct Identifier(pub String);
+
+impl Display for Identifier {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.0)
+    }
+}
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub enum UnaryOp {
@@ -82,9 +89,15 @@ pub enum BindPattern {
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
+pub enum FuncArg {
+    Variable(Identifier),
+    Closure(Identifier),
+}
+
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub struct FuncDef {
     pub name: Identifier,
-    pub args: Vec<Identifier>,
+    pub args: Vec<FuncArg>,
     pub body: Box<Query>,
 }
 
@@ -115,6 +128,8 @@ pub enum Term {
     /// ```
     Suffix(Box<Term>, Vec<Suffix>),
 
+    /// `(<var> | <modulevar>)`
+    Variable(Identifier),
     /// `(<ident> | <moduleident>) ( '(' query (';' query)* ')' )? | (<var> | <modulevar>)`
     FunctionCall { name: Identifier, args: Vec<Query> },
     /// `'@' <ident-allowing-num-prefix> (<string>)?`
@@ -135,7 +150,7 @@ pub enum Term {
 pub enum Query {
     /// `<term> | <query> '?'`
     Term(Box<Term>),
-    /// `'def' <ident> ':' <query> ';' <query>`
+    /// `'def' <ident> ( '(' <ident> | <var> (';' <ident> | <var>)* ')' )? ':' <query> ';' <query>`
     WithFunc {
         function: FuncDef,
         query: Box<Query>,
