@@ -1,4 +1,4 @@
-use crate::vm::{Address, ScopeId, ScopedSlot, Value};
+use crate::vm::{Address, Result, ScopeId, ScopedSlot, Value};
 use std::fmt::{Debug, Formatter};
 
 #[derive(Clone)]
@@ -7,8 +7,8 @@ pub struct NamedFunction<F: Clone + ?Sized> {
     pub func: F,
 }
 
-pub type NamedFn1 = NamedFunction<Box<fn(Value) -> Value>>;
-pub type NamedFn2 = NamedFunction<Box<fn(Value, Value) -> Value>>;
+pub type NamedFn1 = NamedFunction<Box<fn(Value) -> Result<Value>>>;
+pub type NamedFn2 = NamedFunction<Box<fn(Value, Value) -> Result<Value>>>;
 
 impl<F: Clone> Debug for NamedFunction<F> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
@@ -41,7 +41,10 @@ pub(crate) enum ByteCode {
     Jump(Address),
     JumpUnless(Address),
     PushClosure(Address),
-    CallClosure,
+    CallClosure {
+        slot: ScopedSlot,
+        return_address: Address,
+    },
     Call {
         function: Address,
         return_address: Address,

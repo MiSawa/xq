@@ -2,7 +2,7 @@ use crate::{
     ast::{self, Comparator, FuncArg, FuncDef, Identifier, Query, StringFragment, Term, UnaryOp},
     data_structure::{PHashMap, PVector},
     vm::{
-        bytecode::{NamedFunction, NamedFn1, NamedFn2},
+        bytecode::{NamedFn1, NamedFn2, NamedFunction},
         intrinsic, Address, ByteCode, Program, ScopeId, ScopedSlot, Value,
     },
 };
@@ -80,33 +80,33 @@ impl CodeEmitter {
         Address(1)
     }
 
-    fn jump_or_follow(&mut self, mut address: Address) {
+    fn follow_jump(&mut self, mut address: Address) -> Address {
+        while let ByteCode::Jump(next) = self.code[address.0] {
+            address = next;
+        }
+        address
+    }
+
+    fn jump_or_follow(&mut self, address: Address) {
         if address.0 + 1 == self.code.len() {
             return;
         }
-        loop {
-            let code = match self.code.get(address.0) {
-                Some(ByteCode::Jump(next)) => {
-                    address = *next;
-                    continue;
-                }
-                Some(ByteCode::Unreachable) => ByteCode::Unreachable,
-                Some(ByteCode::PlaceHolder) => ByteCode::Jump(address), // Don't optimize since it will change later
-                Some(ByteCode::Call {
-                    function,
-                    return_address,
-                }) => ByteCode::Call {
-                    function: *function,
-                    return_address: *return_address,
-                },
-                Some(ByteCode::Backtrack) => ByteCode::Backtrack,
-                Some(ByteCode::Ret) => todo!(),
-                Some(ByteCode::Output) => ByteCode::Output,
-                _ => ByteCode::Jump(address),
-            };
-            self.code.push(code);
-            break;
-        }
+        let address = self.follow_jump(address);
+        let code = match self.code.get(address.0) {
+            Some(ByteCode::Unreachable) => ByteCode::Unreachable,
+            Some(ByteCode::Call {
+                function,
+                return_address,
+            }) => ByteCode::Call {
+                function: *function,
+                return_address: *return_address,
+            },
+            Some(ByteCode::Backtrack) => ByteCode::Backtrack,
+            Some(ByteCode::Ret) => todo!(),
+            Some(ByteCode::Output) => ByteCode::Output,
+            _ => ByteCode::Jump(address),
+        };
+        self.code.push(code);
     }
 
     fn emit_normal_op(&mut self, code: ByteCode, next: Address) -> Address {
@@ -121,6 +121,7 @@ impl CodeEmitter {
     }
 
     fn emit_function_call(&mut self, function: Address, return_address: Address) -> Address {
+        let function = self.follow_jump(function);
         self.emit_terminal_op(ByteCode::Call {
             function,
             return_address,
@@ -137,6 +138,11 @@ impl CodeEmitter {
 
     fn emit_placeholder(&mut self, next: Address) -> (Address, PlaceHolder) {
         let address = self.emit_normal_op(ByteCode::PlaceHolder, next);
+        (address, PlaceHolder(address))
+    }
+
+    fn emit_terminal_placeholder(&mut self) -> (Address, PlaceHolder) {
+        let address = self.emit_terminal_op(ByteCode::PlaceHolder);
         (address, PlaceHolder(address))
     }
 
@@ -301,7 +307,7 @@ impl Compiler {
             .ok_or_else(|| CompileError::UnknownFunction(function.0.clone()))
     }
 
-    fn compile_function(&mut self, args: &Vec<FuncArg>, body: &Query) -> Result<Address> {
+    fn compile_function_inner(&mut self, args: &Vec<FuncArg>, body: &Query) -> Result<Address> {
         let scope_id = self.enter_scope();
         let slots: Vec<_> = args
             .iter()
@@ -334,11 +340,11 @@ impl Compiler {
     }
 
     fn compile_closure(&mut self, closure: &Query) -> Result<Address> {
-        self.compile_function(&vec![], closure)
+        self.compile_function_inner(&vec![], closure)
     }
 
-    fn compile_and_declare_function(&mut self, func: &FuncDef) -> Result<()> {
-        let address = self.compile_function(&func.args, &func.body)?;
+    fn compile_funcdef(&mut self, func: &FuncDef) -> Result<()> {
+        let (func_address, placeholder) = self.emitter.emit_terminal_placeholder();
         let types = func
             .args
             .iter()
@@ -347,7 +353,10 @@ impl Compiler {
                 FuncArg::Closure(_) => ArgType::Closure,
             })
             .collect();
-        self.register_function(func.name.clone(), DeclaredFunction(address, types));
+        self.register_function(func.name.clone(), DeclaredFunction(func_address, types));
+        let real_address = self.compile_function_inner(&func.args, &func.body)?;
+        self.emitter
+            .replace_placeholder(placeholder, ByteCode::Jump(real_address));
         Ok(())
     }
 
@@ -373,7 +382,12 @@ impl Compiler {
                 }
                 next
             }
-            FunctionOrClosure::Closure(_) => todo!(),
+            FunctionOrClosure::Closure(slot) => {
+                self.emitter.emit_terminal_op(ByteCode::CallClosure {
+                    slot: *slot,
+                    return_address: next,
+                })
+            }
         })
     }
 
@@ -460,7 +474,7 @@ impl Compiler {
             Query::Term(term) => self.compile_term(term, next)?,
             Query::WithFunc { function, query } => {
                 let saved = self.save_scope();
-                self.compile_and_declare_function(function)?;
+                self.compile_funcdef(function)?;
                 let next = self.compile_query(query, next)?;
                 self.restore_scope(saved);
                 next
@@ -502,62 +516,62 @@ impl Compiler {
                 let operator = match operator {
                     Comparator::Eq => NamedFn2 {
                         name: "Equal",
-                        func: Box::new(|lhs: Value, rhs: Value| -> Value {
-                            if intrinsic::compare(lhs, rhs).is_eq() {
+                        func: Box::new(|lhs, rhs| {
+                            Ok(if intrinsic::compare(lhs, rhs).is_eq() {
                                 Value::True
                             } else {
                                 Value::False
-                            }
+                            })
                         }),
                     },
                     Comparator::Neq => NamedFn2 {
                         name: "NotEqual",
-                        func: Box::new(|lhs: Value, rhs: Value| -> Value {
-                            if intrinsic::compare(lhs, rhs).is_ne() {
+                        func: Box::new(|lhs, rhs| {
+                            Ok(if intrinsic::compare(lhs, rhs).is_ne() {
                                 Value::True
                             } else {
                                 Value::False
-                            }
+                            })
                         }),
                     },
                     Comparator::Gt => NamedFn2 {
                         name: "GreaterThan",
-                        func: Box::new(|lhs: Value, rhs: Value| -> Value {
-                            if intrinsic::compare(lhs, rhs).is_gt() {
+                        func: Box::new(|lhs, rhs| {
+                            Ok(if intrinsic::compare(lhs, rhs).is_gt() {
                                 Value::True
                             } else {
                                 Value::False
-                            }
+                            })
                         }),
                     },
                     Comparator::Ge => NamedFn2 {
                         name: "GreaterOrEqual",
-                        func: Box::new(|lhs: Value, rhs: Value| -> Value {
-                            if intrinsic::compare(lhs, rhs).is_ge() {
+                        func: Box::new(|lhs, rhs| {
+                            Ok(if intrinsic::compare(lhs, rhs).is_ge() {
                                 Value::True
                             } else {
                                 Value::False
-                            }
+                            })
                         }),
                     },
                     Comparator::Lt => NamedFn2 {
                         name: "LessThan",
-                        func: Box::new(|lhs: Value, rhs: Value| -> Value {
-                            if intrinsic::compare(lhs, rhs).is_lt() {
+                        func: Box::new(|lhs, rhs| {
+                            Ok(if intrinsic::compare(lhs, rhs).is_lt() {
                                 Value::True
                             } else {
                                 Value::False
-                            }
+                            })
                         }),
                     },
                     Comparator::Le => NamedFn2 {
                         name: "LessOrEqual",
-                        func: Box::new(|lhs: Value, rhs: Value| -> Value {
-                            if intrinsic::compare(lhs, rhs).is_le() {
+                        func: Box::new(|lhs, rhs| {
+                            Ok(if intrinsic::compare(lhs, rhs).is_le() {
                                 Value::True
                             } else {
                                 Value::False
-                            }
+                            })
                         }),
                     },
                 };

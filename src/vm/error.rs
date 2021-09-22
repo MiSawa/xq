@@ -12,11 +12,11 @@ pub enum QueryExecutionError {
 
 #[derive(Debug, Clone, Eq, PartialEq, Error)]
 #[error(transparent)]
-pub struct RecoverableErrorWrapper(#[from] RecoverableError);
+pub struct RecoverableErrorWrapper(#[from] pub(crate) RecoverableError);
 
 #[derive(Debug, Clone, Eq, PartialEq, Error)]
 #[error(transparent)]
-pub struct UnrecoverableErrorWrapper(#[from] UnrecoverableError);
+pub struct UnrecoverableErrorWrapper(#[from] pub(crate) UnrecoverableError);
 
 #[derive(Debug, Clone, Eq, PartialEq, Error)]
 pub(crate) enum RecoverableError {}

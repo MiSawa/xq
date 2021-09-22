@@ -1,6 +1,5 @@
-use crate::ast::FuncArg;
 use crate::{
-    ast::{FuncDef, Identifier, Program, Query, StringFragment, Suffix, Term, UnaryOp},
+    ast::{FuncArg, FuncDef, Identifier, Program, Query, StringFragment, Suffix, Term, UnaryOp},
     IntOrReal, Number,
 };
 use num::ToPrimitive;

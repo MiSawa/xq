@@ -1,9 +1,8 @@
-use crate::ast::FuncArg;
 use crate::{
     ast::{
         BinaryOp, BindPattern, Comparator, ConstantArray, ConstantObject, ConstantPrimitive,
-        ConstantValue, FuncDef, Identifier, Import, ObjectBindPatternEntry, Program, Query,
-        StringFragment, Suffix, Term, UnaryOp, UpdateOp,
+        ConstantValue, FuncArg, FuncDef, Identifier, Import, ObjectBindPatternEntry, Program,
+        Query, StringFragment, Suffix, Term, UnaryOp, UpdateOp,
     },
     Number,
 };

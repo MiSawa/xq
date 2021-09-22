@@ -2,7 +2,10 @@ use crate::{
     data_structure::{PStack, PVector},
     vm::{
         bytecode::NamedFunction,
-        error::{RecoverableError, UnrecoverableError},
+        error::{
+            QueryExecutionError, RecoverableError, RecoverableErrorWrapper, UnrecoverableError,
+            UnrecoverableErrorWrapper,
+        },
         intrinsic::truthy,
         Address, ByteCode, Program, Result, ScopeId, ScopedSlot, Value,
     },
@@ -158,7 +161,7 @@ fn run_code(env: &mut Environment) -> Result<Option<Result<Value>>, Unrecoverabl
     } else {
         return Ok(None);
     };
-    let err: Option<RecoverableError> = None;
+    let mut err: Option<RecoverableError> = None;
     let mut call_pc: Option<Address> = None;
     while let Some(code) = env.program.fetch_code(state.pc) {
         use ByteCode::*;
@@ -231,7 +234,7 @@ fn run_code(env: &mut Environment) -> Result<Option<Result<Value>>, Unrecoverabl
                 }
             }
             PushClosure(_) => todo!("Implement {:?}", code),
-            CallClosure => todo!("Implement {:?}", code),
+            CallClosure { .. } => todo!("Implement {:?}", code),
             Call {
                 function,
                 return_address,
@@ -268,12 +271,28 @@ fn run_code(env: &mut Environment) -> Result<Option<Result<Value>>, Unrecoverabl
             PathEnd => todo!("Implement {:?}", code),
             Intrinsic1(NamedFunction { name: _name, func }) => {
                 let arg = state.pop()?;
-                state.push(func(arg));
+                match func(arg) {
+                    Ok(value) => state.push(value),
+                    Err(QueryExecutionError::Recoverable(RecoverableErrorWrapper(e))) => {
+                        err = Some(e)
+                    }
+                    Err(QueryExecutionError::UnRecoverable(UnrecoverableErrorWrapper(e))) => {
+                        return Err(e)
+                    }
+                }
             }
             Intrinsic2(NamedFunction { name: _name, func }) => {
                 let rhs = state.pop()?;
                 let lhs = state.pop()?;
-                state.push(func(lhs, rhs));
+                match func(lhs, rhs) {
+                    Ok(value) => state.push(value),
+                    Err(QueryExecutionError::Recoverable(RecoverableErrorWrapper(e))) => {
+                        err = Some(e)
+                    }
+                    Err(QueryExecutionError::UnRecoverable(UnrecoverableErrorWrapper(e))) => {
+                        return Err(e)
+                    }
+                }
             }
         }
         state.pc.next();
