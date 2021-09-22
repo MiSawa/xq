@@ -21,6 +21,7 @@ nom = "7.0.0"
 im-rc = "15.0.0"
 sized-chunks = "0.6.5"
 num = "0.4.0"
+itertools = "0.10.1"
 serde = "1.0.130"
 
 serde_json = { version = "1.0.67", optional = true }

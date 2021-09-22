@@ -1,6 +1,10 @@
-use num::{bigint::BigInt, FromPrimitive, Num, One, ToPrimitive, Zero};
-use std::ops::{
-    Add, AddAssign, Div, DivAssign, Mul, MulAssign, Neg, Rem, RemAssign, Sub, SubAssign,
+use num::{
+    bigint::{BigInt, ToBigInt},
+    FromPrimitive, Num, One, ToPrimitive, Zero,
+};
+use std::{
+    cmp::Ordering,
+    ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Neg, Rem, RemAssign, Sub, SubAssign},
 };
 
 #[derive(Debug, Clone, PartialEq)]
@@ -148,6 +152,48 @@ impl ToPrimitive for Number {
         match &self.0 {
             IntOrReal::Integer(n) => n.to_f64(),
             IntOrReal::Real(n) => n.to_f64(),
+        }
+    }
+}
+
+impl PartialOrd for Number {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(Self::cmp(self, other))
+    }
+}
+
+impl Ord for Number {
+    fn cmp(&self, other: &Self) -> Ordering {
+        fn compare_f64(lhs: &f64, rhs: &f64) -> Ordering {
+            if let Some(ord) = PartialOrd::partial_cmp(lhs, rhs) {
+                ord
+            } else {
+                match (lhs.is_nan(), rhs.is_nan()) {
+                    (false, false) => unreachable!("Un-comparable not-nan f64s???"),
+                    (a, b) => Ord::cmp(&b, &a),
+                }
+            }
+        }
+
+        match (self, other) {
+            (Self(IntOrReal::Integer(lhs)), Self(IntOrReal::Integer(rhs))) => Ord::cmp(lhs, rhs),
+            (Self(IntOrReal::Real(lhs)), Self(IntOrReal::Real(rhs))) => compare_f64(lhs, rhs),
+            (Self(IntOrReal::Integer(lhs)), Self(IntOrReal::Real(rhs))) => {
+                if rhs.is_nan() {
+                    Ordering::Greater
+                } else {
+                    Ord::cmp(lhs, &rhs.to_bigint().unwrap())
+                        .then_with(|| compare_f64(&0.0, &rhs.fract()))
+                }
+            }
+            (Self(IntOrReal::Real(lhs)), Self(IntOrReal::Integer(rhs))) => {
+                if lhs.is_nan() {
+                    Ordering::Less
+                } else {
+                    Ord::cmp(&lhs.to_bigint().unwrap(), rhs)
+                        .then_with(|| compare_f64(&lhs.fract(), &0.0))
+                }
+            }
         }
     }
 }

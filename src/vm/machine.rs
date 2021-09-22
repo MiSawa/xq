@@ -197,11 +197,7 @@ impl Iterator for Machine {
 fn run_code(env: &mut Environment) -> Option<Result<Value>> {
     let mut err: Option<QueryExecutionError> = None;
     let mut call_pc: Option<Address> = None;
-    let mut state = if let Some(state) = env.pop_fork() {
-        state
-    } else {
-        return None;
-    };
+    let mut state = env.pop_fork()?;
     while let Some(code) = env.program.fetch_code(state.pc) {
         use ByteCode::*;
         match code {
@@ -317,7 +313,7 @@ fn run_code(env: &mut Environment) -> Option<Result<Value>> {
             }
             Output => {
                 return if let Some(err) = err {
-                    Some(Err(err.into()))
+                    Some(Err(err))
                 } else {
                     let value = state.pop();
                     Some(Ok(value))
