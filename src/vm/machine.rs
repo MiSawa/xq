@@ -2,14 +2,28 @@ use crate::{
     data_structure::{PStack, PVector},
     vm::{
         bytecode::{Closure, NamedFunction},
-        error::{
-            QueryExecutionError, RecoverableError, RecoverableErrorWrapper, UnrecoverableError,
-            UnrecoverableErrorWrapper,
-        },
+        error::QueryExecutionError,
         intrinsic::truthy,
         Address, ByteCode, Program, Result, ScopeId, ScopedSlot, Value,
     },
 };
+use thiserror::Error;
+
+#[derive(Debug, Clone, Eq, PartialEq, Error)]
+pub(crate) enum ProgramError {
+    #[error("tried to pop an empty stack")]
+    PopEmptyStack,
+    #[error("tried to use an uninitialized scope")]
+    UninitializedScope,
+    #[error("tried to load from an uninitialized slot of a scope")]
+    UnknownSlot,
+    #[error("tried to load from an uninitialized slot of a scope")]
+    UninitializedSlot,
+    #[error("tried to pop a scope but there was no scope to pop")]
+    PopEmptyScope,
+    #[error("tried to restore an unknown scope")]
+    PopUnknownScope,
+}
 
 #[derive(Debug, Clone)]
 struct Scope {
@@ -74,52 +88,53 @@ impl State {
         self.stack.push(item)
     }
 
-    fn pop(&mut self) -> Result<Value, UnrecoverableError> {
-        self.stack.pop().ok_or(UnrecoverableError::PopEmptyStack)
+    fn pop(&mut self) -> Value {
+        self.stack.pop().ok_or(ProgramError::PopEmptyStack).unwrap()
     }
 
-    fn dup(&mut self) -> Result<(), UnrecoverableError> {
-        let value = self.pop()?;
+    fn dup(&mut self) {
+        let value = self.pop();
         self.push(value.clone());
         self.push(value);
-        Ok(())
     }
 
     fn push_closure(&mut self, closure: Closure) {
         self.closure_stack.push(closure)
     }
 
-    fn pop_closure(&mut self) -> Result<Closure, UnrecoverableError> {
+    fn pop_closure(&mut self) -> Closure {
         self.closure_stack
             .pop()
-            .ok_or(UnrecoverableError::PopEmptyStack)
+            .ok_or(ProgramError::PopEmptyStack)
+            .unwrap()
     }
 
-    fn slot(&mut self, scoped_slot: &ScopedSlot) -> Result<&mut Option<Value>, UnrecoverableError> {
+    fn slot(&mut self, scoped_slot: &ScopedSlot) -> &mut Option<Value> {
         let scope = self
             .scopes
             .get_mut(scoped_slot.0 .0)
             .and_then(|(x, _)| x.as_mut())
-            .ok_or(UnrecoverableError::UninitializedScope)?;
+            .ok_or(ProgramError::UninitializedScope)
+            .unwrap();
         scope
             .slots
             .get_mut(scoped_slot.1)
-            .ok_or(UnrecoverableError::UnknownSlot)
+            .ok_or(ProgramError::UnknownSlot)
+            .unwrap()
     }
 
-    fn closure_slot(
-        &mut self,
-        scoped_slot: &ScopedSlot,
-    ) -> Result<&mut Option<Closure>, UnrecoverableError> {
+    fn closure_slot(&mut self, scoped_slot: &ScopedSlot) -> &mut Option<Closure> {
         let scope = self
             .scopes
             .get_mut(scoped_slot.0 .0)
             .and_then(|(x, _)| x.as_mut())
-            .ok_or(UnrecoverableError::UninitializedScope)?;
+            .ok_or(ProgramError::UninitializedScope)
+            .unwrap();
         scope
             .closure_slots
             .get_mut(scoped_slot.1)
-            .ok_or(UnrecoverableError::UnknownSlot)
+            .ok_or(ProgramError::UnknownSlot)
+            .unwrap()
     }
 
     fn push_scope(
@@ -142,20 +157,20 @@ impl State {
         self.scope_stack.push((pc, scope_id));
     }
 
-    fn pop_scope(&mut self) -> Result<Address, UnrecoverableError> {
+    fn pop_scope(&mut self) -> Address {
         let (pc, scope_id) = self
             .scope_stack
             .pop()
-            .ok_or(UnrecoverableError::PopEmptyScope)?;
+            .ok_or(ProgramError::PopEmptyScope)
+            .unwrap();
         let (current, prev) = self
             .scopes
             .get_mut(scope_id.0)
-            .ok_or(UnrecoverableError::PopUnknownScope)?;
-        if current.is_none() {
-            return Err(UnrecoverableError::PopUnknownScope);
-        }
+            .ok_or(ProgramError::PopUnknownScope)
+            .unwrap();
+        assert!(current.is_some(), "Pop unknown scope");
         *current = prev.pop();
-        Ok(pc)
+        pc
     }
 }
 
@@ -175,74 +190,71 @@ impl Iterator for Machine {
     type Item = Result<Value>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        match run_code(&mut self.env) {
-            Ok(item) => item,
-            Err(e) => Some(Err(e.into())), // TODO: fuse
-        }
+        run_code(&mut self.env)
     }
 }
 
-fn run_code(env: &mut Environment) -> Result<Option<Result<Value>>, UnrecoverableError> {
+fn run_code(env: &mut Environment) -> Option<Result<Value>> {
+    let mut err: Option<QueryExecutionError> = None;
+    let mut call_pc: Option<Address> = None;
     let mut state = if let Some(state) = env.pop_fork() {
         state
     } else {
-        return Ok(None);
+        return None;
     };
-    let mut err: Option<RecoverableError> = None;
-    let mut call_pc: Option<Address> = None;
     while let Some(code) = env.program.fetch_code(state.pc) {
         use ByteCode::*;
         match code {
-            Unreachable => {}
-            PlaceHolder => {}
+            Unreachable => panic!("Reached to the unreachable"),
+            PlaceHolder => panic!("Reached to a place holder"),
             Nop => {}
             Push(v) => {
                 state.push(v.clone());
             }
             Pop => {
-                state.pop()?;
+                state.pop();
             }
             Dup => {
-                state.dup()?;
+                state.dup();
             }
             Const(v) => {
-                state.pop()?;
+                state.pop();
                 state.push(v.clone())
             }
             Load(scoped_slot) => {
                 let value = state
-                    .slot(scoped_slot)?
+                    .slot(scoped_slot)
                     .as_ref()
-                    .ok_or(UnrecoverableError::UninitializedSlot)?
+                    .ok_or(ProgramError::UninitializedSlot)
+                    .unwrap()
                     .clone();
                 state.push(value);
             }
             Store(scoped_slot) => {
-                let value = state.pop()?;
-                state.slot(scoped_slot)?.replace(value);
+                let value = state.pop();
+                state.slot(scoped_slot).replace(value);
             }
             PushClosure(closure) => {
                 state.push_closure(*closure);
             }
             StoreClosure(slot) => {
-                let closure = state.pop_closure()?;
-                state.closure_slot(slot)?.replace(closure);
+                let closure = state.pop_closure();
+                state.closure_slot(slot).replace(closure);
             }
             Object => todo!("Implement {:?}", code),
             Append(scoped_slot) => {
-                let value = state.pop()?;
+                let value = state.pop();
                 let slot_item = state
-                    .slot(scoped_slot)?
+                    .slot(scoped_slot)
                     .as_mut()
-                    .ok_or(UnrecoverableError::UninitializedSlot)?;
+                    .ok_or(ProgramError::UninitializedSlot)
+                    .unwrap();
                 match slot_item {
                     Value::Array(v) => {
                         v.push_back(value);
                     }
                     _ => {
-                        return Err(UnrecoverableError::TypeMismatch(
-                            "expected a array to append to, but was not an array",
-                        ));
+                        panic!("expected a array to append to, but was not an array");
                     }
                 }
             }
@@ -260,7 +272,7 @@ fn run_code(env: &mut Environment) -> Result<Option<Result<Value>>, Unrecoverabl
                 continue;
             }
             JumpUnless(address) => {
-                let value = state.pop()?;
+                let value = state.pop();
                 if !truthy(value) {
                     state.pc = *address;
                     continue;
@@ -271,8 +283,9 @@ fn run_code(env: &mut Environment) -> Result<Option<Result<Value>>, Unrecoverabl
                 return_address,
             } => {
                 let closure = state
-                    .closure_slot(slot)?
-                    .ok_or(UnrecoverableError::UninitializedSlot)?;
+                    .closure_slot(slot)
+                    .ok_or(ProgramError::UninitializedSlot)
+                    .unwrap();
                 assert_eq!(call_pc.replace(*return_address), None);
                 state.pc = closure.0;
                 continue;
@@ -298,16 +311,16 @@ fn run_code(env: &mut Environment) -> Result<Option<Result<Value>>, Unrecoverabl
                 state.push_scope(*id, *variable_cnt, *closure_cnt, return_address);
             }
             Ret => {
-                let return_address = state.pop_scope()?;
+                let return_address = state.pop_scope();
                 state.pc = return_address;
                 continue;
             }
             Output => {
                 return if let Some(err) = err {
-                    Ok(Some(Err(err.into())))
+                    Some(Err(err.into()))
                 } else {
-                    let value = state.pop()?;
-                    Ok(Some(Ok(value)))
+                    let value = state.pop();
+                    Some(Ok(value))
                 }
             }
             Each => todo!("Implement {:?}", code),
@@ -316,32 +329,22 @@ fn run_code(env: &mut Environment) -> Result<Option<Result<Value>>, Unrecoverabl
             PathBegin => todo!("Implement {:?}", code),
             PathEnd => todo!("Implement {:?}", code),
             Intrinsic1(NamedFunction { name: _name, func }) => {
-                let arg = state.pop()?;
+                let arg = state.pop();
                 match func(arg) {
                     Ok(value) => state.push(value),
-                    Err(QueryExecutionError::Recoverable(RecoverableErrorWrapper(e))) => {
-                        err = Some(e)
-                    }
-                    Err(QueryExecutionError::UnRecoverable(UnrecoverableErrorWrapper(e))) => {
-                        return Err(e)
-                    }
+                    Err(e) => err = Some(e),
                 }
             }
             Intrinsic2(NamedFunction { name: _name, func }) => {
-                let rhs = state.pop()?;
-                let lhs = state.pop()?;
+                let rhs = state.pop();
+                let lhs = state.pop();
                 match func(lhs, rhs) {
                     Ok(value) => state.push(value),
-                    Err(QueryExecutionError::Recoverable(RecoverableErrorWrapper(e))) => {
-                        err = Some(e)
-                    }
-                    Err(QueryExecutionError::UnRecoverable(UnrecoverableErrorWrapper(e))) => {
-                        return Err(e)
-                    }
+                    Err(e) => err = Some(e),
                 }
             }
         }
         state.pc.next();
     }
-    Ok(None)
+    None
 }
