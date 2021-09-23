@@ -42,13 +42,12 @@ impl Scope {
 }
 
 #[derive(Debug)]
-struct Machine {
-    env: Environment,
+pub struct Machine {
+    program: Program,
 }
 
 #[derive(Debug)]
 struct Environment {
-    program: Program,
     forks: Vec<(State, OnFork)>,
 }
 
@@ -121,6 +120,12 @@ enum OnFork {
 }
 
 impl Environment {
+    fn new(state: State) -> Self {
+        Self {
+            forks: vec![(state, OnFork::Nop)],
+        }
+    }
+
     fn push_fork(&mut self, state: &State, on_fork: OnFork, new_pc: Address) {
         let mut new_state = state.clone();
         new_state.pc = new_pc;
@@ -156,6 +161,13 @@ impl State {
         let value = self.pop();
         self.push(value.clone());
         self.push(value);
+    }
+
+    fn swap(&mut self) {
+        let v1 = self.pop();
+        let v2 = self.pop();
+        self.push(v1);
+        self.push(v2);
     }
 
     fn push_closure(&mut self, closure: Closure) {
@@ -235,29 +247,39 @@ impl State {
 }
 
 impl Machine {
-    fn new(program: Program) -> Self {
-        let state = State::new(program.entry_point);
-        Self {
-            env: Environment {
-                program,
-                forks: vec![(state, OnFork::Nop)],
-            },
+    pub fn new(program: Program) -> Self {
+        Self { program }
+    }
+
+    pub fn run(&mut self, value: Value) -> ResultIterator {
+        let mut state = State::new(self.program.entry_point);
+        state.push(value);
+        let env = Environment::new(state);
+        ResultIterator {
+            program: &self.program,
+            env,
         }
     }
 }
 
-impl Iterator for Machine {
+pub struct ResultIterator<'a> {
+    program: &'a Program,
+    env: Environment,
+}
+
+impl<'a> Iterator for ResultIterator<'a> {
     type Item = Result<Value>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        run_code(&mut self.env)
+        run_code(self.program, &mut self.env)
     }
 }
 
-fn run_code(env: &mut Environment) -> Option<Result<Value>> {
+fn run_code(program: &Program, env: &mut Environment) -> Option<Result<Value>> {
     let mut err: Option<QueryExecutionError> = None;
     let mut call_pc: Option<Address> = None;
     let mut catch_skip: usize = 0;
+    log::trace!("Start from environment {:?}", env);
     'backtrack: loop {
         let (mut state, on_fork) = if let Some(x) = env.pop_fork() {
             x
@@ -293,7 +315,8 @@ fn run_code(env: &mut Environment) -> Option<Result<Value>> {
             if err.is_some() {
                 continue 'backtrack;
             }
-            let code = env.program.fetch_code(state.pc)?;
+            let code = program.fetch_code(state.pc)?;
+            log::trace!("Execute code {:?}", code);
             use ByteCode::*;
             match code {
                 Unreachable => panic!("Reached to the unreachable"),
@@ -307,6 +330,9 @@ fn run_code(env: &mut Environment) -> Option<Result<Value>> {
                 }
                 Dup => {
                     state.dup();
+                }
+                Swap => {
+                    state.swap();
                 }
                 Const(v) => {
                     state.pop();

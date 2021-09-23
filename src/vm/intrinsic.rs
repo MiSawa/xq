@@ -153,7 +153,7 @@ pub fn unary(operator: &UnaryOp) -> NamedFn1 {
     }
 }
 
-pub fn index(lhs: Value, rhs: Value) -> Result<Value> {
+pub fn index(_lhs: Value, _rhs: Value) -> Result<Value> {
     todo!()
 }
 

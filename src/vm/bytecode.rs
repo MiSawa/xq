@@ -27,6 +27,7 @@ pub(crate) enum ByteCode {
     Push(Value),
     Pop,
     Dup,
+    Swap,
     Const(Value),
     Load(ScopedSlot),
     Store(ScopedSlot),
@@ -75,13 +76,13 @@ pub(crate) enum ByteCode {
 }
 
 #[derive(Debug, Clone)]
-pub(crate) struct Program {
+pub struct Program {
     pub(crate) code: Vec<ByteCode>,
     pub(crate) entry_point: Address,
 }
 
 impl Program {
-    pub fn fetch_code(&self, pc: Address) -> Option<&ByteCode> {
+    pub(crate) fn fetch_code(&self, pc: Address) -> Option<&ByteCode> {
         self.code.get(pc.0)
     }
 }

@@ -28,7 +28,7 @@ use thiserror::Error;
 ///
 
 #[derive(Debug, Clone, Eq, PartialEq, Error)]
-pub(crate) enum CompileError {
+pub enum CompileError {
     #[error("Use of unknown variable `{0:}`")]
     UnknownVariable(Identifier),
     #[error("Use of unknown function `{0:}`")]
@@ -223,7 +223,7 @@ impl Scope {
     }
 }
 
-struct Compiler {
+pub struct Compiler {
     emitter: CodeEmitter,
     next_scope_id: ScopeId,
     scope_stack: Vec<Scope>,
@@ -247,8 +247,14 @@ impl Compile for Term {
     }
 }
 
+impl Default for Compiler {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Compiler {
-    fn new() -> Self {
+    pub fn new() -> Self {
         Self {
             emitter: CodeEmitter::new(),
             next_scope_id: ScopeId(1),
@@ -323,6 +329,7 @@ impl Compiler {
             .ok_or_else(|| CompileError::UnknownFunction(function.0.clone()))
     }
 
+    /// Consumes nothing, produces nothing. Just places the code.
     fn compile_function_inner(&mut self, args: &[FuncArg], body: &Query) -> Result<Address> {
         let scope_id = self.enter_scope();
         #[allow(clippy::needless_collect)] // This collect is needed to unborrow `self`
@@ -356,10 +363,12 @@ impl Compiler {
         Ok(next)
     }
 
+    /// Consumes nothing, produces nothing. Just places the code.
     fn compile_closure(&mut self, closure: &Query) -> Result<Address> {
         self.compile_function_inner(&[], closure)
     }
 
+    /// Consumes nothing, produces nothing. Registers function to the current scope.
     fn compile_funcdef(&mut self, func: &FuncDef) -> Result<()> {
         let (func_address, placeholder) = self.emitter.emit_terminal_placeholder();
         let types = func
@@ -377,6 +386,7 @@ impl Compiler {
         Ok(())
     }
 
+    /// Consumes a value from the stack, and produces a single value onto the stack.
     fn compile_func_call(
         &mut self,
         function: &FunctionOrClosure,
@@ -387,6 +397,13 @@ impl Compiler {
             FunctionOrClosure::Function(DeclaredFunction(address, types)) => {
                 let mut next = self.emitter.emit_function_call(*address, next);
                 assert_eq!(args.len(), types.len());
+                // We need to evaluate all value-typed arguments on the same current context (stack top).
+                // In order to do so, we store the stack top to a slot temporarily if there's a value-typed arg.
+                let context_slot = if types.iter().any(|s| s == &ArgType::Value) {
+                    Some(self.allocate_variable())
+                } else {
+                    None
+                };
                 for (arg, ty) in args.iter().zip(types.iter()).rev() {
                     next = match ty {
                         ArgType::Closure => {
@@ -396,10 +413,22 @@ impl Compiler {
                                 next,
                             )
                         }
-                        ArgType::Value => self.compile_query(arg, next)?,
+                        ArgType::Value => {
+                            let next = self.compile_query(arg, next)?;
+                            if let Some(slot) = context_slot {
+                                self.emitter.emit_normal_op(ByteCode::Load(slot), next)
+                            } else {
+                                next
+                            }
+                        }
                     }
                 }
-                next
+                if let Some(slot) = context_slot {
+                    next = self.emitter.emit_normal_op(ByteCode::Store(slot), next);
+                    self.emitter.emit_normal_op(ByteCode::Dup, next)
+                } else {
+                    next
+                }
             }
             FunctionOrClosure::Closure(slot) => {
                 self.emitter.emit_terminal_op(ByteCode::CallClosure {
@@ -410,6 +439,7 @@ impl Compiler {
         })
     }
 
+    /// Consumes a value from the stack, and produces a single value onto the stack.
     fn compile_try<T: Compile>(
         &mut self,
         body: &T,
@@ -424,6 +454,7 @@ impl Compiler {
             .emit_normal_op(ByteCode::ForkTryBegin { catch_pc }, body))
     }
 
+    /// Consumes a value from the stack, and produces a single value onto the stack.
     fn compile_index<T: Compile>(
         &mut self,
         term: &Term,
@@ -441,11 +472,13 @@ impl Compiler {
         self.compile_term(term, index)
     }
 
+    /// Consumes a value from the stack, and produces a single value onto the stack.
     fn compile_iterate<T: Compile>(&mut self, prev: &T, next: Address) -> Result<Address> {
         let next = self.emitter.emit_normal_op(ByteCode::Each, next);
         prev.compile(self, next)
     }
 
+    /// Consumes a value from the stack, and produces a single value onto the stack.
     fn compile_term_suffix(
         &mut self,
         term: &Term,
@@ -465,6 +498,7 @@ impl Compiler {
         }
     }
 
+    /// Consumes a value from the stack, and produces a single value onto the stack.
     fn compile_term(&mut self, term: &ast::Term, next: Address) -> Result<Address> {
         let ret = match term {
             Term::Constant(value) => self.emitter.emit_constant(value.clone(), next),
@@ -530,6 +564,7 @@ impl Compiler {
         Ok(ret)
     }
 
+    /// Consumes a value from the stack, and produces a single value onto the stack.
     fn compile_query(&mut self, query: &ast::Query, next: Address) -> Result<Address> {
         let ret = match query {
             Query::Term(term) => self.compile_term(term, next)?,
@@ -584,15 +619,30 @@ impl Compiler {
                 let next = self
                     .emitter
                     .emit_normal_op(ByteCode::Intrinsic2(operator), next);
-                // FIXME: temporarily store to a slot?
+                let next = self.compile_query(rhs, next)?;
+                let next = self.emitter.emit_normal_op(ByteCode::Swap, next);
                 let next = self.compile_query(lhs, next)?;
-                self.compile_query(rhs, next)?
+                self.emitter.emit_normal_op(ByteCode::Dup, next)
             }
         };
         Ok(ret)
     }
 
-    pub fn compile(&mut self, _ast: &ast::Program) -> Result<Program> {
-        todo!()
+    pub fn compile(&mut self, ast: &ast::Program) -> Result<Program> {
+        if !ast.functions.is_empty() {
+            todo!()
+        }
+        if !ast.imports.is_empty() {
+            todo!()
+        }
+        if ast.module_header.is_some() {
+            todo!()
+        }
+        let output = self.emitter.output();
+        let entry_point = self.compile_query(&ast.query, output)?;
+        Ok(Program {
+            code: self.emitter.code.clone(),
+            entry_point,
+        })
     }
 }
