@@ -413,7 +413,7 @@ impl Compiler {
     fn compile_try<T: Compile>(
         &mut self,
         body: &T,
-        catch: Option<&Box<Query>>,
+        catch: Option<&Query>,
         next: Address,
     ) -> Result<Address> {
         let try_end = self.emitter.emit_normal_op(ByteCode::ForkTryEnd, next);
@@ -441,23 +441,28 @@ impl Compiler {
         self.compile_term(term, index)
     }
 
+    fn compile_iterate<T: Compile>(&mut self, prev: &T, next: Address) -> Result<Address> {
+        let next = self.emitter.emit_normal_op(ByteCode::Each, next);
+        prev.compile(self, next)
+    }
+
     fn compile_term_suffix(
         &mut self,
         term: &Term,
         suffix: &Suffix,
         next: Address,
     ) -> Result<Address> {
-        Ok(match suffix {
-            Suffix::Optional => self.compile_try(term, None, next)?,
-            Suffix::Iterate => todo!(),
+        match suffix {
+            Suffix::Optional => self.compile_try(term, None, next),
+            Suffix::Iterate => self.compile_iterate(term, next),
             Suffix::Index(ident) => self.compile_index(
                 term,
                 &Term::Constant(Value::String(Rc::new(ident.0.clone()))),
                 next,
-            )?,
-            Suffix::Query(_) => todo!(),
+            ),
+            Suffix::Query(q) => self.compile_index(term, q.as_ref(), next),
             Suffix::Slice(_, _) => todo!(),
-        })
+        }
     }
 
     fn compile_term(&mut self, term: &ast::Term, next: Address) -> Result<Address> {
@@ -564,7 +569,9 @@ impl Compiler {
                 let pc = self.emitter.emit_normal_op(ByteCode::Dup, pc);
                 self.compile_query(cond, pc)?
             }
-            Query::Try { body, catch } => self.compile_try(body.as_ref(), catch.as_ref(), next)?,
+            Query::Try { body, catch } => {
+                self.compile_try(body.as_ref(), catch.as_ref().map(AsRef::as_ref), next)?
+            }
             Query::Label { .. } => todo!(),
             Query::Operate { .. } => todo!(),
             Query::Update { .. } => todo!(),
@@ -577,6 +584,7 @@ impl Compiler {
                 let next = self
                     .emitter
                     .emit_normal_op(ByteCode::Intrinsic2(operator), next);
+                // FIXME: temporarily store to a slot?
                 let next = self.compile_query(lhs, next)?;
                 self.compile_query(rhs, next)?
             }

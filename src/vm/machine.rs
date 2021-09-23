@@ -52,6 +52,54 @@ struct Environment {
     forks: Vec<(State, OnFork)>,
 }
 
+enum PathElement {
+    Array(usize),
+    Object(Rc<String>),
+}
+
+#[derive(Debug, Clone)]
+enum PathValueIterator {
+    Array {
+        array: PVector<Value>,
+        next: usize,
+        limit: usize,
+    },
+    Object {
+        sorted_elements: PVector<(Rc<String>, Value)>,
+        next: usize,
+    },
+}
+
+impl Iterator for PathValueIterator {
+    type Item = (PathElement, Value);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        match self {
+            PathValueIterator::Array { array, next, limit } => {
+                if *next >= *limit {
+                    None
+                } else {
+                    let ret = (PathElement::Array(*next), array[*next].clone());
+                    *next += 1;
+                    Some(ret)
+                }
+            }
+            PathValueIterator::Object {
+                sorted_elements,
+                next,
+            } => {
+                if *next >= sorted_elements.len() {
+                    None
+                } else {
+                    let (index, value) = sorted_elements[*next].clone();
+                    *next += 1;
+                    Some((PathElement::Object(index), value))
+                }
+            }
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 struct State {
     pc: Address,
@@ -60,6 +108,8 @@ struct State {
     scopes: PVector<(Option<Scope>, PStack<Scope>)>,
     scope_stack: PStack<(Address, ScopeId)>, // (pc, pushed_scope)
     closure_stack: PStack<Closure>,
+
+    iterators: PStack<PathValueIterator>,
 }
 
 #[derive(Debug, Clone)]
@@ -90,6 +140,7 @@ impl State {
             scopes: Default::default(),
             scope_stack: Default::default(),
             closure_stack: Default::default(),
+            iterators: Default::default(),
         }
     }
 
@@ -208,7 +259,11 @@ fn run_code(env: &mut Environment) -> Option<Result<Value>> {
     let mut call_pc: Option<Address> = None;
     let mut catch_skip: usize = 0;
     'backtrack: loop {
-        let (mut state, on_fork) = env.pop_fork()?;
+        let (mut state, on_fork) = if let Some(x) = env.pop_fork() {
+            x
+        } else {
+            return err.map(Err);
+        };
         match on_fork {
             OnFork::Nop => {}
             OnFork::IgnoreError => {
@@ -235,6 +290,9 @@ fn run_code(env: &mut Environment) -> Option<Result<Value>> {
         }
         assert_eq!(catch_skip, 0);
         'cycle: loop {
+            if err.is_some() {
+                continue 'backtrack;
+            }
             let code = env.program.fetch_code(state.pc)?;
             use ByteCode::*;
             match code {
@@ -355,12 +413,8 @@ fn run_code(env: &mut Environment) -> Option<Result<Value>> {
                     continue 'cycle;
                 }
                 Output => {
-                    return if let Some(err) = err {
-                        Some(Err(err))
-                    } else {
-                        let value = state.pop();
-                        Some(Ok(value))
-                    }
+                    let value = state.pop();
+                    return Some(Ok(value));
                 }
                 Each => todo!("Implement {:?}", code),
                 ExpBegin => todo!("Implement {:?}", code),
