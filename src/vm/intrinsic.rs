@@ -153,6 +153,10 @@ pub fn unary(operator: &UnaryOp) -> NamedFn1 {
     }
 }
 
+pub fn index(lhs: Value, rhs: Value) -> Result<Value> {
+    todo!()
+}
+
 fn compare(lhs: Value, rhs: Value) -> Ordering {
     Ord::cmp(&ComparableValue(&lhs), &ComparableValue(&rhs))
 }

@@ -297,7 +297,10 @@ fn run_code(env: &mut Environment) -> Option<Result<Value>> {
                 }
                 ForkTryBegin { catch_pc } => match catch_pc {
                     None => env.push_fork(&state, OnFork::IgnoreError, state.pc.get_next()),
-                    Some(pc) => env.push_fork(&state, OnFork::CatchError, *pc),
+                    Some(pc) => {
+                        let new_pc = *pc;
+                        env.push_fork(&state, OnFork::CatchError, new_pc)
+                    }
                 },
                 ForkTryEnd => env.push_fork(&state, OnFork::SkipCatch, state.pc.get_next()),
                 ForkAlt => todo!("Implement {:?}", code),

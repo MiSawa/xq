@@ -256,17 +256,8 @@ impl<'a> Consumer for Box<&mut (dyn Consumer + 'a)> {
 
 fn run_term(env: &Env, term: &Term, consumer: &mut dyn Consumer) {
     match term {
-        Term::Null => {
-            consumer.consume(&env.object_changed(Rc::new(Json::Null)));
-        }
-        Term::True => {
-            consumer.consume(&env.object_changed(Rc::new(Json::True)));
-        }
-        Term::False => {
-            consumer.consume(&env.object_changed(Rc::new(Json::False)));
-        }
-        Term::Number(v) => {
-            consumer.consume(&env.object_changed(Rc::new(Json::Number(v.clone()))));
+        Term::Constant(_) => {
+            todo!()
         }
         Term::String(s) => {
             struct ConcatenatedStr<'a, C>(&'a String, &'a mut C);

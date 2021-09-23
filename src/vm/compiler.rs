@@ -1,7 +1,10 @@
 use crate::{
     ast::{self, FuncArg, FuncDef, Identifier, Query, StringFragment, Suffix, Term},
     data_structure::{PHashMap, PVector},
-    vm::{bytecode::Closure, intrinsic, Address, ByteCode, Program, ScopeId, ScopedSlot, Value},
+    vm::{
+        bytecode::{Closure, NamedFn2},
+        intrinsic, Address, ByteCode, Program, ScopeId, ScopedSlot, Value,
+    },
 };
 use std::rc::Rc;
 use thiserror::Error;
@@ -421,6 +424,23 @@ impl Compiler {
             .emit_normal_op(ByteCode::ForkTryBegin { catch_pc }, body))
     }
 
+    fn compile_index<T: Compile>(
+        &mut self,
+        term: &Term,
+        index: &T,
+        next: Address,
+    ) -> Result<Address> {
+        let indexing = self.emitter.emit_normal_op(
+            ByteCode::Intrinsic2(NamedFn2 {
+                name: "index",
+                func: Box::new(intrinsic::index),
+            }),
+            next,
+        );
+        let index = index.compile(self, indexing)?;
+        self.compile_term(term, index)
+    }
+
     fn compile_term_suffix(
         &mut self,
         term: &Term,
@@ -430,7 +450,11 @@ impl Compiler {
         Ok(match suffix {
             Suffix::Optional => self.compile_try(term, None, next)?,
             Suffix::Iterate => todo!(),
-            Suffix::Index(ident) => todo!(),
+            Suffix::Index(ident) => self.compile_index(
+                term,
+                &Term::Constant(Value::String(Rc::new(ident.0.clone()))),
+                next,
+            )?,
             Suffix::Query(_) => todo!(),
             Suffix::Slice(_, _) => todo!(),
         })
@@ -438,12 +462,7 @@ impl Compiler {
 
     fn compile_term(&mut self, term: &ast::Term, next: Address) -> Result<Address> {
         let ret = match term {
-            Term::Null => self.emitter.emit_constant(Value::Null, next),
-            Term::True => self.emitter.emit_constant(Value::True, next),
-            Term::False => self.emitter.emit_constant(Value::False, next),
-            Term::Number(n) => self
-                .emitter
-                .emit_constant(Value::Number(Rc::new(n.clone())), next),
+            Term::Constant(value) => self.emitter.emit_constant(value.clone(), next),
             Term::String(s) => {
                 let ret: Address = if s.is_empty() {
                     self.emitter

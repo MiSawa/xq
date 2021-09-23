@@ -1,4 +1,4 @@
-use crate::Number;
+use crate::{vm::Value, Number};
 use std::fmt::{Display, Formatter};
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
@@ -103,14 +103,8 @@ pub struct FuncDef {
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum Term {
-    /// `'null'`
-    Null,
-    /// `'true'`
-    True,
-    /// `'false'`
-    False,
-    /// `<number>`
-    Number(Number),
+    /// `'null' | 'true' | 'false' | <number>`
+    Constant(Value),
     /// `<string>`
     String(Vec<StringFragment>),
 

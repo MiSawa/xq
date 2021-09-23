@@ -4,6 +4,7 @@ use crate::{
         ConstantValue, FuncArg, FuncDef, Identifier, Import, ObjectBindPatternEntry, Program,
         Query, StringFragment, Suffix, Term, UnaryOp, UpdateOp,
     },
+    vm::Value,
     Number,
 };
 use nom::{
@@ -17,7 +18,7 @@ use nom::{
     sequence::{delimited, pair, preceded, separated_pair, terminated, tuple},
     Finish, IResult, Parser,
 };
-use std::convert::TryFrom;
+use std::{convert::TryFrom, rc::Rc};
 
 pub type ParseResult<'a, T> = IResult<&'a str, T>;
 
@@ -376,10 +377,10 @@ fn term(input: &str) -> ParseResult<Term> {
     }
     fn term_inner(input: &str) -> ParseResult<Term> {
         alt((
-            value(Term::Null, keyword("null")),
-            value(Term::False, keyword("false")),
-            value(Term::True, keyword("true")),
-            map(number, Term::Number),
+            value(Term::Constant(Value::Null), keyword("null")),
+            value(Term::Constant(Value::False), keyword("false")),
+            value(Term::Constant(Value::True), keyword("true")),
+            map(number, |n| Term::Constant(Value::Number(Rc::new(n)))),
             map(
                 delimited(
                     terminated(char('('), multispace0),
@@ -848,7 +849,9 @@ mod test {
     use crate::{
         ast::{BinaryOp, StringFragment, Suffix, Term, UnaryOp},
         parser::{format, identifier, string, term, variable},
+        vm::Value,
     };
+    use std::rc::Rc;
 
     fn string_term(s: &str) -> Term {
         Term::String(vec![StringFragment::String(s.to_string())])
@@ -876,14 +879,17 @@ mod test {
 
     #[test]
     fn test_term() {
-        assert_eq!(term("true"), Ok(("", Term::True)));
-        assert_eq!(term("false"), Ok(("", Term::False)));
-        assert_eq!(term("null"), Ok(("", Term::Null)));
+        assert_eq!(term("true"), Ok(("", Term::Constant(Value::True))));
+        assert_eq!(term("false"), Ok(("", Term::Constant(Value::False))));
+        assert_eq!(term("null"), Ok(("", Term::Constant(Value::Null))));
         assert_eq!(
             term("-123"),
             Ok((
                 "",
-                Term::Unary(UnaryOp::Minus, Box::new(Term::Number(123.into())))
+                Term::Unary(
+                    UnaryOp::Minus,
+                    Box::new(Term::Constant(Value::Number(Rc::new(123.into()))))
+                )
             ))
         );
         assert_eq!(term("[ ]"), Ok(("", Term::Array(None))));
@@ -940,7 +946,9 @@ mod test {
                         Box::new(Term::Identity),
                         Suffix::Index("foo".into())
                     )),
-                    Suffix::Query(Box::new(Term::Number(4.into()).into()))
+                    Suffix::Query(Box::new(
+                        Term::Constant(Value::Number(Rc::new(4.into()))).into()
+                    ))
                 )
             ))
         );
@@ -961,9 +969,9 @@ mod test {
                 vec![
                     String("abc".to_string()),
                     Query(ast::Query::Operate {
-                        lhs: Box::new(Term::Number(1.into()).into()),
+                        lhs: Box::new(Term::Constant(Value::Number(Rc::new(1.into()))).into()),
                         operator: BinaryOp::Add,
-                        rhs: Box::new(Term::Number(2.into()).into())
+                        rhs: Box::new(Term::Constant(Value::Number(Rc::new(2.into()))).into())
                     }),
                     String("def".to_string())
                 ]
