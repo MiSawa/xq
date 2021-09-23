@@ -279,9 +279,12 @@ impl Compiler {
     }
 
     fn restore_scope(&mut self, save: SavedScope) {
+        let mut save = save.0;
         let current = self.current_scope_mut();
-        assert_eq!(current.id, save.0.id);
-        *current = save.0;
+        assert_eq!(current.id, save.id);
+        save.next_variable_slot_id = current.next_variable_slot_id;
+        save.next_closure_slot_id = current.next_closure_slot_id;
+        *current = save;
     }
 
     fn allocate_variable(&mut self) -> ScopedSlot {
@@ -327,6 +330,10 @@ impl Compiler {
             },
             next,
         )
+    }
+
+    fn exit_global_scope_and_emit_new_scope(&mut self, next: Address) -> Address {
+        self.exit_scope_and_emit_new_scope(ScopeId(0), next)
     }
 
     fn lookup_variable(&self, name: &Identifier) -> Result<&ScopedSlot> {
@@ -638,7 +645,6 @@ impl Compiler {
     }
 
     pub fn compile(&mut self, ast: &ast::Program) -> Result<Program> {
-        let global = self.enter_scope();
         if !ast.functions.is_empty() {
             todo!()
         }
@@ -649,9 +655,9 @@ impl Compiler {
             todo!()
         }
         let output = self.emitter.output();
-        let query_start = self.compile_query(&ast.query, output)?;
-        let new_scope = self.exit_scope_and_emit_new_scope(global, query_start);
         let backtrack = self.emitter.backtrack();
+        let query_start = self.compile_query(&ast.query, output)?;
+        let new_scope = self.exit_global_scope_and_emit_new_scope(query_start);
         let entry_point = self.emitter.emit_terminal_op(ByteCode::Call {
             function: new_scope,
             return_address: backtrack,

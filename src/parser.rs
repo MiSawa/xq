@@ -410,22 +410,20 @@ fn term(input: &str) -> ParseResult<Term> {
                 Term::Break,
             ),
             map(
-                alt((
-                    pair(
-                        identifier_or_module_identifier,
-                        opt(delimited(
-                            preceded(multispace0, char('(')),
-                            separated_list1(char(';'), ws(query)),
-                            char(')'),
-                        )),
-                    ),
-                    pair(variable_or_module_variable, success(None)),
-                )),
+                pair(
+                    identifier_or_module_identifier,
+                    opt(delimited(
+                        preceded(multispace0, char('(')),
+                        separated_list1(char(';'), ws(query)),
+                        char(')'),
+                    )),
+                ),
                 |(name, args)| Term::FunctionCall {
                     name,
                     args: args.unwrap_or_default(),
                 },
             ),
+            map(variable_or_module_variable, Term::Variable),
             map(format, Term::Format),
             map(string, Term::String),
             preceded(
