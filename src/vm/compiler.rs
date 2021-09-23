@@ -317,6 +317,18 @@ impl Compiler {
         (scope.next_variable_slot_id, scope.next_closure_slot_id)
     }
 
+    fn exit_scope_and_emit_new_scope(&mut self, id: ScopeId, next: Address) -> Address {
+        let scope_info = self.exit_scope(id);
+        self.emitter.emit_normal_op(
+            ByteCode::NewScope {
+                id,
+                variable_cnt: scope_info.0,
+                closure_cnt: scope_info.1,
+            },
+            next,
+        )
+    }
+
     fn lookup_variable(&self, name: &Identifier) -> Result<&ScopedSlot> {
         self.current_scope()
             .lookup_variable(name)
@@ -351,15 +363,7 @@ impl Compiler {
                     .emit_normal_op(ByteCode::StoreClosure(slot), next),
             };
         }
-        let (variable_cnt, closure_cnt) = self.exit_scope(scope_id);
-        let next = self.emitter.emit_normal_op(
-            ByteCode::NewScope {
-                id: scope_id,
-                variable_cnt,
-                closure_cnt,
-            },
-            next,
-        );
+        let next = self.exit_scope_and_emit_new_scope(scope_id, next);
         Ok(next)
     }
 
@@ -556,7 +560,10 @@ impl Compiler {
                         .emitter
                         .emit_normal_op(ByteCode::Append(slot), backtrack);
                     let query = self.compile_query(query, append)?;
-                    self.emitter.emit_fork(load, query)
+                    let next = self.emitter.emit_fork(load, query);
+                    let next = self.emitter.emit_normal_op(ByteCode::Store(slot), next);
+                    self.emitter
+                        .emit_constant(Value::Array(PVector::new()), next)
                 }
             },
             Term::Break(_) => todo!(),
@@ -580,9 +587,9 @@ impl Compiler {
                 self.compile_query(lhs, rhs_address)?
             }
             Query::Concat { lhs, rhs } => {
-                let lhs_address = self.compile_query(lhs, next)?;
                 let rhs_address = self.compile_query(rhs, next)?;
-                self.emitter.emit_fork(lhs_address, rhs_address)
+                let lhs_address = self.compile_query(lhs, next)?;
+                self.emitter.emit_fork(rhs_address, lhs_address)
             }
             Query::Bind { .. } => todo!(),
             Query::Reduce { .. } => todo!(),
@@ -629,6 +636,7 @@ impl Compiler {
     }
 
     pub fn compile(&mut self, ast: &ast::Program) -> Result<Program> {
+        let global = self.enter_scope();
         if !ast.functions.is_empty() {
             todo!()
         }
@@ -639,7 +647,8 @@ impl Compiler {
             todo!()
         }
         let output = self.emitter.output();
-        let entry_point = self.compile_query(&ast.query, output)?;
+        let query_start = self.compile_query(&ast.query, output)?;
+        let entry_point = self.exit_scope_and_emit_new_scope(global, query_start);
         Ok(Program {
             code: self.emitter.code.clone(),
             entry_point,
