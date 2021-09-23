@@ -342,7 +342,7 @@ fn term(input: &str) -> ParseResult<Term> {
                         }
                     },
                 ),
-                success(Suffix::Explode),
+                success(Suffix::Iterate),
             )),
             preceded(multispace0, char(']')),
         )(input)
@@ -889,7 +889,7 @@ mod test {
         assert_eq!(term("[ ]"), Ok(("", Term::Array(None))));
         assert_eq!(
             term(". [ ]"),
-            Ok(("", Term::Suffix(Box::new(Term::Identity), Suffix::Explode)))
+            Ok(("", Term::Suffix(Box::new(Term::Identity), Suffix::Iterate)))
         );
         assert_eq!(
             term(". \"foo\""),
@@ -927,7 +927,7 @@ mod test {
                         Box::new(Term::Identity),
                         Suffix::Index("foo".into())
                     )),
-                    Suffix::Explode
+                    Suffix::Iterate
                 )
             ))
         );

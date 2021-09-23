@@ -55,7 +55,7 @@ pub enum Suffix {
     /// `'?'`
     Optional,
     /// `'[' ']'`
-    Explode,
+    Iterate,
     /// `'.' <ident>`
     Index(Identifier),
     /// `'[' query ']' | '.' <string>`

@@ -20,6 +20,10 @@ impl Address {
     fn next(&mut self) {
         self.0 -= 1;
     }
+
+    fn get_next(&self) -> Self {
+        Self(self.0 - 1)
+    }
 }
 
 #[derive(Debug, Copy, Clone, Hash, Ord, PartialOrd, Eq, PartialEq)]

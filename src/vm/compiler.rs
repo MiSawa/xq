@@ -3,7 +3,7 @@ use crate::{
     data_structure::{PHashMap, PVector},
     vm::{bytecode::Closure, intrinsic, Address, ByteCode, Program, ScopeId, ScopedSlot, Value},
 };
-use std::{ops::Deref, rc::Rc};
+use std::rc::Rc;
 use thiserror::Error;
 
 /// # Function calling convention
@@ -413,7 +413,12 @@ impl Compiler {
         catch: Option<&Box<Query>>,
         next: Address,
     ) -> Result<Address> {
-        todo!()
+        let try_end = self.emitter.emit_normal_op(ByteCode::ForkTryEnd, next);
+        let catch_pc = catch.map(|c| self.compile_query(c, next)).transpose()?;
+        let body = body.compile(self, try_end)?;
+        Ok(self
+            .emitter
+            .emit_normal_op(ByteCode::ForkTryBegin { catch_pc }, body))
     }
 
     fn compile_term_suffix(
@@ -424,8 +429,8 @@ impl Compiler {
     ) -> Result<Address> {
         Ok(match suffix {
             Suffix::Optional => self.compile_try(term, None, next)?,
-            Suffix::Explode => todo!(),
-            Suffix::Index(_) => todo!(),
+            Suffix::Iterate => todo!(),
+            Suffix::Index(ident) => todo!(),
             Suffix::Query(_) => todo!(),
             Suffix::Slice(_, _) => todo!(),
         })

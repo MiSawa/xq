@@ -37,7 +37,9 @@ pub(crate) enum ByteCode {
     Fork {
         fork_pc: Address,
     },
-    ForkTryBegin,
+    ForkTryBegin {
+        catch_pc: Option<Address>,
+    },
     ForkTryEnd,
     ForkAlt,
     ForkLabel,

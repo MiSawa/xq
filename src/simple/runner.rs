@@ -342,7 +342,7 @@ fn run_term(env: &Env, term: &Term, consumer: &mut dyn Consumer) {
                 Suffix::Optional => {
                     todo!()
                 }
-                Suffix::Explode => run_term(env, term, &mut |e: &Env| {
+                Suffix::Iterate => run_term(env, term, &mut |e: &Env| {
                     if let Some(v) = &e.current_object {
                         match v.borrow() {
                             Json::Array(v) => {

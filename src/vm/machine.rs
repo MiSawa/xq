@@ -7,6 +7,7 @@ use crate::{
         Address, ByteCode, Program, Result, ScopeId, ScopedSlot, Value,
     },
 };
+use std::rc::Rc;
 use thiserror::Error;
 
 #[derive(Debug, Clone, Eq, PartialEq, Error)]
@@ -48,7 +49,7 @@ struct Machine {
 #[derive(Debug)]
 struct Environment {
     program: Program,
-    forks: Vec<State>,
+    forks: Vec<(State, OnFork)>,
 }
 
 #[derive(Debug, Clone)]
@@ -61,14 +62,22 @@ struct State {
     closure_stack: PStack<Closure>,
 }
 
+#[derive(Debug, Clone)]
+enum OnFork {
+    Nop,
+    IgnoreError,
+    CatchError,
+    SkipCatch,
+}
+
 impl Environment {
-    fn push_fork(&mut self, state: &State, new_pc: Address) {
+    fn push_fork(&mut self, state: &State, on_fork: OnFork, new_pc: Address) {
         let mut new_state = state.clone();
         new_state.pc = new_pc;
-        self.forks.push(new_state);
+        self.forks.push((new_state, on_fork));
     }
 
-    fn pop_fork(&mut self) -> Option<State> {
+    fn pop_fork(&mut self) -> Option<(State, OnFork)> {
         self.forks.pop()
     }
 }
@@ -180,7 +189,7 @@ impl Machine {
         Self {
             env: Environment {
                 program,
-                forks: vec![state],
+                forks: vec![(state, OnFork::Nop)],
             },
         }
     }
@@ -197,8 +206,34 @@ impl Iterator for Machine {
 fn run_code(env: &mut Environment) -> Option<Result<Value>> {
     let mut err: Option<QueryExecutionError> = None;
     let mut call_pc: Option<Address> = None;
+    let mut catch_skip: usize = 0;
     'backtrack: loop {
-        let mut state = env.pop_fork()?;
+        let (mut state, on_fork) = env.pop_fork()?;
+        match on_fork {
+            OnFork::Nop => {}
+            OnFork::IgnoreError => {
+                if catch_skip == 0 {
+                    err = None
+                } else {
+                    catch_skip -= 1
+                }
+            }
+            OnFork::CatchError => {
+                if catch_skip == 0 {
+                    match err.take() {
+                        None => continue 'backtrack,
+                        Some(e) => state.push(Value::String(Rc::new(format!("{:?}", e)))),
+                    }
+                } else {
+                    catch_skip -= 1
+                }
+            }
+            OnFork::SkipCatch => {
+                catch_skip += 1;
+                continue 'backtrack;
+            }
+        }
+        assert_eq!(catch_skip, 0);
         'cycle: loop {
             let code = env.program.fetch_code(state.pc)?;
             use ByteCode::*;
@@ -258,10 +293,13 @@ fn run_code(env: &mut Environment) -> Option<Result<Value>> {
                 }
                 Fork { fork_pc } => {
                     let fork_pc = *fork_pc;
-                    env.push_fork(&state, fork_pc);
+                    env.push_fork(&state, OnFork::Nop, fork_pc);
                 }
-                ForkTryBegin => todo!("Implement {:?}", code),
-                ForkTryEnd => todo!("Implement {:?}", code),
+                ForkTryBegin { catch_pc } => match catch_pc {
+                    None => env.push_fork(&state, OnFork::IgnoreError, state.pc.get_next()),
+                    Some(pc) => env.push_fork(&state, OnFork::CatchError, *pc),
+                },
+                ForkTryEnd => env.push_fork(&state, OnFork::SkipCatch, state.pc.get_next()),
                 ForkAlt => todo!("Implement {:?}", code),
                 ForkLabel => todo!("Implement {:?}", code),
                 Backtrack => continue 'backtrack,
