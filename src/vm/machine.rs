@@ -7,7 +7,10 @@ use crate::{
         Address, ByteCode, Program, Result, ScopeId, ScopedSlot, Value,
     },
 };
-use std::rc::Rc;
+use std::{
+    cell::{RefCell, RefMut},
+    rc::Rc,
+};
 use thiserror::Error;
 
 #[derive(Debug, Clone, Eq, PartialEq, Error)]
@@ -24,31 +27,6 @@ pub(crate) enum ProgramError {
     PopEmptyScope,
     #[error("tried to restore an unknown scope")]
     PopUnknownScope,
-}
-
-#[derive(Debug, Clone)]
-struct Scope {
-    slots: PVector<Option<Value>>,
-    closure_slots: PVector<Option<Closure>>,
-}
-
-impl Scope {
-    fn new(variable_cnt: usize, closure_cnt: usize) -> Self {
-        Self {
-            slots: std::iter::repeat(None).take(variable_cnt).collect(),
-            closure_slots: std::iter::repeat(None).take(closure_cnt).collect(),
-        }
-    }
-}
-
-#[derive(Debug)]
-pub struct Machine {
-    program: Program,
-}
-
-#[derive(Debug)]
-struct Environment {
-    forks: Vec<(State, OnFork)>,
 }
 
 enum PathElement {
@@ -97,6 +75,35 @@ impl Iterator for PathValueIterator {
             }
         }
     }
+}
+
+#[derive(Debug, Clone)]
+struct Scope {
+    slots: PVector<Rc<RefCell<Option<Value>>>>,
+    closure_slots: PVector<Rc<RefCell<Option<Closure>>>>,
+}
+
+impl Scope {
+    fn new(variable_cnt: usize, closure_cnt: usize) -> Self {
+        Self {
+            slots: std::iter::repeat(Rc::new(RefCell::new(None)))
+                .take(variable_cnt)
+                .collect(),
+            closure_slots: std::iter::repeat(Rc::new(RefCell::new(None)))
+                .take(closure_cnt)
+                .collect(),
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct Machine {
+    program: Program,
+}
+
+#[derive(Debug)]
+struct Environment {
+    forks: Vec<(State, OnFork)>,
 }
 
 #[derive(Debug, Clone)]
@@ -181,7 +188,7 @@ impl State {
             .unwrap()
     }
 
-    fn slot(&mut self, scoped_slot: &ScopedSlot) -> &mut Option<Value> {
+    fn slot(&mut self, scoped_slot: &ScopedSlot) -> RefMut<Option<Value>> {
         let scope = self
             .scopes
             .get_mut(scoped_slot.0 .0)
@@ -193,9 +200,10 @@ impl State {
             .get_mut(scoped_slot.1)
             .ok_or(ProgramError::UnknownSlot)
             .unwrap()
+            .borrow_mut()
     }
 
-    fn closure_slot(&mut self, scoped_slot: &ScopedSlot) -> &mut Option<Closure> {
+    fn closure_slot(&mut self, scoped_slot: &ScopedSlot) -> RefMut<Option<Closure>> {
         let scope = self
             .scopes
             .get_mut(scoped_slot.0 .0)
@@ -207,6 +215,7 @@ impl State {
             .get_mut(scoped_slot.1)
             .ok_or(ProgramError::UnknownSlot)
             .unwrap()
+            .borrow_mut()
     }
 
     fn push_scope(
@@ -316,7 +325,12 @@ fn run_code(program: &Program, env: &mut Environment) -> Option<Result<Value>> {
                 continue 'backtrack;
             }
             let code = program.fetch_code(state.pc)?;
-            log::trace!("Execute code {:?}", code);
+            log::trace!(
+                "Execute code {:?} on stack {:?}, slots = {:?}",
+                code,
+                state.stack,
+                state.scopes
+            );
             use ByteCode::*;
             match code {
                 Unreachable => panic!("Reached to the unreachable"),
@@ -361,8 +375,8 @@ fn run_code(program: &Program, env: &mut Environment) -> Option<Result<Value>> {
                 Object => todo!("Implement {:?}", code),
                 Append(scoped_slot) => {
                     let value = state.pop();
-                    let slot_item = state
-                        .slot(scoped_slot)
+                    let mut slot = state.slot(scoped_slot);
+                    let slot_item = slot
                         .as_mut()
                         .ok_or(ProgramError::UninitializedSlot)
                         .unwrap();
@@ -455,8 +469,8 @@ fn run_code(program: &Program, env: &mut Environment) -> Option<Result<Value>> {
                     }
                 }
                 Intrinsic2(NamedFunction { name: _name, func }) => {
-                    let rhs = state.pop();
                     let lhs = state.pop();
+                    let rhs = state.pop();
                     match func(lhs, rhs) {
                         Ok(value) => state.push(value),
                         Err(e) => err = Some(e),

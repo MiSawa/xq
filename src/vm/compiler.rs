@@ -562,8 +562,10 @@ impl Compiler {
                     let query = self.compile_query(query, append)?;
                     let next = self.emitter.emit_fork(load, query);
                     let next = self.emitter.emit_normal_op(ByteCode::Store(slot), next);
-                    self.emitter
-                        .emit_constant(Value::Array(PVector::new()), next)
+                    let next = self
+                        .emitter
+                        .emit_constant(Value::Array(PVector::new()), next);
+                    self.emitter.emit_normal_op(ByteCode::Dup, next)
                 }
             },
             Term::Break(_) => todo!(),
@@ -626,9 +628,9 @@ impl Compiler {
                 let next = self
                     .emitter
                     .emit_normal_op(ByteCode::Intrinsic2(operator), next);
-                let next = self.compile_query(rhs, next)?;
-                let next = self.emitter.emit_normal_op(ByteCode::Swap, next);
                 let next = self.compile_query(lhs, next)?;
+                let next = self.emitter.emit_normal_op(ByteCode::Swap, next);
+                let next = self.compile_query(rhs, next)?;
                 self.emitter.emit_normal_op(ByteCode::Dup, next)
             }
         };
@@ -648,7 +650,12 @@ impl Compiler {
         }
         let output = self.emitter.output();
         let query_start = self.compile_query(&ast.query, output)?;
-        let entry_point = self.exit_scope_and_emit_new_scope(global, query_start);
+        let new_scope = self.exit_scope_and_emit_new_scope(global, query_start);
+        let backtrack = self.emitter.backtrack();
+        let entry_point = self.emitter.emit_terminal_op(ByteCode::Call {
+            function: new_scope,
+            return_address: backtrack,
+        });
         Ok(Program {
             code: self.emitter.code.clone(),
             entry_point,
