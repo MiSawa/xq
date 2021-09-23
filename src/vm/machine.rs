@@ -301,7 +301,8 @@ fn run_code(program: &Program, env: &mut Environment) -> Option<Result<Value>> {
                 if catch_skip == 0 {
                     err = None
                 } else {
-                    catch_skip -= 1
+                    catch_skip -= 1;
+                    continue 'backtrack
                 }
             }
             OnFork::CatchError => {
@@ -311,7 +312,8 @@ fn run_code(program: &Program, env: &mut Environment) -> Option<Result<Value>> {
                         Some(e) => state.push(Value::String(Rc::new(format!("{:?}", e)))),
                     }
                 } else {
-                    catch_skip -= 1
+                    catch_skip -= 1;
+                    continue 'backtrack
                 }
             }
             OnFork::SkipCatch => {
