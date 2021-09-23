@@ -337,70 +337,61 @@ fn run_term(env: &Env, term: &Term, consumer: &mut dyn Consumer) {
                 }
             }
         }
-        Term::Suffix(term, suffixes) => {
-            fn suffix(env: &Env, suffixes: &[Suffix], consumer: &mut dyn Consumer) {
-                if let Some((last, other)) = suffixes.split_last() {
-                    match last {
-                        Suffix::Optional => {
-                            todo!()
-                        }
-                        Suffix::Explode => suffix(env, other, &mut |e: &Env| {
-                            if let Some(v) = &e.current_object {
-                                match v.borrow() {
-                                    Json::Array(v) => {
-                                        for i in 0..v.len() {
-                                            consumer.consume(&e.indexed(Index::Array(i)))
-                                        }
-                                    }
-                                    Json::Object(map) => {
-                                        for key in map.keys() {
-                                            consumer.consume(&e.indexed(Index::Object(key.clone())))
-                                        }
-                                    }
-                                    _ => todo!(),
+        Term::Suffix(term, suffix) => {
+            match suffix {
+                Suffix::Optional => {
+                    todo!()
+                }
+                Suffix::Explode => run_term(env, term, &mut |e: &Env| {
+                    if let Some(v) = &e.current_object {
+                        match v.borrow() {
+                            Json::Array(v) => {
+                                for i in 0..v.len() {
+                                    consumer.consume(&e.indexed(Index::Array(i)))
                                 }
                             }
-                        }),
-                        Suffix::Index(ident) => {
-                            suffix(env, other, &mut |e: &Env| {
-                                consumer
-                                    .consume(&e.indexed(Index::Object(Rc::new(ident.0.clone()))))
-                            });
-                        }
-                        Suffix::Query(query) => {
-                            run_query(env, query, &mut |e: &Env| {
-                                if let Some(obj) = &e.current_object {
-                                    match obj.borrow() {
-                                        Json::Number(v) => {
-                                            suffix(env, other, &mut |e: &Env| {
-                                                let i = match v.as_int_or_real() {
-                                                    IntOrReal::Integer(v) => v.to_usize(),
-                                                    IntOrReal::Real(v) => v.round().to_usize(), // TODO
-                                                };
-                                                if let Some(i) = i {
-                                                    consumer.consume(&e.indexed(Index::Array(i)))
-                                                }
-                                            });
-                                        }
-                                        Json::String(s) => {
-                                            suffix(env, other, &mut |e: &Env| {
-                                                consumer.consume(
-                                                    &e.indexed(Index::Object(Rc::new(s.clone()))),
-                                                )
-                                            });
-                                        }
-                                        _ => todo!(),
-                                    }
+                            Json::Object(map) => {
+                                for key in map.keys() {
+                                    consumer.consume(&e.indexed(Index::Object(key.clone())))
                                 }
-                            });
+                            }
+                            _ => todo!(),
                         }
-                        Suffix::Slice(_, _) => todo!(),
                     }
-                } else {
-                    consumer.consume(env)
+                }),
+                Suffix::Index(ident) => {
+                    run_term(env, term, &mut |e: &Env| {
+                        consumer.consume(&e.indexed(Index::Object(Rc::new(ident.0.clone()))))
+                    });
                 }
+                Suffix::Query(query) => {
+                    run_query(env, query, &mut |e: &Env| {
+                        if let Some(obj) = &e.current_object {
+                            match obj.borrow() {
+                                Json::Number(v) => {
+                                    run_term(env, term, &mut |e: &Env| {
+                                        let i = match v.as_int_or_real() {
+                                            IntOrReal::Integer(v) => v.to_usize(),
+                                            IntOrReal::Real(v) => v.round().to_usize(), // TODO
+                                        };
+                                        if let Some(i) = i {
+                                            consumer.consume(&e.indexed(Index::Array(i)))
+                                        }
+                                    });
+                                }
+                                Json::String(s) => {
+                                    run_term(env, term, &mut |e: &Env| {
+                                        consumer
+                                            .consume(&e.indexed(Index::Object(Rc::new(s.clone()))))
+                                    });
+                                }
+                                _ => todo!(),
+                            }
+                        }
+                    });
+                }
+                Suffix::Slice(_, _) => todo!(),
             }
-            run_term(env, term, &mut |e: &Env| suffix(e, suffixes, consumer))
         }
         Term::Variable(_) => unimplemented!(),
         Term::FunctionCall { name, args } => {

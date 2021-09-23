@@ -437,7 +437,7 @@ fn term(input: &str) -> ParseResult<Term> {
                             map(string, |s| Suffix::Query(Box::new(Term::String(s).into()))),
                             suffix,
                         )),
-                        |suffix| Term::Suffix(Box::new(Term::Identity), vec![suffix]),
+                        |suffix| Term::Suffix(Box::new(Term::Identity), suffix),
                     ),
                 ),
             ),
@@ -466,14 +466,9 @@ fn term(input: &str) -> ParseResult<Term> {
                 )),
             ),
             |(term, suffixes)| {
-                if suffixes.is_empty() {
-                    term
-                } else if let Term::Suffix(term, mut original) = term {
-                    original.extend(suffixes);
-                    Term::Suffix(term, original)
-                } else {
-                    Term::Suffix(Box::new(term), suffixes)
-                }
+                suffixes
+                    .into_iter()
+                    .fold(term, |t, s| Term::Suffix(Box::new(t), s))
             },
         )(input)
     }
@@ -692,7 +687,7 @@ fn query(input: &str) -> ParseResult<Query> {
             pair(query10, opt(preceded(multispace0, char('?')))),
             |(q, opt)| {
                 if opt.is_some() {
-                    Term::Suffix(Box::new(q.into()), vec![Suffix::Optional]).into()
+                    Term::Suffix(Box::new(q.into()), Suffix::Optional).into()
                 } else {
                     q
                 }
@@ -894,10 +889,7 @@ mod test {
         assert_eq!(term("[ ]"), Ok(("", Term::Array(None))));
         assert_eq!(
             term(". [ ]"),
-            Ok((
-                "",
-                Term::Suffix(Box::new(Term::Identity), vec![Suffix::Explode])
-            ))
+            Ok(("", Term::Suffix(Box::new(Term::Identity), Suffix::Explode)))
         );
         assert_eq!(
             term(". \"foo\""),
@@ -905,7 +897,7 @@ mod test {
                 "",
                 Term::Suffix(
                     Box::new(Term::Identity),
-                    vec![Suffix::Query(Box::new(string_term("foo").into()))]
+                    Suffix::Query(Box::new(string_term("foo").into()))
                 )
             ))
         );
@@ -915,7 +907,7 @@ mod test {
                 "",
                 Term::Suffix(
                     Box::new(Term::Identity),
-                    vec![Suffix::Query(Box::new(string_term("foo").into()))]
+                    Suffix::Query(Box::new(string_term("foo").into()))
                 )
             ))
         );
@@ -923,7 +915,7 @@ mod test {
             term(". foo"),
             Ok((
                 "",
-                Term::Suffix(Box::new(Term::Identity), vec![Suffix::Index("foo".into())])
+                Term::Suffix(Box::new(Term::Identity), Suffix::Index("foo".into()))
             ))
         );
         assert_eq!(
@@ -931,8 +923,11 @@ mod test {
             Ok((
                 "",
                 Term::Suffix(
-                    Box::new(Term::Identity),
-                    vec![Suffix::Index("foo".into()), Suffix::Explode]
+                    Box::new(Term::Suffix(
+                        Box::new(Term::Identity),
+                        Suffix::Index("foo".into())
+                    )),
+                    Suffix::Explode
                 )
             ))
         );
@@ -941,11 +936,11 @@ mod test {
             Ok((
                 "",
                 Term::Suffix(
-                    Box::new(Term::Identity),
-                    vec![
-                        Suffix::Index("foo".into()),
-                        Suffix::Query(Box::new(Term::Number(4.into()).into()))
-                    ]
+                    Box::new(Term::Suffix(
+                        Box::new(Term::Identity),
+                        Suffix::Index("foo".into())
+                    )),
+                    Suffix::Query(Box::new(Term::Number(4.into()).into()))
                 )
             ))
         );

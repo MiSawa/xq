@@ -126,7 +126,7 @@ pub enum Term {
     /// <term> '?'
     /// <term> '.' (<ident> | <string>)
     /// ```
-    Suffix(Box<Term>, Vec<Suffix>),
+    Suffix(Box<Term>, Suffix),
 
     /// `(<var> | <modulevar>)`
     Variable(Identifier),

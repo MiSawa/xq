@@ -1,9 +1,9 @@
 use crate::{
-    ast::{self, FuncArg, FuncDef, Identifier, Query, StringFragment, Term},
+    ast::{self, FuncArg, FuncDef, Identifier, Query, StringFragment, Suffix, Term},
     data_structure::{PHashMap, PVector},
     vm::{bytecode::Closure, intrinsic, Address, ByteCode, Program, ScopeId, ScopedSlot, Value},
 };
-use std::rc::Rc;
+use std::{ops::Deref, rc::Rc};
 use thiserror::Error;
 
 /// # Function calling convention
@@ -228,6 +228,22 @@ struct Compiler {
 
 struct SavedScope(Scope);
 
+trait Compile {
+    fn compile(&self, compiler: &mut Compiler, next: Address) -> Result<Address>;
+}
+
+impl Compile for Query {
+    fn compile(&self, compiler: &mut Compiler, next: Address) -> Result<Address> {
+        compiler.compile_query(self, next)
+    }
+}
+
+impl Compile for Term {
+    fn compile(&self, compiler: &mut Compiler, next: Address) -> Result<Address> {
+        compiler.compile_term(self, next)
+    }
+}
+
 impl Compiler {
     fn new() -> Self {
         Self {
@@ -391,6 +407,30 @@ impl Compiler {
         })
     }
 
+    fn compile_try<T: Compile>(
+        &mut self,
+        body: &T,
+        catch: Option<&Box<Query>>,
+        next: Address,
+    ) -> Result<Address> {
+        todo!()
+    }
+
+    fn compile_term_suffix(
+        &mut self,
+        term: &Term,
+        suffix: &Suffix,
+        next: Address,
+    ) -> Result<Address> {
+        Ok(match suffix {
+            Suffix::Optional => self.compile_try(term, None, next)?,
+            Suffix::Explode => todo!(),
+            Suffix::Index(_) => todo!(),
+            Suffix::Query(_) => todo!(),
+            Suffix::Slice(_, _) => todo!(),
+        })
+    }
+
     fn compile_term(&mut self, term: &ast::Term, next: Address) -> Result<Address> {
         let ret = match term {
             Term::Null => self.emitter.emit_constant(Value::Null, next),
@@ -417,7 +457,7 @@ impl Compiler {
             }
             Term::Identity => next,
             Term::Recurse => todo!(),
-            Term::Suffix(_, _) => todo!(),
+            Term::Suffix(term, suffix) => self.compile_term_suffix(term, suffix, next)?,
             Term::Variable(name) => {
                 let slot = *self.lookup_variable(name)?;
                 let load = self.emitter.emit_normal_op(ByteCode::Load(slot), next);
@@ -500,7 +540,7 @@ impl Compiler {
                 let pc = self.emitter.emit_normal_op(ByteCode::Dup, pc);
                 self.compile_query(cond, pc)?
             }
-            Query::Try { .. } => todo!(),
+            Query::Try { body, catch } => self.compile_try(body.as_ref(), catch.as_ref(), next)?,
             Query::Label { .. } => todo!(),
             Query::Operate { .. } => todo!(),
             Query::Update { .. } => todo!(),
