@@ -314,6 +314,7 @@ fn run_code(program: &Program, env: &mut Environment) -> Option<Result<Value>> {
         } else {
             return err.map(Err);
         };
+        log::trace!("On fork {:?} with state {:?}", on_fork, state);
         match on_fork {
             OnFork::Nop => {
                 if err.is_some() {
@@ -322,7 +323,8 @@ fn run_code(program: &Program, env: &mut Environment) -> Option<Result<Value>> {
             }
             OnFork::IgnoreError => {
                 if catch_skip == 0 {
-                    err = None
+                    err = None;
+                    continue 'backtrack;
                 } else {
                     catch_skip -= 1;
                     continue 'backtrack;
@@ -361,6 +363,7 @@ fn run_code(program: &Program, env: &mut Environment) -> Option<Result<Value>> {
             }
         }
         assert_eq!(catch_skip, 0);
+        log::trace!("Start fork with error {:?}", err);
         'cycle: loop {
             if err.is_some() {
                 continue 'backtrack;
