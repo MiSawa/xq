@@ -5,7 +5,7 @@ use crate::{
 };
 use num::ToPrimitive;
 use serde::{
-    de::{MapAccess, SeqAccess, Visitor},
+    de::{Error, MapAccess, SeqAccess, Visitor},
     ser::{SerializeMap, SerializeSeq},
     Deserialize, Deserializer, Serialize, Serializer,
 };
@@ -121,6 +121,13 @@ impl<'de> Deserialize<'de> for Value {
             fn visit_none<E>(self) -> Result<Self::Value, E>
             where
                 E: serde::de::Error,
+            {
+                Ok(Value::Null)
+            }
+
+            fn visit_unit<E>(self) -> Result<Self::Value, E>
+            where
+                E: Error,
             {
                 Ok(Value::Null)
             }

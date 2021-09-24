@@ -15,8 +15,8 @@ pub enum QueryExecutionError {
     IterateOnNonIterable(Value),
     #[error("Cannot index on non-indexable value `{0:?}`")]
     IndexOnNonIndexable(Value),
-    #[error("Slice on non-array `{0:?}`")]
-    SliceOnNonArray(Value),
+    #[error("Slice on not an array nor a string `{0:?}`")]
+    SliceOnNonArrayNorString(Value),
     #[error("Expected an integer but got a non-integral value `{0:?}`")]
     NonIntegralNumber(Number),
     #[error("Unary {0:?} negation was applied to non-numeric value `{1:?}`")]

@@ -10,7 +10,11 @@ use crate::{
 };
 use itertools::Itertools;
 use num::ToPrimitive;
-use std::{cmp::Ordering, ops::Bound, rc::Rc};
+use std::{
+    cmp::Ordering,
+    ops::{Bound, RangeBounds},
+    rc::Rc,
+};
 
 struct ComparableValue<'a>(&'a Value);
 
@@ -193,9 +197,19 @@ fn get_array_index<F: Fn(Value) -> QueryExecutionError>(
 
 pub(crate) fn index(value: Value, index: Value) -> Result<(Value, PathElement)> {
     match value {
-        value
-        @ (Value::Null | Value::True | Value::False | Value::Number(_) | Value::String(_)) => {
+        value @ (Value::Null | Value::True | Value::False | Value::Number(_)) => {
             Err(QueryExecutionError::IndexOnNonIndexable(value))
+        }
+        Value::String(s) => {
+            let len = s.chars().count();
+            let (idx, path_idx) =
+                get_array_index(len, index, QueryExecutionError::ArrayIndexByNonInt)?;
+            Ok((
+                idx.and_then(|i| s.chars().skip(i).next())
+                    .map(|c| Value::String(Rc::new(String::from(c))))
+                    .unwrap_or(Value::String(Rc::new("".to_string()))),
+                PathElement::Array(path_idx),
+            ))
         }
         Value::Array(array) => {
             let (idx, path_idx) =
@@ -224,18 +238,19 @@ pub(crate) fn slice(
     start: Option<Value>,
     end: Option<Value>,
 ) -> Result<(Value, PathElement)> {
-    let mut array = if let Value::Array(array) = value {
-        array
-    } else {
-        return Err(QueryExecutionError::SliceOnNonArray(value));
+    let length = match &value {
+        Value::Null | Value::True | Value::False | Value::Number(_) | Value::Object(_) => {
+            return Err(QueryExecutionError::SliceOnNonArrayNorString(value));
+        }
+        Value::String(s) => s.chars().count(),
+        Value::Array(v) => v.len(),
     };
     let (end, end_path_elem) = if let Some(end) = end {
-        let (i, end_path_elem) =
-            get_array_index(array.len(), end, QueryExecutionError::SliceByNonInt)?;
+        let (i, end_path_elem) = get_array_index(length, end, QueryExecutionError::SliceByNonInt)?;
         if let Some(i) = i {
             if i == 0 {
                 (None, Some(end_path_elem))
-            } else if i < array.len() {
+            } else if i < length {
                 (Some(Bound::Excluded(i)), Some(end_path_elem))
             } else {
                 (Some(Bound::Unbounded), Some(end_path_elem))
@@ -250,9 +265,9 @@ pub(crate) fn slice(
     };
     let (start, start_path_elem) = if let Some(start) = start {
         let (i, start_path_elem) =
-            get_array_index(array.len(), start, QueryExecutionError::SliceByNonInt)?;
+            get_array_index(length, start, QueryExecutionError::SliceByNonInt)?;
         if let Some(i) = i {
-            if i < array.len() {
+            if i < length {
                 (Some(Bound::Included(i)), Some(start_path_elem))
             } else {
                 (None, Some(start_path_elem))
@@ -266,9 +281,25 @@ pub(crate) fn slice(
         (Some(Bound::Unbounded), None)
     };
     let path_element = PathElement::Slice(start_path_elem, end_path_elem);
-    match (start, end) {
-        (Some(start), Some(end)) => Ok((Value::Array(array.slice((start, end))), path_element)),
-        _ => Ok((Value::Array(Default::default()), path_element)),
+    match value {
+        Value::String(s) => match (start, end) {
+            (Some(start), Some(end)) => Ok((
+                Value::String(Rc::new(
+                    s.chars()
+                        .enumerate()
+                        .filter(|(i, _)| (start, end).contains(i))
+                        .map(|(_, c)| c)
+                        .collect::<String>(),
+                )),
+                path_element,
+            )),
+            _ => Ok((Value::Array(Default::default()), path_element)),
+        },
+        Value::Array(mut array) => match (start, end) {
+            (Some(start), Some(end)) => Ok((Value::Array(array.slice((start, end))), path_element)),
+            _ => Ok((Value::Array(Default::default()), path_element)),
+        },
+        _ => unreachable!(),
     }
 }
 
