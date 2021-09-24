@@ -3,10 +3,11 @@ use crate::{
     vm::{
         bytecode::{Closure, NamedFunction},
         error::QueryExecutionError,
-        intrinsic::truthy,
+        intrinsic::{self, truthy},
         Address, ByteCode, Program, Result, ScopeId, ScopedSlot, Value,
     },
 };
+use itertools::Itertools;
 use std::{
     cell::{RefCell, RefMut},
     rc::Rc,
@@ -32,6 +33,7 @@ pub(crate) enum ProgramError {
 enum PathElement {
     Array(usize),
     Object(Rc<String>),
+    Slice(Option<isize>, Option<isize>),
 }
 
 #[derive(Debug, Clone)]
@@ -39,7 +41,6 @@ enum PathValueIterator {
     Array {
         array: PVector<Value>,
         next: usize,
-        limit: usize,
     },
     Object {
         sorted_elements: PVector<(Rc<String>, Value)>,
@@ -52,8 +53,8 @@ impl Iterator for PathValueIterator {
 
     fn next(&mut self) -> Option<Self::Item> {
         match self {
-            PathValueIterator::Array { array, next, limit } => {
-                if *next >= *limit {
+            PathValueIterator::Array { array, next } => {
+                if *next >= array.len() {
                     None
                 } else {
                     let ret = (PathElement::Array(*next), array[*next].clone());
@@ -124,6 +125,7 @@ enum OnFork {
     IgnoreError,
     CatchError,
     SkipCatch,
+    Iterate,
 }
 
 impl Environment {
@@ -186,6 +188,21 @@ impl State {
             .pop()
             .ok_or(ProgramError::PopEmptyStack)
             .unwrap()
+    }
+
+    fn push_iterator(&mut self, iter: PathValueIterator) {
+        self.iterators.push(iter)
+    }
+
+    fn pop_iterator(&mut self) {
+        self.iterators
+            .pop()
+            .ok_or(ProgramError::PopEmptyStack)
+            .unwrap();
+    }
+
+    fn top_iterator(&mut self) -> Option<&mut PathValueIterator> {
+        self.iterators.top_mut()
     }
 
     fn slot(&mut self, scoped_slot: &ScopedSlot) -> RefMut<Option<Value>> {
@@ -296,13 +313,17 @@ fn run_code(program: &Program, env: &mut Environment) -> Option<Result<Value>> {
             return err.map(Err);
         };
         match on_fork {
-            OnFork::Nop => {}
+            OnFork::Nop => {
+                if err.is_some() {
+                    continue 'backtrack;
+                }
+            }
             OnFork::IgnoreError => {
                 if catch_skip == 0 {
                     err = None
                 } else {
                     catch_skip -= 1;
-                    continue 'backtrack
+                    continue 'backtrack;
                 }
             }
             OnFork::CatchError => {
@@ -313,12 +334,28 @@ fn run_code(program: &Program, env: &mut Environment) -> Option<Result<Value>> {
                     }
                 } else {
                     catch_skip -= 1;
-                    continue 'backtrack
+                    continue 'backtrack;
                 }
             }
             OnFork::SkipCatch => {
                 catch_skip += 1;
                 continue 'backtrack;
+            }
+            OnFork::Iterate => {
+                if err.is_some() {
+                    continue 'backtrack;
+                }
+                let it = state.top_iterator().expect("No iterator to iterate on");
+                match it.next() {
+                    None => {
+                        state.pop_iterator();
+                        continue 'backtrack;
+                    }
+                    Some(value) => {
+                        env.push_fork(&state, OnFork::Iterate, state.pc);
+                        state.push(value.1.clone());
+                    }
+                }
             }
         }
         assert_eq!(catch_skip, 0);
@@ -374,7 +411,6 @@ fn run_code(program: &Program, env: &mut Environment) -> Option<Result<Value>> {
                     let closure = state.pop_closure();
                     state.closure_slot(slot).replace(closure);
                 }
-                Object => todo!("Implement {:?}", code),
                 Append(scoped_slot) => {
                     let value = state.pop();
                     let mut slot = state.slot(scoped_slot);
@@ -391,6 +427,60 @@ fn run_code(program: &Program, env: &mut Environment) -> Option<Result<Value>> {
                         }
                     }
                 }
+                Index => {
+                    let index = state.pop();
+                    let value = state.pop();
+                    match intrinsic::index(value, index) {
+                        Ok(value) => {
+                            state.push(value);
+                        }
+                        Err(e) => {
+                            err.replace(e);
+                        }
+                    }
+                }
+                Slice { start, end } => {
+                    let end = if *end { Some(state.pop()) } else { None };
+                    let start = if *start { Some(state.pop()) } else { None };
+                    let value = state.pop();
+                    match intrinsic::slice(value, start, end) {
+                        Ok(value) => {
+                            state.push(value);
+                        }
+                        Err(e) => {
+                            err.replace(e);
+                        }
+                    }
+                }
+                Each => {
+                    let value = state.pop();
+                    let iter = match value {
+                        value
+                        @
+                        (Value::Null
+                        | Value::True
+                        | Value::False
+                        | Value::Number(_)
+                        | Value::String(_)) => {
+                            err.replace(QueryExecutionError::IterateOnNonIterable(value));
+                            continue 'backtrack;
+                        }
+                        Value::Array(array) => PathValueIterator::Array { array, next: 0 },
+                        Value::Object(map) => {
+                            let sorted_elements: PVector<_> = map
+                                .into_iter()
+                                .sorted_by(|(lhs, _), (rhs, _)| Ord::cmp(lhs, rhs))
+                                .collect();
+                            PathValueIterator::Object {
+                                sorted_elements,
+                                next: 0,
+                            }
+                        }
+                    };
+                    state.push_iterator(iter);
+                    env.push_fork(&state, OnFork::Iterate, state.pc.get_next());
+                    continue 'backtrack;
+                }
                 Fork { fork_pc } => {
                     let fork_pc = *fork_pc;
                     env.push_fork(&state, OnFork::Nop, fork_pc);
@@ -403,8 +493,6 @@ fn run_code(program: &Program, env: &mut Environment) -> Option<Result<Value>> {
                     }
                 },
                 ForkTryEnd => env.push_fork(&state, OnFork::SkipCatch, state.pc.get_next()),
-                ForkAlt => todo!("Implement {:?}", code),
-                ForkLabel => todo!("Implement {:?}", code),
                 Backtrack => continue 'backtrack,
                 Jump(address) => {
                     state.pc = *address;
@@ -437,8 +525,6 @@ fn run_code(program: &Program, env: &mut Environment) -> Option<Result<Value>> {
                     state.pc = *function;
                     continue 'cycle;
                 }
-                PushPC => todo!("Implement {:?}", code),
-                CallPC => todo!("Implement {:?}", code),
                 NewScope {
                     id,
                     variable_cnt,
@@ -458,11 +544,6 @@ fn run_code(program: &Program, env: &mut Environment) -> Option<Result<Value>> {
                     let value = state.pop();
                     return Some(Ok(value));
                 }
-                Each => todo!("Implement {:?}", code),
-                ExpBegin => todo!("Implement {:?}", code),
-                ExpEnd => todo!("Implement {:?}", code),
-                PathBegin => todo!("Implement {:?}", code),
-                PathEnd => todo!("Implement {:?}", code),
                 Intrinsic1(NamedFunction { name: _name, func }) => {
                     let arg = state.pop();
                     match func(arg) {

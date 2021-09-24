@@ -472,15 +472,11 @@ impl Compiler {
         index: &T,
         next: Address,
     ) -> Result<Address> {
-        let indexing = self.emitter.emit_normal_op(
-            ByteCode::Intrinsic2(NamedFn2 {
-                name: "index",
-                func: Box::new(intrinsic::index),
-            }),
-            next,
-        );
+        let indexing = self.emitter.emit_normal_op(ByteCode::Index, next);
         let index = index.compile(self, indexing)?;
-        self.compile_term(term, index)
+        let swap = self.emitter.emit_normal_op(ByteCode::Swap, index);
+        let term = self.compile_term(term, swap)?;
+        Ok(self.emitter.emit_normal_op(ByteCode::Dup, term))
     }
 
     /// Consumes a value from the stack, and produces a single value onto the stack.

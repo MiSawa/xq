@@ -153,7 +153,11 @@ pub fn unary(operator: &UnaryOp) -> NamedFn1 {
     }
 }
 
-pub fn index(_lhs: Value, _rhs: Value) -> Result<Value> {
+pub fn index(_value: Value, _index: Value) -> Result<Value> {
+    todo!()
+}
+
+pub fn slice(_value: Value, _start: Option<Value>, _end: Option<Value>) -> Result<Value> {
     todo!()
 }
 

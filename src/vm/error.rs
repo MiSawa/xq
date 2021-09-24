@@ -11,4 +11,6 @@ pub enum QueryExecutionError {
     ArrayIndexByNonInt(Value),
     #[error("Unary {0:?} negation was applied to non-numeric value `{1:?}`")]
     UnaryOnNonNumeric(&'static str, Value),
+    #[error("Cannot iterate over non-iterable value `{0:?}`")]
+    IterateOnNonIterable(Value),
 }
