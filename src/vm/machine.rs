@@ -99,7 +99,7 @@ impl Scope {
 
 #[derive(Debug)]
 pub struct Machine {
-    program: Program,
+    program: Rc<Program>,
 }
 
 #[derive(Debug)]
@@ -274,7 +274,9 @@ impl State {
 
 impl Machine {
     pub fn new(program: Program) -> Self {
-        Self { program }
+        Self {
+            program: Rc::new(program),
+        }
     }
 
     pub fn run(&mut self, value: Value) -> ResultIterator {
@@ -282,22 +284,22 @@ impl Machine {
         state.push(value);
         let env = Environment::new(state);
         ResultIterator {
-            program: &self.program,
+            program: self.program.clone(),
             env,
         }
     }
 }
 
-pub struct ResultIterator<'a> {
-    program: &'a Program,
+pub struct ResultIterator {
+    program: Rc<Program>,
     env: Environment,
 }
 
-impl<'a> Iterator for ResultIterator<'a> {
+impl Iterator for ResultIterator {
     type Item = Result<Value>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        run_code(self.program, &mut self.env)
+        run_code(&self.program, &mut self.env)
     }
 }
 

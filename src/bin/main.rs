@@ -1,10 +1,10 @@
-use anyhow::{Context, Result};
+use anyhow::{anyhow, Context, Result};
 use clap::{AppSettings, Clap, ValueHint};
 use std::{
     io::{stdin, stdout, Write},
     path::PathBuf,
 };
-use xq::vm::Value;
+use xq::{run_query, vm::Value};
 
 #[derive(Clap, Debug)]
 #[clap(author, about, version)]
@@ -50,21 +50,6 @@ fn init_log(verbosity: u8) -> Result<()> {
     .with_context(|| "Unable to initialize logger")
 }
 
-fn on_each_input<F: FnMut(Value) -> Result<()>>(null_input: bool, mut f: F) -> Result<()> {
-    if null_input {
-        f(Value::Null)
-    } else {
-        let stdin = stdin();
-        let locked = stdin.lock();
-        let reader = serde_json::de::Deserializer::from_reader(locked).into_iter::<Value>();
-        for value in reader {
-            let value = value?;
-            f(value)?
-        }
-        Ok(())
-    }
-}
-
 fn main() -> Result<()> {
     let args: Args = Args::parse();
     init_log(args.verbosity)?;
@@ -79,24 +64,37 @@ fn main() -> Result<()> {
         );
         args.query
     };
-    let ast = xq::parser::parse_query(&query).with_context(|| "Parse query")?;
-    log::info!("Parsed query = {:?}", ast);
-
-    let mut compiler = xq::vm::compiler::Compiler::new();
-    let program = compiler.compile(&ast)?;
-    log::info!("Compiled program = {:?}", program);
-    let mut vm = xq::vm::machine::Machine::new(program);
-    on_each_input(args.null_input, move |value| -> Result<()> {
-        for out in vm.run(value) {
-            match out {
-                Ok(value) => serde_json::ser::to_writer_pretty::<_, Value>(stdout(), &value)
-                    .with_context(|| "Write to output")
-                    .and_then(|()| writeln!(stdout()).with_context(|| "Write ln"))?,
-                Err(e) => {
-                    log::error!("Error: {:?}", e)
-                }
+    let output = |value| -> Result<()> {
+        match value {
+            Ok(value) => serde_json::ser::to_writer_pretty::<_, Value>(stdout(), &value)
+                .with_context(|| "Write to output")
+                .and_then(|()| writeln!(stdout()).with_context(|| "Write ln"))?,
+            Err(e) => {
+                log::error!("Error: {:?}", e)
             }
         }
         Ok(())
-    })
+    };
+
+    if args.null_input {
+        let results = run_query(&query, vec![Value::Null].into_iter())
+            .map_err(|e| anyhow!("{:?}", e))
+            .with_context(|| "compile query")?;
+        for value in results {
+            output(value)?;
+        }
+    } else {
+        let stdin = stdin();
+        let locked = stdin.lock();
+        let input: Vec<_> = serde_json::de::Deserializer::from_reader(locked)
+            .into_iter::<Value>()
+            .collect::<Result<_, serde_json::Error>>()?;
+        let results = run_query(&query, input.into_iter())
+            .map_err(|e| anyhow!("{:?}", e))
+            .with_context(|| "compile query")?;
+        for value in results {
+            output(value)?;
+        }
+    }
+    Ok(())
 }

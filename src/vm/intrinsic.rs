@@ -195,7 +195,7 @@ pub(crate) fn index(value: Value, index: Value) -> Result<(Value, PathElement)> 
     match value {
         value
         @ (Value::Null | Value::True | Value::False | Value::Number(_) | Value::String(_)) => {
-            return Err(QueryExecutionError::IndexOnNonIndexable(value));
+            Err(QueryExecutionError::IndexOnNonIndexable(value))
         }
         Value::Array(array) => {
             let (idx, path_idx) =
