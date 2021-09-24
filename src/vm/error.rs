@@ -1,4 +1,4 @@
-use crate::vm::Value;
+use crate::{vm::Value, Number};
 use thiserror::Error;
 
 pub type Result<T, E = QueryExecutionError> = std::result::Result<T, E>;
@@ -9,8 +9,16 @@ pub enum QueryExecutionError {
     ObjectIndexByNonString(Value),
     #[error("Object was indexed by non-integer value `{0:?}`")]
     ArrayIndexByNonInt(Value),
-    #[error("Unary {0:?} negation was applied to non-numeric value `{1:?}`")]
-    UnaryOnNonNumeric(&'static str, Value),
+    #[error("Slice on non-array `{0:?}`")]
+    SliceByNonInt(Value),
     #[error("Cannot iterate over non-iterable value `{0:?}`")]
     IterateOnNonIterable(Value),
+    #[error("Cannot index on non-indexable value `{0:?}`")]
+    IndexOnNonIndexable(Value),
+    #[error("Slice on non-array `{0:?}`")]
+    SliceOnNonArray(Value),
+    #[error("Expected an integer but got a non-integral value `{0:?}`")]
+    NonIntegralNumber(Number),
+    #[error("Unary {0:?} negation was applied to non-numeric value `{1:?}`")]
+    UnaryOnNonNumeric(&'static str, Value),
 }

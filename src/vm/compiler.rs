@@ -1,10 +1,7 @@
 use crate::{
     ast::{self, FuncArg, FuncDef, Identifier, Query, StringFragment, Suffix, Term},
     data_structure::{PHashMap, PVector},
-    vm::{
-        bytecode::{Closure, NamedFn2},
-        intrinsic, Address, ByteCode, Program, ScopeId, ScopedSlot, Value,
-    },
+    vm::{bytecode::Closure, intrinsic, Address, ByteCode, Program, ScopeId, ScopedSlot, Value},
 };
 use std::rc::Rc;
 use thiserror::Error;
@@ -466,23 +463,71 @@ impl Compiler {
     }
 
     /// Consumes a value from the stack, and produces a single value onto the stack.
-    fn compile_index<T: Compile>(
+    fn compile_index<T: Compile, U: Compile>(
         &mut self,
-        term: &Term,
-        index: &T,
+        body: &T,
+        index: &U,
         next: Address,
     ) -> Result<Address> {
         let indexing = self.emitter.emit_normal_op(ByteCode::Index, next);
         let index = index.compile(self, indexing)?;
         let swap = self.emitter.emit_normal_op(ByteCode::Swap, index);
-        let term = self.compile_term(term, swap)?;
-        Ok(self.emitter.emit_normal_op(ByteCode::Dup, term))
+        let body = body.compile(self, swap)?;
+        Ok(self.emitter.emit_normal_op(ByteCode::Dup, body))
     }
 
     /// Consumes a value from the stack, and produces a single value onto the stack.
-    fn compile_iterate<T: Compile>(&mut self, prev: &T, next: Address) -> Result<Address> {
+    fn compile_slice<T: Compile, U: Compile, V: Compile>(
+        &mut self,
+        body: &T,
+        start: Option<&U>,
+        end: Option<&V>,
+        next: Address,
+    ) -> Result<Address> {
+        assert!(start.is_some() || end.is_some());
+        let next = self.emitter.emit_normal_op(
+            ByteCode::Slice {
+                start: start.is_some(),
+                end: end.is_some(),
+            },
+            next,
+        );
+        let mut need_val = false;
+        let next = if let Some(end) = end {
+            need_val = true;
+            end.compile(self, next)?
+        } else {
+            next
+        };
+        let next = if let Some(start) = start {
+            if need_val {
+                // Don't consume the value; put `start` penultimate of the stack, and leave the value top.
+                let next = self.emitter.emit_normal_op(ByteCode::Swap, next);
+                let next = start.compile(self, next)?;
+                self.emitter.emit_normal_op(ByteCode::Dup, next)
+            } else {
+                // Consume the value and produce the start
+                need_val = true;
+                start.compile(self, next)?
+            }
+        } else {
+            next
+        };
+        // Same as the above.... although need_val = true.
+        let next = if need_val {
+            let next = self.emitter.emit_normal_op(ByteCode::Swap, next);
+            let next = body.compile(self, next)?;
+            self.emitter.emit_normal_op(ByteCode::Dup, next)
+        } else {
+            body.compile(self, next)?
+        };
+        Ok(next)
+    }
+
+    /// Consumes a value from the stack, and produces a single value onto the stack.
+    fn compile_iterate<T: Compile>(&mut self, body: &T, next: Address) -> Result<Address> {
         let next = self.emitter.emit_normal_op(ByteCode::Each, next);
-        prev.compile(self, next)
+        body.compile(self, next)
     }
 
     /// Consumes a value from the stack, and produces a single value onto the stack.
@@ -501,7 +546,12 @@ impl Compiler {
                 next,
             ),
             Suffix::Query(q) => self.compile_index(term, q.as_ref(), next),
-            Suffix::Slice(_, _) => todo!(),
+            Suffix::Slice(start, end) => self.compile_slice(
+                term,
+                start.as_ref().map(AsRef::as_ref),
+                end.as_ref().map(AsRef::as_ref),
+                next,
+            ),
         }
     }
 

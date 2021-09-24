@@ -30,8 +30,8 @@ pub(crate) enum ProgramError {
     PopUnknownScope,
 }
 
-enum PathElement {
-    Array(usize),
+pub(crate) enum PathElement {
+    Array(isize),
     Object(Rc<String>),
     Slice(Option<isize>, Option<isize>),
 }
@@ -57,7 +57,7 @@ impl Iterator for PathValueIterator {
                 if *next >= array.len() {
                     None
                 } else {
-                    let ret = (PathElement::Array(*next), array[*next].clone());
+                    let ret = (PathElement::Array(*next as isize), array[*next].clone());
                     *next += 1;
                     Some(ret)
                 }
@@ -431,7 +431,7 @@ fn run_code(program: &Program, env: &mut Environment) -> Option<Result<Value>> {
                     let index = state.pop();
                     let value = state.pop();
                     match intrinsic::index(value, index) {
-                        Ok(value) => {
+                        Ok((value, _path_elem)) => {
                             state.push(value);
                         }
                         Err(e) => {
@@ -444,7 +444,7 @@ fn run_code(program: &Program, env: &mut Environment) -> Option<Result<Value>> {
                     let start = if *start { Some(state.pop()) } else { None };
                     let value = state.pop();
                     match intrinsic::slice(value, start, end) {
-                        Ok(value) => {
+                        Ok((value, _path_elem)) => {
                             state.push(value);
                         }
                         Err(e) => {
