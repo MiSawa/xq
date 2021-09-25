@@ -3,7 +3,6 @@ use crate::{
     vm::{bytecode::NamedFn1, QueryExecutionError},
     Value,
 };
-use std::rc::Rc;
 
 pub(crate) fn unary(operator: &UnaryOp) -> NamedFn1 {
     match operator {
@@ -27,7 +26,7 @@ fn unary_plus(value: Value) -> Result<Value, QueryExecutionError> {
 
 fn unary_minus(value: Value) -> Result<Value, QueryExecutionError> {
     match value {
-        Value::Number(n) => Ok(Value::Number(Rc::new(-(*n).clone()))),
+        Value::Number(n) => Ok(Value::number(-(*n).clone())),
         _ => Err(QueryExecutionError::UnaryOnNonNumeric("minus", value)),
     }
 }

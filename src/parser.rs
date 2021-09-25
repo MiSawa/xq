@@ -17,7 +17,7 @@ use nom::{
     sequence::{delimited, pair, preceded, separated_pair, terminated, tuple},
     Finish, IResult, Parser,
 };
-use std::{convert::TryFrom, rc::Rc};
+use std::convert::TryFrom;
 
 pub type ParseResult<'a, T> = IResult<&'a str, T>;
 
@@ -379,7 +379,7 @@ fn term(input: &str) -> ParseResult<Term> {
             value(Term::Constant(Value::Null), keyword("null")),
             value(Term::Constant(Value::False), keyword("false")),
             value(Term::Constant(Value::True), keyword("true")),
-            map(number, |n| Term::Constant(Value::Number(Rc::new(n)))),
+            map(number, |n| Term::Constant(Value::number(n))),
             map(
                 delimited(
                     terminated(char('('), multispace0),
@@ -897,7 +897,7 @@ mod test {
                 "",
                 Term::Unary(
                     UnaryOp::Minus,
-                    Box::new(Term::Constant(Value::Number(Rc::new(123.into()))))
+                    Box::new(Term::Constant(Value::number(123.into())))
                 )
             ))
         );
@@ -955,9 +955,7 @@ mod test {
                         Box::new(Term::Identity),
                         Suffix::Index("foo".into())
                     )),
-                    Suffix::Query(Box::new(
-                        Term::Constant(Value::Number(Rc::new(4.into()))).into()
-                    ))
+                    Suffix::Query(Box::new(Term::Constant(Value::number(4.into())).into()))
                 )
             ))
         );
@@ -978,9 +976,9 @@ mod test {
                 vec![
                     String("abc".to_string()),
                     Query(ast::Query::Operate {
-                        lhs: Box::new(Term::Constant(Value::Number(Rc::new(1.into()))).into()),
+                        lhs: Box::new(Term::Constant(Value::number(1.into())).into()),
                         operator: BinaryOp::Add,
-                        rhs: Box::new(Term::Constant(Value::Number(Rc::new(2.into()))).into())
+                        rhs: Box::new(Term::Constant(Value::number(2.into())).into())
                     }),
                     String("def".to_string())
                 ]

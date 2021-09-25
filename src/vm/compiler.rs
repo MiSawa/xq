@@ -5,7 +5,6 @@ use crate::{
     vm::{bytecode::Closure, Address, ByteCode, Program, ScopeId, ScopedSlot},
     Value,
 };
-use std::rc::Rc;
 use thiserror::Error;
 
 /// # Function calling convention
@@ -243,6 +242,12 @@ impl Compile for Query {
 impl Compile for Term {
     fn compile(&self, compiler: &mut Compiler, next: Address) -> Result<Address> {
         compiler.compile_term(self, next)
+    }
+}
+
+impl Compile for Address {
+    fn compile(&self, _compiler: &mut Compiler, _next: Address) -> Result<Address> {
+        Ok(*self)
     }
 }
 
@@ -573,11 +578,9 @@ impl Compiler {
         match suffix {
             Suffix::Optional => self.compile_try::<_, Query>(term, None, next),
             Suffix::Iterate => self.compile_iterate(term, next),
-            Suffix::Index(ident) => self.compile_index(
-                term,
-                &Term::Constant(Value::String(Rc::new(ident.0.clone()))),
-                next,
-            ),
+            Suffix::Index(ident) => {
+                self.compile_index(term, &Term::Constant(Value::string(ident.0.clone())), next)
+            }
             Suffix::Query(q) => self.compile_index(term, q, next),
             Suffix::Slice(start, end) => {
                 self.compile_slice(term, start.as_ref(), end.as_ref(), next)
@@ -592,11 +595,10 @@ impl Compiler {
             Term::String(s) => {
                 let ret: Address = if s.is_empty() {
                     self.emitter
-                        .emit_constant(Value::String(Rc::new("".to_string())), next)
+                        .emit_constant(Value::string("".to_string()), next)
                 } else if s.len() == 1 {
                     if let StringFragment::String(s) = &s[0] {
-                        self.emitter
-                            .emit_constant(Value::String(Rc::new(s.clone())), next)
+                        self.emitter.emit_constant(Value::string(s.clone()), next)
                     } else {
                         todo!()
                     }
@@ -701,10 +703,22 @@ impl Compiler {
                     todo!()
                 }
                 BinaryOp::And => {
-                    todo!()
+                    let rhs = self.compile_if(
+                        rhs,
+                        &Term::Constant(Value::True),
+                        Some(&Term::Constant(Value::False)),
+                        next,
+                    )?;
+                    self.compile_if(lhs, &rhs, Some(&Term::Constant(Value::False)), next)?
                 }
                 BinaryOp::Or => {
-                    todo!()
+                    let rhs = self.compile_if(
+                        rhs,
+                        &Term::Constant(Value::True),
+                        Some(&Term::Constant(Value::False)),
+                        next,
+                    )?;
+                    self.compile_if(lhs, &Term::Constant(Value::True), Some(&rhs), next)?
                 }
             },
             Query::Update { .. } => todo!(),

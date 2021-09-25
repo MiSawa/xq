@@ -3,10 +3,7 @@ use crate::{
     IntOrReal, Number, Value,
 };
 use num::ToPrimitive;
-use std::{
-    ops::{Bound, RangeBounds},
-    rc::Rc,
-};
+use std::ops::{Bound, RangeBounds};
 
 fn try_into_isize(n: &Number) -> Result<isize, QueryExecutionError> {
     match n.as_int_or_real() {
@@ -56,8 +53,8 @@ pub(crate) fn index(
                 get_array_index(len, index, QueryExecutionError::ArrayIndexByNonInt)?;
             Ok((
                 idx.and_then(|i| s.chars().nth(i))
-                    .map(|c| Value::String(Rc::new(String::from(c))))
-                    .unwrap_or_else(|| Value::String(Rc::new("".to_string()))),
+                    .map(|c| Value::string(String::from(c)))
+                    .unwrap_or_else(|| Value::string("".to_string())),
                 PathElement::Array(path_idx),
             ))
         }
@@ -134,13 +131,13 @@ pub(crate) fn slice(
     match value {
         Value::String(s) => match (start, end) {
             (Some(start), Some(end)) => Ok((
-                Value::String(Rc::new(
+                Value::string(
                     s.chars()
                         .enumerate()
                         .filter(|(i, _)| (start, end).contains(i))
                         .map(|(_, c)| c)
                         .collect::<String>(),
-                )),
+                ),
                 path_element,
             )),
             _ => Ok((Value::Array(Default::default()), path_element)),

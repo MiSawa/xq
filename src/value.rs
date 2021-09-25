@@ -22,6 +22,15 @@ pub enum Value {
     Object(PHashMap<Rc<String>, Value>),
 }
 
+impl Value {
+    pub fn number(n: Number) -> Self {
+        Self::Number(Rc::new(n))
+    }
+    pub fn string(s: String) -> Self {
+        Self::String(Rc::new(s))
+    }
+}
+
 impl Serialize for Value {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
@@ -87,35 +96,35 @@ impl<'de> Deserialize<'de> for Value {
             where
                 E: serde::de::Error,
             {
-                Ok(Value::Number(Rc::new(Number::from_integer(v.into()))))
+                Ok(Value::number(Number::from_integer(v.into())))
             }
 
             fn visit_u64<E>(self, v: u64) -> Result<Self::Value, E>
             where
                 E: serde::de::Error,
             {
-                Ok(Value::Number(Rc::new(Number::from_integer(v.into()))))
+                Ok(Value::number(Number::from_integer(v.into())))
             }
 
             fn visit_f64<E>(self, v: f64) -> Result<Self::Value, E>
             where
                 E: serde::de::Error,
             {
-                Ok(Value::Number(Rc::new(Number::from_real(v))))
+                Ok(Value::number(Number::from_real(v)))
             }
 
             fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
             where
                 E: serde::de::Error,
             {
-                Ok(Value::String(Rc::new(v.to_string())))
+                Ok(Value::string(v.to_string()))
             }
 
             fn visit_string<E>(self, v: String) -> Result<Self::Value, E>
             where
                 E: serde::de::Error,
             {
-                Ok(Value::String(Rc::new(v)))
+                Ok(Value::string(v))
             }
 
             fn visit_none<E>(self) -> Result<Self::Value, E>

@@ -333,7 +333,7 @@ fn run_code(program: &Program, env: &mut Environment) -> Option<Result<Value>> {
                 if catch_skip == 0 {
                     match err.take() {
                         None => continue 'backtrack,
-                        Some(e) => state.push(Value::String(Rc::new(format!("{:?}", e)))),
+                        Some(e) => state.push(Value::string(format!("{:?}", e))),
                     }
                 } else {
                     catch_skip -= 1;
