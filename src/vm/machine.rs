@@ -87,10 +87,10 @@ struct Scope {
 impl Scope {
     fn new(variable_cnt: usize, closure_cnt: usize) -> Self {
         Self {
-            slots: std::iter::repeat(Rc::new(RefCell::new(None)))
+            slots: std::iter::repeat_with(|| Rc::new(RefCell::new(None)))
                 .take(variable_cnt)
                 .collect(),
-            closure_slots: std::iter::repeat(Rc::new(RefCell::new(None)))
+            closure_slots: std::iter::repeat_with(|| Rc::new(RefCell::new(None)))
                 .take(closure_cnt)
                 .collect(),
         }
