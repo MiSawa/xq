@@ -39,7 +39,7 @@ fn add(lhs: Value, rhs: Value) -> Result<Value, QueryExecutionError> {
         (Number(lhs), Number(rhs)) => Value::number((*lhs).clone() + (*rhs).clone()), // TODO: Fix rhs.clone()
         (String(lhs), String(rhs)) => Value::string((*lhs).clone() + &*rhs),
         (Array(lhs), Array(rhs)) => Value::Array(lhs + rhs),
-        (Object(lhs), Object(rhs)) => Value::Object(lhs + rhs),
+        (Object(lhs), Object(rhs)) => Value::Object(rhs.union(lhs)),
         (lhs @ (True | False | Number(_) | String(_) | Array(_) | Object(_)), rhs) => {
             return Err(IncompatibleBinaryOperator("add", lhs, rhs));
         }
