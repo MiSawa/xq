@@ -597,23 +597,21 @@ impl Compiler {
         next: Address,
     ) -> Result<Address> {
         let next = self.emitter.emit_normal_op(ByteCode::AppendObject, next);
-        Ok(match value {
+        let next = match value {
             Some(value) => {
                 let next = self.compile_query(value, next)?;
-                let next = self.emitter.emit_normal_op(ByteCode::Load(context), next);
-                let next = self.compile_query(key, next)?;
-                let next = self.emitter.emit_normal_op(ByteCode::Load(context), next);
-                next
+                self.emitter.emit_normal_op(ByteCode::Load(context), next)
             }
             None => {
                 let next = self.emitter.emit_normal_op(ByteCode::Index, next);
                 let next = self.emitter.emit_normal_op(ByteCode::Swap, next);
                 let next = self.emitter.emit_normal_op(ByteCode::Load(context), next);
-                let next = self.emitter.emit_normal_op(ByteCode::Dup, next);
-                let next = self.compile_query(key, next)?;
-                next
+                self.emitter.emit_normal_op(ByteCode::Dup, next)
             }
-        })
+        };
+        let next = self.compile_query(key, next)?;
+        let next = self.emitter.emit_normal_op(ByteCode::Load(context), next);
+        Ok(next)
     }
 
     /// Consumes a value from the stack, and produces a single value onto the stack.
