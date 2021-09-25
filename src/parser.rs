@@ -1,9 +1,8 @@
-use crate::ast::BinaryArithmeticOp;
 use crate::{
     ast::{
-        BinaryOp, BindPattern, Comparator, ConstantArray, ConstantObject, ConstantPrimitive,
-        ConstantValue, FuncArg, FuncDef, Identifier, Import, ObjectBindPatternEntry, Program,
-        Query, StringFragment, Suffix, Term, UnaryOp, UpdateOp,
+        BinaryArithmeticOp, BinaryOp, BindPattern, Comparator, ConstantArray, ConstantObject,
+        ConstantPrimitive, ConstantValue, FuncArg, FuncDef, Identifier, Import,
+        ObjectBindPatternEntry, Program, Query, StringFragment, Suffix, Term, UnaryOp, UpdateOp,
     },
     Number, Value,
 };

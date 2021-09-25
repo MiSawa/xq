@@ -1,5 +1,5 @@
 use crate::{
-    ast::{self, FuncArg, FuncDef, Identifier, Query, StringFragment, Suffix, Term},
+    ast::{self, BinaryOp, FuncArg, FuncDef, Identifier, Query, StringFragment, Suffix, Term},
     data_structure::{PHashMap, PVector},
     intrinsic,
     vm::{bytecode::Closure, Address, ByteCode, Program, ScopeId, ScopedSlot},
@@ -7,7 +7,6 @@ use crate::{
 };
 use std::rc::Rc;
 use thiserror::Error;
-use crate::ast::BinaryOp;
 
 /// # Function calling convention
 /// ## Caller
@@ -247,6 +246,15 @@ impl Compile for Term {
     }
 }
 
+impl<T> Compile for T
+where
+    T: AsRef<Query>,
+{
+    fn compile(&self, compiler: &mut Compiler, next: Address) -> Result<Address> {
+        compiler.compile_query(self.as_ref(), next)
+    }
+}
+
 impl Default for Compiler {
     fn default() -> Self {
         Self::new()
@@ -451,18 +459,40 @@ impl Compiler {
     }
 
     /// Consumes a value from the stack, and produces a single value onto the stack.
-    fn compile_try<T: Compile>(
+    fn compile_try<T: Compile, U: Compile>(
         &mut self,
         body: &T,
-        catch: Option<&Query>,
+        catch: Option<&U>,
         next: Address,
     ) -> Result<Address> {
         let try_end = self.emitter.emit_normal_op(ByteCode::ForkTryEnd, next);
-        let catch_pc = catch.map(|c| self.compile_query(c, next)).transpose()?;
+        let catch_pc = catch.map(|c| c.compile(self, next)).transpose()?;
         let body = body.compile(self, try_end)?;
         Ok(self
             .emitter
             .emit_normal_op(ByteCode::ForkTryBegin { catch_pc }, body))
+    }
+
+    /// Consumes a value from the stack, and produces a single value onto the stack.
+    fn compile_if<T: Compile, U: Compile, V: Compile>(
+        &mut self,
+        cond: &T,
+        positive: &U,
+        negative: Option<&V>,
+        next: Address,
+    ) -> Result<Address> {
+        let negative_address = if let Some(negative) = negative {
+            negative.compile(self, next)?
+        } else {
+            next
+        };
+        let positive_address = positive.compile(self, next)?;
+        let next = self
+            .emitter
+            .emit_normal_op(ByteCode::JumpUnless(negative_address), positive_address);
+        let next = cond.compile(self, next)?;
+        let next = self.emitter.emit_normal_op(ByteCode::Dup, next);
+        Ok(next)
     }
 
     /// Consumes a value from the stack, and produces a single value onto the stack.
@@ -541,20 +571,17 @@ impl Compiler {
         next: Address,
     ) -> Result<Address> {
         match suffix {
-            Suffix::Optional => self.compile_try(term, None, next),
+            Suffix::Optional => self.compile_try::<_, Query>(term, None, next),
             Suffix::Iterate => self.compile_iterate(term, next),
             Suffix::Index(ident) => self.compile_index(
                 term,
                 &Term::Constant(Value::String(Rc::new(ident.0.clone()))),
                 next,
             ),
-            Suffix::Query(q) => self.compile_index(term, q.as_ref(), next),
-            Suffix::Slice(start, end) => self.compile_slice(
-                term,
-                start.as_ref().map(AsRef::as_ref),
-                end.as_ref().map(AsRef::as_ref),
-                next,
-            ),
+            Suffix::Query(q) => self.compile_index(term, q, next),
+            Suffix::Slice(start, end) => {
+                self.compile_slice(term, start.as_ref(), end.as_ref(), next)
+            }
         }
     }
 
@@ -656,46 +683,30 @@ impl Compiler {
                 cond,
                 positive,
                 negative,
-            } => {
-                let negative_address = if let Some(negative) = negative {
-                    self.compile_query(negative, next)?
-                } else {
-                    next
-                };
-                let positive_address = self.compile_query(positive, next)?;
-                let pc = self
-                    .emitter
-                    .emit_normal_op(ByteCode::JumpUnless(negative_address), positive_address);
-                let pc = self.emitter.emit_normal_op(ByteCode::Dup, pc);
-                self.compile_query(cond, pc)?
-            }
-            Query::Try { body, catch } => {
-                self.compile_try(body.as_ref(), catch.as_ref().map(AsRef::as_ref), next)?
-            }
+            } => self.compile_if(cond, positive, negative.as_ref(), next)?,
+            Query::Try { body, catch } => self.compile_try(body, catch.as_ref(), next)?,
             Query::Label { .. } => todo!(),
-            Query::Operate { lhs, operator, rhs } => {
-                match operator {
-                    BinaryOp::Arithmetic(operator) => {
-                        let operator = intrinsic::binary(operator);
-                        let next = self
-                            .emitter
-                            .emit_normal_op(ByteCode::Intrinsic2(operator), next);
-                        let next = self.compile_query(lhs, next)?;
-                        let next = self.emitter.emit_normal_op(ByteCode::Swap, next);
-                        let next = self.compile_query(rhs, next)?;
-                        self.emitter.emit_normal_op(ByteCode::Dup, next)
-                    }
-                    BinaryOp::Alt => {
-                        todo!()
-                    }
-                    BinaryOp::And => {
-                        todo!()
-                    }
-                    BinaryOp::Or => {
-                        todo!()
-                    }
+            Query::Operate { lhs, operator, rhs } => match operator {
+                BinaryOp::Arithmetic(operator) => {
+                    let operator = intrinsic::binary(operator);
+                    let next = self
+                        .emitter
+                        .emit_normal_op(ByteCode::Intrinsic2(operator), next);
+                    let next = self.compile_query(lhs, next)?;
+                    let next = self.emitter.emit_normal_op(ByteCode::Swap, next);
+                    let next = self.compile_query(rhs, next)?;
+                    self.emitter.emit_normal_op(ByteCode::Dup, next)
                 }
-            }
+                BinaryOp::Alt => {
+                    todo!()
+                }
+                BinaryOp::And => {
+                    todo!()
+                }
+                BinaryOp::Or => {
+                    todo!()
+                }
+            },
             Query::Update { .. } => todo!(),
             Query::Compare {
                 lhs,
