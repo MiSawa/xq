@@ -65,3 +65,16 @@ test!(
     {"f o o":"f o o","b a r":"f o o"}
     "#
 );
+
+test!(
+    recursive_descent,
+    r#"
+    ..|.a?
+    "#,
+    r#"
+    [[{"a":1}]]
+    "#,
+    r#"
+    1
+    "#
+);
