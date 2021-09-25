@@ -1,17 +1,20 @@
+use thiserror::Error;
+
+use crate::vm::{
+    compiler::{CompileError, Compiler},
+    machine::Machine,
+    QueryExecutionError,
+};
+pub use number::{IntOrReal, Number};
+pub use value::Value;
+
 pub mod ast;
 mod data_structure;
 mod intrinsic;
 mod number;
 pub mod parser;
+pub mod value;
 pub mod vm;
-
-use crate::vm::{
-    compiler::{CompileError, Compiler},
-    machine::Machine,
-    QueryExecutionError, Value,
-};
-pub use number::{IntOrReal, Number};
-use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum XQError {

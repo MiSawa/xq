@@ -1,4 +1,4 @@
-use crate::{vm::Value, Number};
+use crate::{Number, Value};
 use std::fmt::{Display, Formatter};
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]

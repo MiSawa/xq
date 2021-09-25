@@ -2,7 +2,8 @@ use crate::{
     ast::{self, FuncArg, FuncDef, Identifier, Query, StringFragment, Suffix, Term},
     data_structure::{PHashMap, PVector},
     intrinsic,
-    vm::{bytecode::Closure, Address, ByteCode, Program, ScopeId, ScopedSlot, Value},
+    vm::{bytecode::Closure, Address, ByteCode, Program, ScopeId, ScopedSlot},
+    Value,
 };
 use std::rc::Rc;
 use thiserror::Error;

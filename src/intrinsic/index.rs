@@ -1,6 +1,6 @@
 use crate::{
-    vm::{machine::PathElement, QueryExecutionError, Value},
-    IntOrReal, Number,
+    vm::{machine::PathElement, QueryExecutionError},
+    IntOrReal, Number, Value,
 };
 use num::ToPrimitive;
 use std::{
@@ -55,9 +55,9 @@ pub(crate) fn index(
             let (idx, path_idx) =
                 get_array_index(len, index, QueryExecutionError::ArrayIndexByNonInt)?;
             Ok((
-                idx.and_then(|i| s.chars().skip(i).next())
+                idx.and_then(|i| s.chars().nth(i))
                     .map(|c| Value::String(Rc::new(String::from(c))))
-                    .unwrap_or(Value::String(Rc::new("".to_string()))),
+                    .unwrap_or_else(|| Value::String(Rc::new("".to_string()))),
                 PathElement::Array(path_idx),
             ))
         }

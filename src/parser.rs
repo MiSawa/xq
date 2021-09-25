@@ -4,8 +4,7 @@ use crate::{
         ConstantValue, FuncArg, FuncDef, Identifier, Import, ObjectBindPatternEntry, Program,
         Query, StringFragment, Suffix, Term, UnaryOp, UpdateOp,
     },
-    vm::Value,
-    Number,
+    Number, Value,
 };
 use nom::{
     branch::alt,
@@ -847,7 +846,7 @@ mod test {
     use crate::{
         ast::{BinaryOp, StringFragment, Suffix, Term, UnaryOp},
         parser::{format, identifier, string, term, variable},
-        vm::Value,
+        Value,
     };
     use std::rc::Rc;
 

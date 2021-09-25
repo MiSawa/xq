@@ -1,7 +1,4 @@
-use crate::{
-    ast::Comparator,
-    vm::{bytecode::NamedFn2, Value},
-};
+use crate::{ast::Comparator, vm::bytecode::NamedFn2, Value};
 use itertools::Itertools;
 use std::cmp::Ordering;
 

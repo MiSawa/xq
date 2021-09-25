@@ -1,4 +1,4 @@
-use crate::{vm::Value, Number};
+use crate::{Number, Value};
 use thiserror::Error;
 
 pub type Result<T, E = QueryExecutionError> = std::result::Result<T, E>;

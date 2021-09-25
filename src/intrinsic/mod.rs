@@ -1,4 +1,4 @@
-use crate::vm::Value;
+use crate::Value;
 
 mod binary;
 mod comparator;

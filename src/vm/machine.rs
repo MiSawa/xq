@@ -324,11 +324,10 @@ fn run_code(program: &Program, env: &mut Environment) -> Option<Result<Value>> {
             OnFork::IgnoreError => {
                 if catch_skip == 0 {
                     err = None;
-                    continue 'backtrack;
                 } else {
                     catch_skip -= 1;
-                    continue 'backtrack;
                 }
+                continue 'backtrack;
             }
             OnFork::CatchError => {
                 if catch_skip == 0 {

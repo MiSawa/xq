@@ -1,5 +1,5 @@
 use std::error::Error;
-use xq::{run_query, vm::Value};
+use xq::{run_query, Value};
 
 mod from_manual;
 

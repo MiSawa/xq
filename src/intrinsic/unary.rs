@@ -1,6 +1,7 @@
 use crate::{
     ast::UnaryOp,
-    vm::{bytecode::NamedFn1, QueryExecutionError, Value},
+    vm::{bytecode::NamedFn1, QueryExecutionError},
+    Value,
 };
 use std::rc::Rc;
 

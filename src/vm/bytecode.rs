@@ -1,4 +1,7 @@
-use crate::vm::{Address, Result, ScopeId, ScopedSlot, Value};
+use crate::{
+    vm::{Address, Result, ScopeId, ScopedSlot},
+    Value,
+};
 use std::fmt::{Debug, Formatter};
 
 #[derive(Clone)]

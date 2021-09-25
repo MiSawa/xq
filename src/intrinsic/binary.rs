@@ -1,6 +1,7 @@
 use crate::{
     ast::BinaryOp,
-    vm::{bytecode::NamedFn2, QueryExecutionError, Value},
+    vm::{bytecode::NamedFn2, QueryExecutionError},
+    Value,
 };
 
 pub(crate) fn binary(operator: &BinaryOp) -> NamedFn2 {

@@ -4,7 +4,7 @@ use std::{
     io::{stdin, stdout, Write},
     path::PathBuf,
 };
-use xq::{run_query, vm::Value};
+use xq::{run_query, Value};
 
 #[derive(Clap, Debug)]
 #[clap(author, about, version)]
