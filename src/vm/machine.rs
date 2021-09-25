@@ -333,6 +333,9 @@ fn run_code(program: &Program, env: &mut Environment) -> Option<Result<Value>> {
                 if catch_skip == 0 {
                     match err.take() {
                         None => continue 'backtrack,
+                        Some(QueryExecutionError::UserDefinedError(s)) => {
+                            state.push(Value::string(s))
+                        }
                         Some(e) => state.push(Value::string(format!("{:?}", e))),
                     }
                 } else {

@@ -10,23 +10,23 @@ pub(crate) fn binary(operator: &BinaryArithmeticOp) -> NamedFn2 {
     match operator {
         BinaryArithmeticOp::Add => NamedFn2 {
             name: "Add",
-            func: Box::new(add),
+            func: add,
         },
         BinaryArithmeticOp::Subtract => NamedFn2 {
             name: "Subtract",
-            func: Box::new(subtract),
+            func: subtract,
         },
         BinaryArithmeticOp::Multiply => NamedFn2 {
             name: "Multiply",
-            func: Box::new(multiply),
+            func: multiply,
         },
         BinaryArithmeticOp::Divide => NamedFn2 {
             name: "Divide",
-            func: Box::new(divide),
+            func: divide,
         },
         BinaryArithmeticOp::Modulo => NamedFn2 {
             name: "Modulo",
-            func: Box::new(modulo),
+            func: modulo,
         },
     }
 }

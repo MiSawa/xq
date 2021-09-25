@@ -23,6 +23,7 @@ sized-chunks = "0.6.5"
 num = "0.4.0"
 itertools = "0.10.1"
 serde = "1.0.130"
+phf = { version = "0.10.0", features = ["macros"] }
 
 serde_json = { version = "1.0.67", optional = true }
 clap = { version = "3.0.0-beta.4", optional = true }

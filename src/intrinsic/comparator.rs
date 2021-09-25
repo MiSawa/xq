@@ -6,63 +6,63 @@ pub(crate) fn comparator(comparator: &Comparator) -> NamedFn2 {
     match comparator {
         Comparator::Eq => NamedFn2 {
             name: "Equal",
-            func: Box::new(|lhs, rhs| {
+            func: |lhs, rhs| {
                 Ok(if compare(lhs, rhs).is_eq() {
                     Value::True
                 } else {
                     Value::False
                 })
-            }),
+            },
         },
         Comparator::Neq => NamedFn2 {
             name: "NotEqual",
-            func: Box::new(|lhs, rhs| {
+            func: |lhs, rhs| {
                 Ok(if compare(lhs, rhs).is_ne() {
                     Value::True
                 } else {
                     Value::False
                 })
-            }),
+            },
         },
         Comparator::Gt => NamedFn2 {
             name: "GreaterThan",
-            func: Box::new(|lhs, rhs| {
+            func: |lhs, rhs| {
                 Ok(if compare(lhs, rhs).is_gt() {
                     Value::True
                 } else {
                     Value::False
                 })
-            }),
+            },
         },
         Comparator::Ge => NamedFn2 {
             name: "GreaterOrEqual",
-            func: Box::new(|lhs, rhs| {
+            func: |lhs, rhs| {
                 Ok(if compare(lhs, rhs).is_ge() {
                     Value::True
                 } else {
                     Value::False
                 })
-            }),
+            },
         },
         Comparator::Lt => NamedFn2 {
             name: "LessThan",
-            func: Box::new(|lhs, rhs| {
+            func: |lhs, rhs| {
                 Ok(if compare(lhs, rhs).is_lt() {
                     Value::True
                 } else {
                     Value::False
                 })
-            }),
+            },
         },
         Comparator::Le => NamedFn2 {
             name: "LessOrEqual",
-            func: Box::new(|lhs, rhs| {
+            func: |lhs, rhs| {
                 Ok(if compare(lhs, rhs).is_le() {
                     Value::True
                 } else {
                     Value::False
                 })
-            }),
+            },
         },
     }
 }

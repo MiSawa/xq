@@ -4,7 +4,7 @@ use crate::{
 };
 use std::fmt::{Debug, Formatter};
 
-#[derive(Clone)]
+#[derive(Clone, Eq, PartialEq)]
 pub struct NamedFunction<F: Clone + ?Sized> {
     pub name: &'static str,
     pub func: F,
@@ -13,8 +13,8 @@ pub struct NamedFunction<F: Clone + ?Sized> {
 #[derive(Debug, Copy, Clone, Hash, Ord, PartialOrd, Eq, PartialEq)]
 pub(crate) struct Closure(pub(crate) Address);
 
-pub type NamedFn1 = NamedFunction<Box<fn(Value) -> Result<Value>>>;
-pub type NamedFn2 = NamedFunction<Box<fn(Value, Value) -> Result<Value>>>;
+pub type NamedFn1 = NamedFunction<fn(Value) -> Result<Value>>;
+pub type NamedFn2 = NamedFunction<fn(Value, Value) -> Result<Value>>;
 
 impl<F: Clone> Debug for NamedFunction<F> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
@@ -23,7 +23,7 @@ impl<F: Clone> Debug for NamedFunction<F> {
 }
 
 /// Byte code of the virtual machine.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum ByteCode {
     /// Just to prevent a pc overrun...
     Unreachable,

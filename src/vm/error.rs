@@ -29,4 +29,6 @@ pub enum QueryExecutionError {
     DivModByZero,
     #[error("Tried to construct an object with non-string key `{0:?}`")]
     ObjectNonStringKey(Value),
+    #[error("{0:?}")]
+    UserDefinedError(String),
 }

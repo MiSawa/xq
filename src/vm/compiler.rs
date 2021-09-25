@@ -36,20 +36,21 @@ pub enum CompileError {
 type Result<T, E = CompileError> = std::result::Result<T, E>;
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
-struct FunctionIdentifier(Identifier, usize);
+pub(crate) struct FunctionIdentifier(pub(crate) Identifier, pub(crate) usize);
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
-struct DeclaredFunction(Address, Vec<ArgType>);
+pub(crate) struct DeclaredFunction(Address, Vec<ArgType>);
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
-enum ArgType {
+pub(crate) enum ArgType {
     /// arg
     Closure,
     /// $arg
     Value,
 }
-#[derive(Debug, Clone, Eq, PartialEq, Hash)]
-enum FunctionOrClosure {
+#[derive(Debug, Clone, Eq, PartialEq)]
+enum FunctionLike {
     Function(DeclaredFunction),
     Closure(ScopedSlot),
+    Intrinsic(ByteCode, Vec<ArgType>),
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
@@ -158,7 +159,7 @@ struct Scope {
     id: ScopeId,
     next_variable_slot_id: usize,
     next_closure_slot_id: usize,
-    functions: PHashMap<FunctionIdentifier, FunctionOrClosure>,
+    functions: PHashMap<FunctionIdentifier, FunctionLike>,
     variables: PHashMap<Identifier, ScopedSlot>,
 }
 
@@ -198,17 +199,15 @@ impl Scope {
     fn register_function(&mut self, name: Identifier, function: DeclaredFunction) {
         self.functions.insert(
             FunctionIdentifier(name, function.1.len()),
-            FunctionOrClosure::Function(function),
+            FunctionLike::Function(function),
         );
     }
 
     fn register_closure(&mut self, name: Identifier) -> ScopedSlot {
         let slot = ScopedSlot(self.id, self.next_closure_slot_id);
         self.next_closure_slot_id += 1;
-        self.functions.insert(
-            FunctionIdentifier(name, 0),
-            FunctionOrClosure::Closure(slot),
-        );
+        self.functions
+            .insert(FunctionIdentifier(name, 0), FunctionLike::Closure(slot));
         slot
     }
 
@@ -216,7 +215,7 @@ impl Scope {
         self.variables.get(name)
     }
 
-    fn lookup_function(&self, identifier: &FunctionIdentifier) -> Option<&FunctionOrClosure> {
+    fn lookup_function(&self, identifier: &FunctionIdentifier) -> Option<&FunctionLike> {
         self.functions.get(identifier)
     }
 }
@@ -355,9 +354,14 @@ impl Compiler {
             .ok_or_else(|| CompileError::UnknownVariable(name.clone()))
     }
 
-    fn lookup_function(&self, function: &FunctionIdentifier) -> Result<&FunctionOrClosure> {
+    fn lookup_function(&self, function: &FunctionIdentifier) -> Result<FunctionLike> {
         self.current_scope()
             .lookup_function(function)
+            .cloned()
+            .or_else(|| {
+                intrinsic::lookup_intrinsic_fn(function)
+                    .map(|(code, args)| FunctionLike::Intrinsic(code, args))
+            })
             .ok_or_else(|| CompileError::UnknownFunction(function.0.clone()))
     }
 
@@ -410,55 +414,67 @@ impl Compiler {
         Ok(())
     }
 
+    fn compile_func_call_args(
+        &mut self,
+        args: &[Query],
+        types: &[ArgType],
+        mut next: Address,
+    ) -> Result<Address> {
+        assert_eq!(args.len(), types.len());
+        // We need to evaluate all value-typed arguments on the same current context (stack top).
+        // In order to do so, we store the stack top to a slot temporarily if there's a value-typed arg.
+        let context_slot = if types.iter().any(|s| s == &ArgType::Value) {
+            Some(self.allocate_variable())
+        } else {
+            None
+        };
+        for (arg, ty) in args.iter().zip(types.iter()).rev() {
+            next = match ty {
+                ArgType::Closure => {
+                    let closure_address = self.compile_closure(arg)?;
+                    self.emitter
+                        .emit_normal_op(ByteCode::PushClosure(Closure(closure_address)), next)
+                }
+                ArgType::Value => {
+                    let next = self.compile_query(arg, next)?;
+                    if let Some(slot) = context_slot {
+                        self.emitter.emit_normal_op(ByteCode::Load(slot), next)
+                    } else {
+                        next
+                    }
+                }
+            }
+        }
+        Ok(if let Some(slot) = context_slot {
+            next = self.emitter.emit_normal_op(ByteCode::Store(slot), next);
+            self.emitter.emit_normal_op(ByteCode::Dup, next)
+        } else {
+            next
+        })
+    }
+
     /// Consumes a value from the stack, and produces a single value onto the stack.
     fn compile_func_call(
         &mut self,
-        function: &FunctionOrClosure,
+        function: FunctionLike,
         args: &[Query],
         next: Address,
     ) -> Result<Address> {
         Ok(match function {
-            FunctionOrClosure::Function(DeclaredFunction(address, types)) => {
-                let mut next = self.emitter.emit_function_call(*address, next);
-                assert_eq!(args.len(), types.len());
-                // We need to evaluate all value-typed arguments on the same current context (stack top).
-                // In order to do so, we store the stack top to a slot temporarily if there's a value-typed arg.
-                let context_slot = if types.iter().any(|s| s == &ArgType::Value) {
-                    Some(self.allocate_variable())
-                } else {
-                    None
-                };
-                for (arg, ty) in args.iter().zip(types.iter()).rev() {
-                    next = match ty {
-                        ArgType::Closure => {
-                            let closure_address = self.compile_closure(arg)?;
-                            self.emitter.emit_normal_op(
-                                ByteCode::PushClosure(Closure(closure_address)),
-                                next,
-                            )
-                        }
-                        ArgType::Value => {
-                            let next = self.compile_query(arg, next)?;
-                            if let Some(slot) = context_slot {
-                                self.emitter.emit_normal_op(ByteCode::Load(slot), next)
-                            } else {
-                                next
-                            }
-                        }
-                    }
-                }
-                if let Some(slot) = context_slot {
-                    next = self.emitter.emit_normal_op(ByteCode::Store(slot), next);
-                    self.emitter.emit_normal_op(ByteCode::Dup, next)
-                } else {
-                    next
-                }
+            FunctionLike::Function(DeclaredFunction(address, types)) => {
+                let next = self.emitter.emit_function_call(address, next);
+                self.compile_func_call_args(args, &types, next)?
             }
-            FunctionOrClosure::Closure(slot) => {
+            FunctionLike::Closure(slot) => {
+                assert!(args.is_empty());
                 self.emitter.emit_terminal_op(ByteCode::CallClosure {
-                    slot: *slot,
+                    slot,
                     return_address: next,
                 })
+            }
+            FunctionLike::Intrinsic(bytecode, types) => {
+                let next = self.emitter.emit_normal_op(bytecode.clone(), next);
+                self.compile_func_call_args(args, &types, next)?
             }
         })
     }
@@ -660,10 +676,9 @@ impl Compiler {
             Term::FunctionCall { name, args } => {
                 // TODO: How to avoid name.clone()?
                 // TODO: How to avoid resolved.clone()?....
-                let resolved = self
-                    .lookup_function(&FunctionIdentifier(name.clone(), args.len()))?
-                    .clone();
-                self.compile_func_call(&resolved, args, next)?
+                let resolved =
+                    self.lookup_function(&FunctionIdentifier(name.clone(), args.len()))?;
+                self.compile_func_call(resolved, args, next)?
             }
             Term::Format(_) => todo!(),
             Term::Query(query) => self.compile_query(query, next)?,

@@ -8,11 +8,11 @@ pub(crate) fn unary(operator: &UnaryOp) -> NamedFn1 {
     match operator {
         UnaryOp::Plus => NamedFn1 {
             name: "UnaryPlus",
-            func: Box::new(unary_plus),
+            func: unary_plus,
         },
         UnaryOp::Minus => NamedFn1 {
             name: "UnaryMinus",
-            func: Box::new(unary_minus),
+            func: unary_minus,
         },
     }
 }
