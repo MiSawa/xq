@@ -129,7 +129,9 @@ impl<'a> Ord for ComparableValue<'a> {
                 }
                 Equal
             }
-            _ => unreachable!(),
+            (Null | True | False | Number(_) | String(_) | Array(_) | Object(_), _) => {
+                unreachable!()
+            }
         }
     }
 }
