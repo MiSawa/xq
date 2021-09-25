@@ -64,7 +64,10 @@ pub(crate) enum ByteCode {
     /// # Panics
     /// Panics if the closure stack was empty.
     StoreClosure(ScopedSlot),
-    // Object,
+    /// Pops three values, `value`, `key` and `obj` from the stack, set `obj[key] = value` and push the new obj.
+    /// # Panics
+    /// Panics if the stack had less than 3 elements.
+    AppendObject,
     /// Pops a value from the stack, and append to the array stored in the slot.
     /// # Panics
     /// Panics if the stack was empty, the slot didn't have a value or the value in the slot was not an array.

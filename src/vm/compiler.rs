@@ -589,6 +589,50 @@ impl Compiler {
     }
 
     /// Consumes a value from the stack, and produces a single value onto the stack.
+    fn compile_object_entry(
+        &mut self,
+        context: ScopedSlot,
+        key: &Query,
+        value: &Option<Query>,
+        next: Address,
+    ) -> Result<Address> {
+        let next = self.emitter.emit_normal_op(ByteCode::AppendObject, next);
+        Ok(match value {
+            Some(value) => {
+                let next = self.compile_query(value, next)?;
+                let next = self.emitter.emit_normal_op(ByteCode::Load(context), next);
+                let next = self.compile_query(key, next)?;
+                let next = self.emitter.emit_normal_op(ByteCode::Load(context), next);
+                next
+            }
+            None => {
+                let next = self.emitter.emit_normal_op(ByteCode::Index, next);
+                let next = self.emitter.emit_normal_op(ByteCode::Swap, next);
+                let next = self.emitter.emit_normal_op(ByteCode::Load(context), next);
+                let next = self.emitter.emit_normal_op(ByteCode::Dup, next);
+                let next = self.compile_query(key, next)?;
+                next
+            }
+        })
+    }
+
+    /// Consumes a value from the stack, and produces a single value onto the stack.
+    fn compile_object(
+        &mut self,
+        kvs: &Vec<(Query, Option<Query>)>,
+        mut next: Address,
+    ) -> Result<Address> {
+        let slot = self.allocate_variable();
+        for (key, value) in kvs.iter().rev() {
+            next = self.compile_object_entry(slot, key, value, next)?
+        }
+        next = self
+            .emitter
+            .emit_normal_op(ByteCode::Push(Value::Object(Default::default())), next);
+        Ok(self.emitter.emit_normal_op(ByteCode::Store(slot), next))
+    }
+
+    /// Consumes a value from the stack, and produces a single value onto the stack.
     fn compile_term(&mut self, term: &ast::Term, next: Address) -> Result<Address> {
         let ret = match term {
             Term::Constant(value) => self.emitter.emit_constant(value.clone(), next),
@@ -632,7 +676,7 @@ impl Compiler {
                     .emit_normal_op(ByteCode::Intrinsic1(operator), next);
                 self.compile_term(term, next)?
             }
-            Term::Object(_) => todo!(),
+            Term::Object(kvs) => self.compile_object(kvs, next)?,
             Term::Array(query) => match query {
                 None => self
                     .emitter

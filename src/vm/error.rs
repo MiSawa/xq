@@ -27,4 +27,6 @@ pub enum QueryExecutionError {
     StringRepeatByNonUSize(Number),
     #[error("Cannot divide/modulo by zero")]
     DivModByZero,
+    #[error("Tried to construct an object with non-string key `{0:?}`")]
+    ObjectNonStringKey(Value),
 }

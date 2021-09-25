@@ -415,6 +415,24 @@ fn run_code(program: &Program, env: &mut Environment) -> Option<Result<Value>> {
                     let closure = state.pop_closure();
                     state.closure_slot(slot).replace(closure);
                 }
+                AppendObject => {
+                    let value = state.pop();
+                    let key = state.pop();
+                    let obj = state.pop();
+                    match obj {
+                        Value::Object(mut map) => match key {
+                            Value::String(s) => {
+                                map.insert(s, value);
+                                state.push(Value::Object(map));
+                            }
+                            value => {
+                                err.replace(QueryExecutionError::ObjectNonStringKey(value));
+                                continue 'backtrack;
+                            }
+                        },
+                        _ => panic!("Expected an object to append to, but was not an object"),
+                    }
+                }
                 Append(scoped_slot) => {
                     let value = state.pop();
                     let mut slot = state.slot(scoped_slot);
@@ -427,7 +445,7 @@ fn run_code(program: &Program, env: &mut Environment) -> Option<Result<Value>> {
                             v.push_back(value);
                         }
                         _ => {
-                            panic!("expected a array to append to, but was not an array");
+                            panic!("expected an array to append to, but was not an array");
                         }
                     }
                 }
