@@ -617,7 +617,7 @@ impl Compiler {
     /// Consumes a value from the stack, and produces a single value onto the stack.
     fn compile_object(
         &mut self,
-        kvs: &Vec<(Query, Option<Query>)>,
+        kvs: &[(Query, Option<Query>)],
         mut next: Address,
     ) -> Result<Address> {
         let slot = self.allocate_variable();
