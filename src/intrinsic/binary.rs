@@ -1,8 +1,10 @@
 use crate::{
     ast::BinaryArithmeticOp,
-    vm::{bytecode::NamedFn2, QueryExecutionError},
+    vm::{bytecode::NamedFn2, error::QueryExecutionError::DivModByZero, QueryExecutionError},
     Value,
 };
+use num::{ToPrimitive, Zero};
+use QueryExecutionError::{IncompatibleBinaryOperator, StringRepeatByNonUSize};
 
 pub(crate) fn binary(operator: &BinaryArithmeticOp) -> NamedFn2 {
     match operator {
@@ -28,22 +30,95 @@ pub(crate) fn binary(operator: &BinaryArithmeticOp) -> NamedFn2 {
         },
     }
 }
-pub(crate) fn add(_lhs: Value, _rhs: Value) -> Result<Value, QueryExecutionError> {
-    todo!()
+
+fn add(lhs: Value, rhs: Value) -> Result<Value, QueryExecutionError> {
+    use Value::*;
+    Ok(match (lhs, rhs) {
+        (Null, rhs) => rhs,
+        (lhs, Null) => lhs,
+        (Number(lhs), Number(rhs)) => Value::number((*lhs).clone() + (*rhs).clone()), // TODO: Fix rhs.clone()
+        (String(lhs), String(rhs)) => Value::string((*lhs).clone() + &*rhs),
+        (Array(lhs), Array(rhs)) => Value::Array(lhs + rhs),
+        (Object(lhs), Object(rhs)) => Value::Object(lhs + rhs),
+        (lhs @ (True | False | Number(_) | String(_) | Array(_) | Object(_)), rhs) => {
+            return Err(IncompatibleBinaryOperator("add", lhs, rhs));
+        }
+    })
 }
 
-pub(crate) fn subtract(_lhs: Value, _rhs: Value) -> Result<Value, QueryExecutionError> {
-    todo!()
+fn subtract(lhs: Value, rhs: Value) -> Result<Value, QueryExecutionError> {
+    use Value::*;
+    Ok(match (lhs, rhs) {
+        (Number(lhs), Number(rhs)) => Value::number((*lhs).clone() - (*rhs).clone()), // TODO: Fix rhs.clone()
+        (Array(lhs), Array(rhs)) => {
+            let iter = lhs.into_iter().filter(|v| !rhs.contains(v)); // TODO: O(n log n) or expected O(n) instead of O(n^2). NaN though...
+            Array(iter.collect())
+        }
+        (lhs @ (Null | True | False | Number(_) | String(_) | Array(_) | Object(_)), rhs) => {
+            return Err(IncompatibleBinaryOperator("add", lhs, rhs));
+        }
+    })
 }
 
-pub(crate) fn multiply(_lhs: Value, _rhs: Value) -> Result<Value, QueryExecutionError> {
-    todo!()
+fn multiply(lhs: Value, rhs: Value) -> Result<Value, QueryExecutionError> {
+    use Value::*;
+    fn merge(lhs: Value, rhs: Value) -> Value {
+        match (lhs, rhs) {
+            (Object(lhs), Object(rhs)) => Object(lhs.union_with(rhs, merge)),
+            (_, rhs) => rhs,
+        }
+    }
+    Ok(match (lhs, rhs) {
+        (Number(lhs), Number(rhs)) => Value::number((*lhs).clone() * (*rhs).clone()), // TODO: Fix rhs.clone()
+        (String(lhs), Number(rhs)) => {
+            let repeat = rhs
+                .to_usize()
+                .ok_or_else(|| StringRepeatByNonUSize((*rhs).clone()))?;
+            if repeat == 0 {
+                Value::Null // Why not ""....
+            } else {
+                Value::string((*lhs).clone().repeat(repeat))
+            }
+        }
+        (lhs @ Object(_), rhs @ Object(_)) => merge(lhs, rhs),
+        (lhs @ (Null | True | False | Number(_) | String(_) | Array(_) | Object(_)), rhs) => {
+            return Err(IncompatibleBinaryOperator("add", lhs, rhs));
+        }
+    })
 }
 
-pub(crate) fn divide(_lhs: Value, _rhs: Value) -> Result<Value, QueryExecutionError> {
-    todo!()
+fn divide(lhs: Value, rhs: Value) -> Result<Value, QueryExecutionError> {
+    use Value::*;
+    Ok(match (lhs, rhs) {
+        (Number(lhs), Number(rhs)) => {
+            if rhs.is_zero() {
+                return Err(DivModByZero);
+            }
+            Value::number((*lhs).clone() / (*rhs).clone()) // TODO: Fix rhs.clone()
+        }
+        (String(lhs), String(rhs)) => Array(
+            lhs.split(&*rhs)
+                .into_iter()
+                .map(|s| Value::string(s.to_string()))
+                .collect(),
+        ),
+        (lhs @ (Null | True | False | Number(_) | String(_) | Array(_) | Object(_)), rhs) => {
+            return Err(IncompatibleBinaryOperator("add", lhs, rhs));
+        }
+    })
 }
 
-pub(crate) fn modulo(_lhs: Value, _rhs: Value) -> Result<Value, QueryExecutionError> {
-    todo!()
+fn modulo(lhs: Value, rhs: Value) -> Result<Value, QueryExecutionError> {
+    use Value::*;
+    Ok(match (lhs, rhs) {
+        (Number(lhs), Number(rhs)) => {
+            if rhs.is_zero() {
+                return Err(DivModByZero);
+            }
+            Value::number((*lhs).clone() % (*rhs).clone()) // TODO: Fix rhs.clone()
+        }
+        (lhs @ (Null | True | False | Number(_) | String(_) | Array(_) | Object(_)), rhs) => {
+            return Err(IncompatibleBinaryOperator("add", lhs, rhs));
+        }
+    })
 }

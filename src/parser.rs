@@ -856,11 +856,10 @@ pub fn parse_query(input: &str) -> Result<Program, Error<String>> {
 #[cfg(test)]
 mod test {
     use crate::{
-        ast::{BinaryOp, StringFragment, Suffix, Term, UnaryOp},
+        ast::{BinaryArithmeticOp, BinaryOp, StringFragment, Suffix, Term, UnaryOp},
         parser::{format, identifier, string, term, variable},
         Value,
     };
-    use std::rc::Rc;
 
     fn string_term(s: &str) -> Term {
         Term::String(vec![StringFragment::String(s.to_string())])
@@ -977,7 +976,7 @@ mod test {
                     String("abc".to_string()),
                     Query(ast::Query::Operate {
                         lhs: Box::new(Term::Constant(Value::number(1.into())).into()),
-                        operator: BinaryOp::Add,
+                        operator: BinaryOp::Arithmetic(BinaryArithmeticOp::Add),
                         rhs: Box::new(Term::Constant(Value::number(2.into())).into())
                     }),
                     String("def".to_string())

@@ -280,7 +280,7 @@ test!(
 );
 
 test!(
-    pipe2,
+    parenthesis1,
     r#"
     (. + 2) * 5
     "#,

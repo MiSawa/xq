@@ -21,4 +21,10 @@ pub enum QueryExecutionError {
     NonIntegralNumber(Number),
     #[error("Unary {0:?} negation was applied to non-numeric value `{1:?}`")]
     UnaryOnNonNumeric(&'static str, Value),
+    #[error("Cannot {0:?} `{1:?}` and `{2:?}`")]
+    IncompatibleBinaryOperator(&'static str, Value, Value),
+    #[error("Cannot repeat string `{0:?}` times")]
+    StringRepeatByNonUSize(Number),
+    #[error("Cannot divide/modulo by zero")]
+    DivModByZero,
 }
