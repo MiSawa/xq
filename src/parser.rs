@@ -142,7 +142,7 @@ fn identifier_allow_keyword(input: &str) -> ParseResult<Identifier> {
 
 fn variable(input: &str) -> ParseResult<Identifier> {
     map(
-        recognize(preceded(char('$'), identifier_allow_keyword)),
+        preceded(char('$'), identifier_allow_keyword),
         Identifier::from,
     )(input)
 }
@@ -163,10 +163,10 @@ fn identifier_or_module_identifier(input: &str) -> ParseResult<Identifier> {
 
 fn variable_or_module_variable(input: &str) -> ParseResult<Identifier> {
     map(
-        recognize(preceded(
+        preceded(
             char('$'),
-            separated_list1(tag("::"), identifier_allow_keyword),
-        )),
+            recognize(separated_list1(tag("::"), identifier_allow_keyword)),
+        ),
         Identifier::from,
     )(input)
 }
@@ -874,7 +874,7 @@ mod test {
 
     #[test]
     fn test_variable() {
-        assert_eq!(variable("$ab12+c"), Ok(("+c", "$ab12".into())));
+        assert_eq!(variable("$ab12+c"), Ok(("+c", "ab12".into())));
         assert!(variable("$12abc").is_err());
         assert!(variable("$ abc").is_err());
     }

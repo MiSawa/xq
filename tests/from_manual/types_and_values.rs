@@ -53,6 +53,7 @@ test!(
     "#
 );
 
+// NOTE: This is different from what in the document, but the documentation seems to explain this behavior...
 test!(
     object3,
     r#"
@@ -62,7 +63,7 @@ test!(
     null
     "#,
     r#"
-    {"f o o":"f o o","b a r":"f o o"}
+    {"foo":"f o o","b a r":"f o o"}
     "#
 );
 

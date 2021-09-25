@@ -1,10 +1,16 @@
 use crate::{
-    ast::{self, BinaryOp, FuncArg, FuncDef, Identifier, Query, StringFragment, Suffix, Term},
+    ast::{
+        self, BinaryOp, BindPattern, FuncArg, FuncDef, Identifier, ObjectBindPatternEntry, Query,
+        StringFragment, Suffix, Term,
+    },
     data_structure::{PHashMap, PVector},
     intrinsic,
     vm::{bytecode::Closure, Address, ByteCode, Program, ScopeId, ScopedSlot},
-    Value,
+    Number, Value,
 };
+use itertools::Itertools;
+use num::bigint::ToBigInt;
+use std::collections::{HashMap, HashSet};
 use thiserror::Error;
 
 /// # Function calling convention
@@ -31,6 +37,8 @@ pub enum CompileError {
     UnknownVariable(Identifier),
     #[error("Use of unknown function `{0:}`")]
     UnknownFunction(Identifier),
+    #[error("Bind pattern has the same variable `{0:}`")]
+    SameVariableInPattern(Identifier),
 }
 
 type Result<T, E = CompileError> = std::result::Result<T, E>;
@@ -656,6 +664,139 @@ impl Compiler {
         Ok(self.emitter.emit_normal_op(ByteCode::Store(slot), next))
     }
 
+    fn compile_bind(
+        &mut self,
+        source: &Term,
+        patterns: &[BindPattern],
+        body: &Query,
+        next: Address,
+    ) -> Result<Address> {
+        assert!(!patterns.is_empty());
+        fn collect_variable_occurrences<'a>(
+            pattern: &'a BindPattern,
+            occurrences: &mut HashMap<&'a Identifier, usize>,
+        ) {
+            match pattern {
+                BindPattern::Variable(ident) => {
+                    *occurrences.entry(ident).or_insert(0) += 1;
+                }
+                BindPattern::Array(arr) => {
+                    for p in arr {
+                        collect_variable_occurrences(p, occurrences);
+                    }
+                }
+                BindPattern::Object(obj) => {
+                    for entry in obj {
+                        match entry {
+                            ObjectBindPatternEntry::KeyValue(_, p) => {
+                                collect_variable_occurrences(p, occurrences);
+                            }
+                            ObjectBindPatternEntry::KeyOnly(ident) => {
+                                *occurrences.entry(ident).or_insert(0) += 1;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        impl Compile for BindPattern {
+            fn compile(&self, compiler: &mut Compiler, next: Address) -> Result<Address> {
+                let next = match self {
+                    BindPattern::Variable(ident) => {
+                        let slot = *compiler.lookup_variable(ident)?;
+                        compiler.emitter.emit_normal_op(ByteCode::Store(slot), next)
+                    }
+                    BindPattern::Array(v) => {
+                        let mut tmp = next;
+                        for (i, pattern) in v.iter().enumerate().rev() {
+                            tmp = pattern.compile(compiler, tmp)?;
+                            tmp = compiler.emitter.emit_normal_op(ByteCode::Index, tmp);
+                            tmp = compiler.emitter.emit_normal_op(
+                                ByteCode::Push(Value::number(Number::from_integer(
+                                    i.to_bigint().unwrap(),
+                                ))),
+                                tmp,
+                            );
+                            tmp = compiler.emitter.emit_normal_op(ByteCode::Dup, tmp);
+                        }
+                        tmp
+                    }
+                    BindPattern::Object(entries) => {
+                        let mut tmp = next;
+                        for entry in entries.iter().rev() {
+                            match entry {
+                                ObjectBindPatternEntry::KeyValue(key, value) => {
+                                    tmp = value.compile(compiler, tmp)?;
+                                    tmp = compiler.emitter.emit_normal_op(ByteCode::Index, tmp);
+                                    tmp = compiler.emitter.emit_normal_op(ByteCode::Swap, tmp);
+                                    tmp = compiler.compile_query(key, tmp)?;
+                                    tmp = compiler.emitter.emit_normal_op(ByteCode::Dup, tmp);
+                                    tmp = compiler.emitter.emit_normal_op(ByteCode::Dup, tmp);
+                                }
+                                ObjectBindPatternEntry::KeyOnly(key) => {
+                                    let slot = *compiler.lookup_variable(key)?;
+                                    tmp =
+                                        compiler.emitter.emit_normal_op(ByteCode::Store(slot), tmp);
+                                    tmp = compiler.emitter.emit_normal_op(ByteCode::Index, tmp);
+                                    tmp = compiler.emitter.emit_normal_op(
+                                        ByteCode::Push(Value::string(key.0.clone())),
+                                        tmp,
+                                    );
+                                    tmp = compiler.emitter.emit_normal_op(ByteCode::Dup, tmp);
+                                }
+                            }
+                        }
+                        tmp
+                    }
+                };
+                Ok(next)
+            }
+        }
+
+        let mut variables: Vec<HashSet<&Identifier>> = vec![];
+        for pattern in patterns {
+            let mut map = HashMap::new();
+            collect_variable_occurrences(pattern, &mut map);
+            if let Some((&key, _)) = map.iter().find(|(_, &v)| v > 1) {
+                return Err(CompileError::SameVariableInPattern(key.clone()));
+            }
+            variables.push(map.keys().cloned().collect())
+        }
+
+        let saved = self.save_scope();
+        for &v in variables.iter().flatten().unique() {
+            self.register_variable(v.clone());
+        }
+        let body = self.compile_query(body, next)?;
+        let mut next_alt: Option<Address> = None;
+
+        for (i, pattern) in patterns.iter().enumerate().rev() {
+            let mut tmp = if let Some(next_alt) = next_alt {
+                self.compile_try(pattern, Some(&next_alt), body)?
+            } else {
+                pattern.compile(self, body)?
+            };
+            if i > 0 {
+                for prev_ident in variables[i - 1].iter() {
+                    let slot = *self.lookup_variable(prev_ident)?;
+                    tmp = self.emitter.emit_normal_op(ByteCode::Store(slot), tmp);
+                    self.emitter
+                        .emit_normal_op(ByteCode::Push(Value::Null), tmp);
+                }
+            }
+            if i + 1 != patterns.len() {
+                tmp = self.emitter.emit_normal_op(ByteCode::Dup, tmp);
+            }
+            next_alt = Some(tmp)
+        }
+        let next = next_alt.unwrap();
+        self.restore_scope(saved);
+        let next = self.compile_term(source, next)?;
+        let next = self.emitter.emit_normal_op(ByteCode::Dup, next);
+        Ok(next)
+    }
+
     /// Consumes a value from the stack, and produces a single value onto the stack.
     fn compile_term(&mut self, term: &ast::Term, next: Address) -> Result<Address> {
         let ret = match term {
@@ -745,7 +886,11 @@ impl Compiler {
                 let lhs_address = self.compile_query(lhs, next)?;
                 self.emitter.emit_fork(rhs_address, lhs_address)
             }
-            Query::Bind { .. } => todo!(),
+            Query::Bind {
+                source,
+                patterns,
+                body,
+            } => self.compile_bind(source, patterns, body, next)?,
             Query::Reduce { .. } => todo!(),
             Query::ForEach { .. } => todo!(),
             Query::If {
