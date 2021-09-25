@@ -132,7 +132,7 @@ pub(crate) enum ByteCode {
         variable_cnt: usize,
         closure_cnt: usize,
     },
-    /// Discards the current frame.
+    /// Discards the current frame, and start from the return address.
     /// # Panics
     /// Panics if the frame stack was empty.
     Ret,

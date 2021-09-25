@@ -100,7 +100,7 @@ impl CodeEmitter {
                 return_address: *return_address,
             },
             Some(ByteCode::Backtrack) => ByteCode::Backtrack,
-            Some(ByteCode::Ret) => todo!(),
+            Some(ByteCode::Ret) => ByteCode::Ret,
             Some(ByteCode::Output) => ByteCode::Output,
             _ => ByteCode::Jump(address),
         };
@@ -742,7 +742,29 @@ impl Compiler {
                     self.emitter.emit_normal_op(ByteCode::Dup, next)
                 }
                 BinaryOp::Alt => {
-                    todo!()
+                    let found = self.allocate_variable();
+                    let backtrack = self.emitter.backtrack();
+                    let rhs = self.compile_query(rhs, next)?;
+                    let rhs = self
+                        .emitter
+                        .emit_normal_op(ByteCode::JumpUnless(rhs), backtrack);
+                    let rhs = self.emitter.emit_normal_op(ByteCode::Load(found), rhs);
+
+                    let next = self.emitter.emit_normal_op(ByteCode::Store(found), next);
+                    let next = self
+                        .emitter
+                        .emit_normal_op(ByteCode::Push(Value::True), next);
+                    let next = self
+                        .emitter
+                        .emit_normal_op(ByteCode::JumpUnless(backtrack), next);
+                    let next = self.emitter.emit_normal_op(ByteCode::Dup, next);
+                    let lhs = self.compile_query(lhs, next)?;
+                    let fork = self.emitter.emit_fork(rhs, lhs);
+                    let next = self.emitter.emit_normal_op(ByteCode::Store(found), fork);
+                    let next = self
+                        .emitter
+                        .emit_normal_op(ByteCode::Push(Value::False), next);
+                    next
                 }
                 BinaryOp::And => {
                     let rhs = self.compile_if(
