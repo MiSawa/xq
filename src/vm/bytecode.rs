@@ -97,7 +97,7 @@ pub(crate) enum ByteCode {
     Backtrack,
     /// Change the current pc to the given address.
     Jump(Address),
-    /// Pops a value from the stack, jumps to the address if it wasn't [crate::vm::intrinsic::truthy()].
+    /// Pops a value from the stack, jumps to the address if it wasn't [crate::intrinsic::truthy()].
     /// # Panics
     /// Panics if the stack was empty.
     JumpUnless(Address),

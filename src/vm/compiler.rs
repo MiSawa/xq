@@ -1,7 +1,8 @@
 use crate::{
     ast::{self, FuncArg, FuncDef, Identifier, Query, StringFragment, Suffix, Term},
     data_structure::{PHashMap, PVector},
-    vm::{bytecode::Closure, intrinsic, Address, ByteCode, Program, ScopeId, ScopedSlot, Value},
+    intrinsic,
+    vm::{bytecode::Closure, Address, ByteCode, Program, ScopeId, ScopedSlot, Value},
 };
 use std::rc::Rc;
 use thiserror::Error;
@@ -670,7 +671,17 @@ impl Compiler {
                 self.compile_try(body.as_ref(), catch.as_ref().map(AsRef::as_ref), next)?
             }
             Query::Label { .. } => todo!(),
-            Query::Operate { .. } => todo!(),
+            Query::Operate { lhs, operator, rhs } => {
+                // FIXME: and, or, not require a different operand evaluation strategy.
+                let operator = intrinsic::binary(operator);
+                let next = self
+                    .emitter
+                    .emit_normal_op(ByteCode::Intrinsic2(operator), next);
+                let next = self.compile_query(lhs, next)?;
+                let next = self.emitter.emit_normal_op(ByteCode::Swap, next);
+                let next = self.compile_query(rhs, next)?;
+                self.emitter.emit_normal_op(ByteCode::Dup, next)
+            }
             Query::Update { .. } => todo!(),
             Query::Compare {
                 lhs,

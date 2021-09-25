@@ -1,5 +1,6 @@
 pub mod ast;
 mod data_structure;
+mod intrinsic;
 mod number;
 pub mod parser;
 pub mod vm;

@@ -4,8 +4,6 @@ pub mod bytecode;
 pub mod compiler;
 #[allow(dead_code)]
 pub mod error;
-#[allow(dead_code)]
-pub(crate) mod intrinsic;
 pub mod machine;
 pub mod value;
 

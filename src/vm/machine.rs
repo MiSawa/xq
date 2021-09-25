@@ -1,9 +1,9 @@
 use crate::{
     data_structure::{PStack, PVector},
+    intrinsic,
     vm::{
         bytecode::{Closure, NamedFunction},
         error::QueryExecutionError,
-        intrinsic::{self, truthy},
         Address, ByteCode, Program, Result, ScopeId, ScopedSlot, Value,
     },
 };
@@ -505,7 +505,7 @@ fn run_code(program: &Program, env: &mut Environment) -> Option<Result<Value>> {
                 }
                 JumpUnless(address) => {
                     let value = state.pop();
-                    if !truthy(value) {
+                    if !intrinsic::truthy(value) {
                         state.pc = *address;
                         continue 'cycle;
                     }
