@@ -1,10 +1,10 @@
 use crate::{
     ast::{
-        BinaryOp, BindPattern, Comparator, ConstantArray, ConstantObject, ConstantPrimitive,
-        ConstantValue, FuncDef, Identifier, Import, ObjectBindPatternEntry, Program, Query,
-        StringFragment, Suffix, Term, UnaryOp, UpdateOp,
+        BinaryArithmeticOp, BinaryOp, BindPattern, Comparator, ConstantArray, ConstantObject,
+        ConstantPrimitive, ConstantValue, FuncArg, FuncDef, Identifier, Import,
+        ObjectBindPatternEntry, Program, Query, StringFragment, Suffix, Term, UnaryOp, UpdateOp,
     },
-    Number,
+    Number, Value,
 };
 use nom::{
     branch::alt,
@@ -342,7 +342,7 @@ fn term(input: &str) -> ParseResult<Term> {
                         }
                     },
                 ),
-                success(Suffix::Explode),
+                success(Suffix::Iterate),
             )),
             preceded(multispace0, char(']')),
         )(input)
@@ -353,13 +353,7 @@ fn term(input: &str) -> ParseResult<Term> {
                 map(identifier_allow_keyword, |ident| {
                     Term::String(vec![StringFragment::String(ident.0)]).into()
                 }),
-                map(variable, |ident| {
-                    Term::FunctionCall {
-                        name: ident,
-                        args: vec![],
-                    }
-                    .into()
-                }),
+                map(variable, |ident| Term::Variable(ident).into()),
                 map(string, |t| Term::String(t).into()),
                 delimited(char('('), ws(query), char(')')),
             )),
@@ -382,10 +376,10 @@ fn term(input: &str) -> ParseResult<Term> {
     }
     fn term_inner(input: &str) -> ParseResult<Term> {
         alt((
-            value(Term::Null, keyword("null")),
-            value(Term::False, keyword("false")),
-            value(Term::True, keyword("true")),
-            map(number, Term::Number),
+            value(Term::Constant(Value::Null), keyword("null")),
+            value(Term::Constant(Value::False), keyword("false")),
+            value(Term::Constant(Value::True), keyword("true")),
+            map(number, |n| Term::Constant(Value::number(n))),
             map(
                 delimited(
                     terminated(char('('), multispace0),
@@ -415,22 +409,20 @@ fn term(input: &str) -> ParseResult<Term> {
                 Term::Break,
             ),
             map(
-                alt((
-                    pair(
-                        identifier_or_module_identifier,
-                        opt(delimited(
-                            preceded(multispace0, char('(')),
-                            separated_list1(char(';'), ws(query)),
-                            char(')'),
-                        )),
-                    ),
-                    pair(variable_or_module_variable, success(None)),
-                )),
+                pair(
+                    identifier_or_module_identifier,
+                    opt(delimited(
+                        preceded(multispace0, char('(')),
+                        separated_list1(char(';'), ws(query)),
+                        char(')'),
+                    )),
+                ),
                 |(name, args)| Term::FunctionCall {
                     name,
                     args: args.unwrap_or_default(),
                 },
             ),
+            map(variable_or_module_variable, Term::Variable),
             map(format, Term::Format),
             map(string, Term::String),
             preceded(
@@ -443,7 +435,7 @@ fn term(input: &str) -> ParseResult<Term> {
                             map(string, |s| Suffix::Query(Box::new(Term::String(s).into()))),
                             suffix,
                         )),
-                        |suffix| Term::Suffix(Box::new(Term::Identity), vec![suffix]),
+                        |suffix| Term::Suffix(Box::new(Term::Identity), suffix),
                     ),
                 ),
             ),
@@ -472,14 +464,9 @@ fn term(input: &str) -> ParseResult<Term> {
                 )),
             ),
             |(term, suffixes)| {
-                if suffixes.is_empty() {
-                    term
-                } else if let Term::Suffix(term, mut original) = term {
-                    original.extend(suffixes);
-                    Term::Suffix(term, original)
-                } else {
-                    Term::Suffix(Box::new(term), suffixes)
-                }
+                suffixes
+                    .into_iter()
+                    .fold(term, |t, s| Term::Suffix(Box::new(t), s))
             },
         )(input)
     }
@@ -501,7 +488,13 @@ fn funcdef(input: &str) -> ParseResult<FuncDef> {
             preceded(keyword("def"), ws(identifier)),
             opt(delimited(
                 char('('),
-                separated_list1(char(';'), ws(alt((identifier, variable)))),
+                separated_list1(
+                    char(';'),
+                    ws(alt((
+                        map(identifier, FuncArg::Closure),
+                        map(variable, FuncArg::Variable),
+                    ))),
+                ),
                 terminated(char(')'), multispace0),
             )),
             delimited(char(':'), ws(query), char(';')),
@@ -530,11 +523,17 @@ fn query(input: &str) -> ParseResult<Query> {
             value(UpdateOp::Assign, tag("=")), // TODO: not immediately followed by =
             value(UpdateOp::Modify, tag("|=")),
             value(UpdateOp::Alt, tag("//=")),
-            value(UpdateOp::Add, tag("+=")),
-            value(UpdateOp::Subtract, tag("-=")),
-            value(UpdateOp::Multiply, tag("*=")),
-            value(UpdateOp::Divide, tag("/=")),
-            value(UpdateOp::Modulo, tag("%=")),
+            value(UpdateOp::Arithmetic(BinaryArithmeticOp::Add), tag("+=")),
+            value(
+                UpdateOp::Arithmetic(BinaryArithmeticOp::Subtract),
+                tag("-="),
+            ),
+            value(
+                UpdateOp::Arithmetic(BinaryArithmeticOp::Multiply),
+                tag("*="),
+            ),
+            value(UpdateOp::Arithmetic(BinaryArithmeticOp::Divide), tag("/=")),
+            value(UpdateOp::Arithmetic(BinaryArithmeticOp::Modulo), tag("%=")),
         ))(input)
     }
     fn bind_pattern(input: &str) -> ParseResult<BindPattern> {
@@ -546,9 +545,7 @@ fn query(input: &str) -> ParseResult<Query> {
                             map(identifier, |ident| {
                                 Term::String(vec![StringFragment::String(ident.0)]).into()
                             }),
-                            map(variable, |name| {
-                                Term::FunctionCall { name, args: vec![] }.into()
-                            }),
+                            map(variable, |name| Term::Variable(name).into()),
                             map(string, |t| Term::String(t).into()),
                             delimited(char('('), ws(query), char(')')),
                         )),
@@ -694,7 +691,7 @@ fn query(input: &str) -> ParseResult<Query> {
             pair(query10, opt(preceded(multispace0, char('?')))),
             |(q, opt)| {
                 if opt.is_some() {
-                    Term::Suffix(Box::new(q.into()), vec![Suffix::Optional]).into()
+                    Term::Suffix(Box::new(q.into()), Suffix::Optional).into()
                 } else {
                     q
                 }
@@ -704,9 +701,12 @@ fn query(input: &str) -> ParseResult<Query> {
     fn query8(input: &str) -> ParseResult<Query> {
         binop_chain_left_assoc(
             ws(alt((
-                value(BinaryOp::Multiply, char('*')),
-                value(BinaryOp::Divide, char('/')),
-                value(BinaryOp::Modulo, char('%')),
+                value(
+                    BinaryOp::Arithmetic(BinaryArithmeticOp::Multiply),
+                    char('*'),
+                ),
+                value(BinaryOp::Arithmetic(BinaryArithmeticOp::Divide), char('/')),
+                value(BinaryOp::Arithmetic(BinaryArithmeticOp::Modulo), char('%')),
             ))),
             query9,
             |lhs, operator, rhs| Query::Operate {
@@ -719,8 +719,11 @@ fn query(input: &str) -> ParseResult<Query> {
     fn query7(input: &str) -> ParseResult<Query> {
         binop_chain_left_assoc(
             ws(alt((
-                value(BinaryOp::Add, char('+')),
-                value(BinaryOp::Subtract, char('-')),
+                value(BinaryOp::Arithmetic(BinaryArithmeticOp::Add), char('+')),
+                value(
+                    BinaryOp::Arithmetic(BinaryArithmeticOp::Subtract),
+                    char('-'),
+                ),
             ))),
             query8,
             |lhs, operator, rhs| Query::Operate {
@@ -734,7 +737,7 @@ fn query(input: &str) -> ParseResult<Query> {
         binop_no_assoc(ws(comparator), query7, |lhs, operator, rhs| {
             Query::Compare {
                 lhs: Box::new(lhs),
-                operator,
+                comparator: operator,
                 rhs: Box::new(rhs),
             }
         })(input)
@@ -855,7 +858,9 @@ mod test {
     use crate::{
         ast::{BinaryOp, StringFragment, Suffix, Term, UnaryOp},
         parser::{format, identifier, string, term, variable},
+        Value,
     };
+    use std::rc::Rc;
 
     fn string_term(s: &str) -> Term {
         Term::String(vec![StringFragment::String(s.to_string())])
@@ -883,23 +888,23 @@ mod test {
 
     #[test]
     fn test_term() {
-        assert_eq!(term("true"), Ok(("", Term::True)));
-        assert_eq!(term("false"), Ok(("", Term::False)));
-        assert_eq!(term("null"), Ok(("", Term::Null)));
+        assert_eq!(term("true"), Ok(("", Term::Constant(Value::True))));
+        assert_eq!(term("false"), Ok(("", Term::Constant(Value::False))));
+        assert_eq!(term("null"), Ok(("", Term::Constant(Value::Null))));
         assert_eq!(
             term("-123"),
             Ok((
                 "",
-                Term::Unary(UnaryOp::Minus, Box::new(Term::Number(123.into())))
+                Term::Unary(
+                    UnaryOp::Minus,
+                    Box::new(Term::Constant(Value::number(123.into())))
+                )
             ))
         );
         assert_eq!(term("[ ]"), Ok(("", Term::Array(None))));
         assert_eq!(
             term(". [ ]"),
-            Ok((
-                "",
-                Term::Suffix(Box::new(Term::Identity), vec![Suffix::Explode])
-            ))
+            Ok(("", Term::Suffix(Box::new(Term::Identity), Suffix::Iterate)))
         );
         assert_eq!(
             term(". \"foo\""),
@@ -907,7 +912,7 @@ mod test {
                 "",
                 Term::Suffix(
                     Box::new(Term::Identity),
-                    vec![Suffix::Query(Box::new(string_term("foo").into()))]
+                    Suffix::Query(Box::new(string_term("foo").into()))
                 )
             ))
         );
@@ -917,7 +922,7 @@ mod test {
                 "",
                 Term::Suffix(
                     Box::new(Term::Identity),
-                    vec![Suffix::Query(Box::new(string_term("foo").into()))]
+                    Suffix::Query(Box::new(string_term("foo").into()))
                 )
             ))
         );
@@ -925,7 +930,7 @@ mod test {
             term(". foo"),
             Ok((
                 "",
-                Term::Suffix(Box::new(Term::Identity), vec![Suffix::Index("foo".into())])
+                Term::Suffix(Box::new(Term::Identity), Suffix::Index("foo".into()))
             ))
         );
         assert_eq!(
@@ -933,8 +938,11 @@ mod test {
             Ok((
                 "",
                 Term::Suffix(
-                    Box::new(Term::Identity),
-                    vec![Suffix::Index("foo".into()), Suffix::Explode]
+                    Box::new(Term::Suffix(
+                        Box::new(Term::Identity),
+                        Suffix::Index("foo".into())
+                    )),
+                    Suffix::Iterate
                 )
             ))
         );
@@ -943,11 +951,11 @@ mod test {
             Ok((
                 "",
                 Term::Suffix(
-                    Box::new(Term::Identity),
-                    vec![
-                        Suffix::Index("foo".into()),
-                        Suffix::Query(Box::new(Term::Number(4.into()).into()))
-                    ]
+                    Box::new(Term::Suffix(
+                        Box::new(Term::Identity),
+                        Suffix::Index("foo".into())
+                    )),
+                    Suffix::Query(Box::new(Term::Constant(Value::number(4.into())).into()))
                 )
             ))
         );
@@ -968,9 +976,9 @@ mod test {
                 vec![
                     String("abc".to_string()),
                     Query(ast::Query::Operate {
-                        lhs: Box::new(Term::Number(1.into()).into()),
+                        lhs: Box::new(Term::Constant(Value::number(1.into())).into()),
                         operator: BinaryOp::Add,
-                        rhs: Box::new(Term::Number(2.into()).into())
+                        rhs: Box::new(Term::Constant(Value::number(2.into())).into())
                     }),
                     String("def".to_string())
                 ]

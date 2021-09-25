@@ -1,7 +1,14 @@
-use crate::Number;
+use crate::{Number, Value};
+use std::fmt::{Display, Formatter};
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub struct Identifier(pub String);
+
+impl Display for Identifier {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.0)
+    }
+}
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub enum UnaryOp {
@@ -10,12 +17,17 @@ pub enum UnaryOp {
 }
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
-pub enum BinaryOp {
+pub enum BinaryArithmeticOp {
     Add,
     Subtract,
     Multiply,
     Divide,
     Modulo,
+}
+
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+pub enum BinaryOp {
+    Arithmetic(BinaryArithmeticOp),
     Alt,
     And,
     Or,
@@ -23,11 +35,7 @@ pub enum BinaryOp {
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub enum UpdateOp {
-    Add,
-    Subtract,
-    Multiply,
-    Divide,
-    Modulo,
+    Arithmetic(BinaryArithmeticOp),
     Alt,
     Modify,
     Assign,
@@ -48,7 +56,7 @@ pub enum Suffix {
     /// `'?'`
     Optional,
     /// `'[' ']'`
-    Explode,
+    Iterate,
     /// `'.' <ident>`
     Index(Identifier),
     /// `'[' query ']' | '.' <string>`
@@ -82,22 +90,22 @@ pub enum BindPattern {
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
+pub enum FuncArg {
+    Variable(Identifier),
+    Closure(Identifier),
+}
+
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub struct FuncDef {
     pub name: Identifier,
-    pub args: Vec<Identifier>,
+    pub args: Vec<FuncArg>,
     pub body: Box<Query>,
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum Term {
-    /// `'null'`
-    Null,
-    /// `'true'`
-    True,
-    /// `'false'`
-    False,
-    /// `<number>`
-    Number(Number),
+    /// `'null' | 'true' | 'false' | <number>`
+    Constant(Value),
     /// `<string>`
     String(Vec<StringFragment>),
 
@@ -113,8 +121,10 @@ pub enum Term {
     /// <term> '?'
     /// <term> '.' (<ident> | <string>)
     /// ```
-    Suffix(Box<Term>, Vec<Suffix>),
+    Suffix(Box<Term>, Suffix),
 
+    /// `(<var> | <modulevar>)`
+    Variable(Identifier),
     /// `(<ident> | <moduleident>) ( '(' query (';' query)* ')' )? | (<var> | <modulevar>)`
     FunctionCall { name: Identifier, args: Vec<Query> },
     /// `'@' <ident-allowing-num-prefix> (<string>)?`
@@ -135,7 +145,7 @@ pub enum Term {
 pub enum Query {
     /// `<term> | <query> '?'`
     Term(Box<Term>),
-    /// `'def' <ident> ':' <query> ';' <query>`
+    /// `'def' <ident> ( '(' <ident> | <var> (';' <ident> | <var>)* ')' )? ':' <query> ';' <query>`
     WithFunc {
         function: FuncDef,
         query: Box<Query>,
@@ -194,7 +204,7 @@ pub enum Query {
     /// `<query> <comparator> <query>`
     Compare {
         lhs: Box<Query>,
-        operator: Comparator,
+        comparator: Comparator,
         rhs: Box<Query>,
     },
 }
