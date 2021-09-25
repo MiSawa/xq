@@ -473,7 +473,7 @@ impl Compiler {
                 })
             }
             FunctionLike::Intrinsic(bytecode, types) => {
-                let next = self.emitter.emit_normal_op(bytecode.clone(), next);
+                let next = self.emitter.emit_normal_op(bytecode, next);
                 self.compile_func_call_args(args, &types, next)?
             }
         })
@@ -604,7 +604,7 @@ impl Compiler {
         }
     }
 
-    /// Consumes a value from the stack, and produces a single value onto the stack.
+    /// Consumes a value (object) from the stack, and produces a single value (updated object) onto the stack.
     fn compile_object_entry(
         &mut self,
         context: ScopedSlot,
@@ -619,6 +619,16 @@ impl Compiler {
                 self.emitter.emit_normal_op(ByteCode::Load(context), next)
             }
             None => {
+                if let Query::Term(term) = key {
+                    if let Term::Variable(ident) = term.as_ref() {
+                        let slot = *self.lookup_variable(ident)?;
+                        let next = self.emitter.emit_normal_op(ByteCode::Load(slot), next);
+                        let next = self
+                            .emitter
+                            .emit_normal_op(ByteCode::Push(Value::string(ident.0.clone())), next);
+                        return Ok(next);
+                    }
+                }
                 let next = self.emitter.emit_normal_op(ByteCode::Index, next);
                 let next = self.emitter.emit_normal_op(ByteCode::Swap, next);
                 let next = self.emitter.emit_normal_op(ByteCode::Load(context), next);
@@ -776,10 +786,8 @@ impl Compiler {
                     let lhs = self.compile_query(lhs, next)?;
                     let fork = self.emitter.emit_fork(rhs, lhs);
                     let next = self.emitter.emit_normal_op(ByteCode::Store(found), fork);
-                    let next = self
-                        .emitter
-                        .emit_normal_op(ByteCode::Push(Value::False), next);
-                    next
+                    self.emitter
+                        .emit_normal_op(ByteCode::Push(Value::False), next)
                 }
                 BinaryOp::And => {
                     let rhs = self.compile_if(

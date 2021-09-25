@@ -27,7 +27,7 @@ pub(crate) fn lookup_intrinsic_fn(func: &FunctionIdentifier) -> Option<(ByteCode
         INTRINSICS1
             .get(&func.0 .0)
             .cloned()
-            .map(|(f, t)| (ByteCode::Intrinsic1(f), vec![t.clone()]))
+            .map(|(f, t)| (ByteCode::Intrinsic1(f), vec![t]))
     } else {
         None
     }
