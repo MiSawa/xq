@@ -7,6 +7,7 @@ use crate::{
 };
 use std::rc::Rc;
 use thiserror::Error;
+use crate::ast::BinaryOp;
 
 /// # Function calling convention
 /// ## Caller
@@ -673,15 +674,27 @@ impl Compiler {
             }
             Query::Label { .. } => todo!(),
             Query::Operate { lhs, operator, rhs } => {
-                // FIXME: and, or, not require a different operand evaluation strategy.
-                let operator = intrinsic::binary(operator);
-                let next = self
-                    .emitter
-                    .emit_normal_op(ByteCode::Intrinsic2(operator), next);
-                let next = self.compile_query(lhs, next)?;
-                let next = self.emitter.emit_normal_op(ByteCode::Swap, next);
-                let next = self.compile_query(rhs, next)?;
-                self.emitter.emit_normal_op(ByteCode::Dup, next)
+                match operator {
+                    BinaryOp::Arithmetic(operator) => {
+                        let operator = intrinsic::binary(operator);
+                        let next = self
+                            .emitter
+                            .emit_normal_op(ByteCode::Intrinsic2(operator), next);
+                        let next = self.compile_query(lhs, next)?;
+                        let next = self.emitter.emit_normal_op(ByteCode::Swap, next);
+                        let next = self.compile_query(rhs, next)?;
+                        self.emitter.emit_normal_op(ByteCode::Dup, next)
+                    }
+                    BinaryOp::Alt => {
+                        todo!()
+                    }
+                    BinaryOp::And => {
+                        todo!()
+                    }
+                    BinaryOp::Or => {
+                        todo!()
+                    }
+                }
             }
             Query::Update { .. } => todo!(),
             Query::Compare {

@@ -1,3 +1,4 @@
+use crate::ast::BinaryArithmeticOp;
 use crate::{
     ast::{
         BinaryOp, BindPattern, Comparator, ConstantArray, ConstantObject, ConstantPrimitive,
@@ -523,11 +524,17 @@ fn query(input: &str) -> ParseResult<Query> {
             value(UpdateOp::Assign, tag("=")), // TODO: not immediately followed by =
             value(UpdateOp::Modify, tag("|=")),
             value(UpdateOp::Alt, tag("//=")),
-            value(UpdateOp::Add, tag("+=")),
-            value(UpdateOp::Subtract, tag("-=")),
-            value(UpdateOp::Multiply, tag("*=")),
-            value(UpdateOp::Divide, tag("/=")),
-            value(UpdateOp::Modulo, tag("%=")),
+            value(UpdateOp::Arithmetic(BinaryArithmeticOp::Add), tag("+=")),
+            value(
+                UpdateOp::Arithmetic(BinaryArithmeticOp::Subtract),
+                tag("-="),
+            ),
+            value(
+                UpdateOp::Arithmetic(BinaryArithmeticOp::Multiply),
+                tag("*="),
+            ),
+            value(UpdateOp::Arithmetic(BinaryArithmeticOp::Divide), tag("/=")),
+            value(UpdateOp::Arithmetic(BinaryArithmeticOp::Modulo), tag("%=")),
         ))(input)
     }
     fn bind_pattern(input: &str) -> ParseResult<BindPattern> {
@@ -695,9 +702,12 @@ fn query(input: &str) -> ParseResult<Query> {
     fn query8(input: &str) -> ParseResult<Query> {
         binop_chain_left_assoc(
             ws(alt((
-                value(BinaryOp::Multiply, char('*')),
-                value(BinaryOp::Divide, char('/')),
-                value(BinaryOp::Modulo, char('%')),
+                value(
+                    BinaryOp::Arithmetic(BinaryArithmeticOp::Multiply),
+                    char('*'),
+                ),
+                value(BinaryOp::Arithmetic(BinaryArithmeticOp::Divide), char('/')),
+                value(BinaryOp::Arithmetic(BinaryArithmeticOp::Modulo), char('%')),
             ))),
             query9,
             |lhs, operator, rhs| Query::Operate {
@@ -710,8 +720,11 @@ fn query(input: &str) -> ParseResult<Query> {
     fn query7(input: &str) -> ParseResult<Query> {
         binop_chain_left_assoc(
             ws(alt((
-                value(BinaryOp::Add, char('+')),
-                value(BinaryOp::Subtract, char('-')),
+                value(BinaryOp::Arithmetic(BinaryArithmeticOp::Add), char('+')),
+                value(
+                    BinaryOp::Arithmetic(BinaryArithmeticOp::Subtract),
+                    char('-'),
+                ),
             ))),
             query8,
             |lhs, operator, rhs| Query::Operate {

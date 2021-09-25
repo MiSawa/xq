@@ -17,12 +17,17 @@ pub enum UnaryOp {
 }
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
-pub enum BinaryOp {
+pub enum BinaryArithmeticOp {
     Add,
     Subtract,
     Multiply,
     Divide,
     Modulo,
+}
+
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+pub enum BinaryOp {
+    Arithmetic(BinaryArithmeticOp),
     Alt,
     And,
     Or,
@@ -30,11 +35,7 @@ pub enum BinaryOp {
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub enum UpdateOp {
-    Add,
-    Subtract,
-    Multiply,
-    Divide,
-    Modulo,
+    Arithmetic(BinaryArithmeticOp),
     Alt,
     Modify,
     Assign,
