@@ -825,8 +825,6 @@ impl Compiler {
                 self.emitter.emit_normal_op(ByteCode::Pop, load)
             }
             Term::FunctionCall { name, args } => {
-                // TODO: How to avoid name.clone()?
-                // TODO: How to avoid resolved.clone()?....
                 let resolved =
                     self.lookup_function(&FunctionIdentifier(name.clone(), args.len()))?;
                 self.compile_func_call(resolved, args, next)?
