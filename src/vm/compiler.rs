@@ -996,7 +996,38 @@ impl Compiler {
                 let next = self.emitter.emit_normal_op(ByteCode::Dup, next);
                 self.emitter.emit_fork(after, next)
             }
-            Query::ForEach { .. } => todo!(),
+            Query::ForEach {
+                source,
+                pattern,
+                initial,
+                update,
+                extract,
+            } => {
+                let slot = self.allocate_variable();
+
+                let next = self.compile_bind(
+                    source,
+                    from_ref(pattern),
+                    &|compiler: &mut Compiler, next: Address| -> Result<Address> {
+                        let next = if let Some(extract) = extract {
+                            compiler.compile_query(extract, next)?
+                        } else {
+                            next
+                        };
+                        let next = compiler.emitter.emit_normal_op(ByteCode::Pop, next);
+                        let next = compiler.emitter.emit_normal_op(ByteCode::Swap, next);
+                        let body = compiler.emitter.emit_normal_op(ByteCode::Store(slot), next);
+                        let body = compiler.emitter.emit_normal_op(ByteCode::Dup, body);
+                        let body = compiler.compile_query(update, body)?;
+                        Ok(compiler.emitter.emit_normal_op(ByteCode::Load(slot), body))
+                    },
+                    next,
+                )?;
+                let next = self.emitter.emit_normal_op(ByteCode::Store(slot), next);
+                // TODO: What to do if `initial` produced more than single value?
+                let next = self.compile_query(initial, next)?;
+                self.emitter.emit_normal_op(ByteCode::Dup, next)
+            }
             Query::If {
                 cond,
                 positive,
