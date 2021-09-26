@@ -911,7 +911,7 @@ impl Compiler {
             Term::FunctionCall { name, args } => {
                 self.lookup_and_compile_func_call(name.clone(), args, next)?
             }
-            Term::Format(_) => todo!(),
+            Term::Format(_, _) => todo!(),
             Term::Query(query) => self.compile_query(query, next)?,
             Term::Unary(operator, term) => {
                 let operator = intrinsic::unary(operator);

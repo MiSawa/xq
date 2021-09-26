@@ -171,13 +171,19 @@ fn variable_or_module_variable(input: &str) -> ParseResult<Identifier> {
     )(input)
 }
 
-fn format(input: &str) -> ParseResult<Identifier> {
-    preceded(
-        char('@'),
-        map(
-            recognize(many0(alt((alphanumeric1, tag("_"))))),
-            Identifier::from,
+fn format(input: &str) -> ParseResult<Term> {
+    map(
+        pair(
+            preceded(
+                char('@'),
+                map(
+                    recognize(many0(alt((alphanumeric1, tag("_"))))),
+                    Identifier::from,
+                ),
+            ),
+            opt(preceded(multispace0, string)),
         ),
+        |(ident, str)| Term::Format(ident, str),
     )(input)
 }
 
@@ -423,7 +429,7 @@ fn term(input: &str) -> ParseResult<Term> {
                 },
             ),
             map(variable_or_module_variable, Term::Variable),
-            map(format, Term::Format),
+            format,
             map(string, Term::String),
             preceded(
                 char('.'),
@@ -881,8 +887,21 @@ mod test {
 
     #[test]
     fn test_format() {
-        assert_eq!(format("@tsv"), Ok(("", "tsv".into())));
-        assert_eq!(format("@123"), Ok(("", "123".into())));
+        assert_eq!(format("@tsv"), Ok(("", Term::Format("tsv".into(), None))));
+        assert_eq!(format("@123"), Ok(("", Term::Format("123".into(), None))));
+        assert_eq!(
+            format(r#"@tsv"hoge\($foo)""#),
+            Ok((
+                "",
+                Term::Format(
+                    "tsv".into(),
+                    Some(vec![
+                        StringFragment::String("hoge".to_string()),
+                        StringFragment::Query(Term::Variable("foo".into()).into())
+                    ])
+                )
+            ))
+        );
     }
 
     #[test]

@@ -128,7 +128,7 @@ pub enum Term {
     /// `(<ident> | <moduleident>) ( '(' query (';' query)* ')' )? | (<var> | <modulevar>)`
     FunctionCall { name: Identifier, args: Vec<Query> },
     /// `'@' <ident-allowing-num-prefix> (<string>)?`
-    Format(Identifier),
+    Format(Identifier, Option<Vec<StringFragment>>),
     /// `'(' <query> ')'`
     Query(Box<Query>),
     /// `('+' | '-') <term>`
