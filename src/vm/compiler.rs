@@ -5,6 +5,7 @@ use crate::{
     },
     data_structure::{PHashMap, PVector},
     intrinsic,
+    module_loader::{ModuleLoadError, ModuleLoader},
     vm::{bytecode::Closure, Address, ByteCode, Program, ScopeId, ScopedSlot},
     Number, Value,
 };
@@ -31,7 +32,7 @@ use thiserror::Error;
 /// - return // pop frame
 ///
 
-#[derive(Debug, Clone, Eq, PartialEq, Error)]
+#[derive(Debug, Error)]
 pub enum CompileError {
     #[error("Use of unknown variable `{0:}`")]
     UnknownVariable(Identifier),
@@ -39,6 +40,8 @@ pub enum CompileError {
     UnknownFunction(Identifier),
     #[error("Bind pattern has the same variable `{0:}`")]
     SameVariableInPattern(Identifier),
+    #[error(transparent)]
+    ModuleLoadError(#[from] ModuleLoadError),
 }
 
 type Result<T, E = CompileError> = std::result::Result<T, E>;
@@ -362,10 +365,21 @@ impl Compiler {
             .ok_or_else(|| CompileError::UnknownVariable(name.clone()))
     }
 
+    fn lookup_compilable_intrinsic(function: &FunctionIdentifier) -> Option<FunctionLike> {
+        Some(match function {
+            FunctionIdentifier(Identifier(name), 0) => match name.as_str() {
+                "empty" => FunctionLike::Intrinsic(ByteCode::Backtrack, vec![]),
+                _ => return None,
+            },
+            _ => return None,
+        })
+    }
+
     fn lookup_function(&self, function: &FunctionIdentifier) -> Result<FunctionLike> {
         self.current_scope()
             .lookup_function(function)
             .cloned()
+            .or_else(|| Self::lookup_compilable_intrinsic(function))
             .or_else(|| {
                 intrinsic::lookup_intrinsic_fn(function)
                     .map(|(code, args)| FunctionLike::Intrinsic(code, args))
@@ -485,6 +499,16 @@ impl Compiler {
                 self.compile_func_call_args(args, &types, next)?
             }
         })
+    }
+
+    fn lookup_and_compile_func_call(
+        &mut self,
+        name: Identifier,
+        args: &[Query],
+        next: Address,
+    ) -> Result<Address> {
+        let resolved = self.lookup_function(&FunctionIdentifier(name, args.len()))?;
+        self.compile_func_call(resolved, args, next)
     }
 
     /// Consumes a value from the stack, and produces a single value onto the stack.
@@ -817,7 +841,9 @@ impl Compiler {
                 ret
             }
             Term::Identity => next,
-            Term::Recurse => todo!(),
+            Term::Recurse => {
+                self.lookup_and_compile_func_call(Identifier("recurse".to_string()), &[], next)?
+            }
             Term::Suffix(term, suffix) => self.compile_term_suffix(term, suffix, next)?,
             Term::Variable(name) => {
                 let slot = *self.lookup_variable(name)?;
@@ -825,9 +851,7 @@ impl Compiler {
                 self.emitter.emit_normal_op(ByteCode::Pop, load)
             }
             Term::FunctionCall { name, args } => {
-                let resolved =
-                    self.lookup_function(&FunctionIdentifier(name.clone(), args.len()))?;
-                self.compile_func_call(resolved, args, next)?
+                self.lookup_and_compile_func_call(name.clone(), args, next)?
             }
             Term::Format(_) => todo!(),
             Term::Query(query) => self.compile_query(query, next)?,
@@ -970,15 +994,33 @@ impl Compiler {
         Ok(ret)
     }
 
-    pub fn compile(&mut self, ast: &ast::Program) -> Result<Program> {
-        if !ast.functions.is_empty() {
-            todo!()
+    fn compile_prelude(&mut self, ast: &ast::Program) -> Result<()> {
+        assert!(ast.module_header.is_none());
+        assert!(ast.imports.is_empty());
+        assert_eq!(ast.query, Term::Identity.into());
+        for func in &ast.functions {
+            self.compile_funcdef(func)?
+        }
+        Ok(())
+    }
+
+    pub fn compile<M: ModuleLoader>(
+        &mut self,
+        ast: &ast::Program,
+        module_loader: &M,
+    ) -> Result<Program> {
+        let preludes = module_loader.prelude()?;
+        for prelude in preludes {
+            self.compile_prelude(&prelude)?;
         }
         if !ast.imports.is_empty() {
             todo!()
         }
         if ast.module_header.is_some() {
             todo!()
+        }
+        for func in &ast.functions {
+            self.compile_funcdef(func)?
         }
         let output = self.emitter.output();
         let backtrack = self.emitter.backtrack();

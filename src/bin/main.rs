@@ -4,7 +4,7 @@ use std::{
     io::{stdin, stdout, Write},
     path::PathBuf,
 };
-use xq::{run_query, Value};
+use xq::{module_loader::PreludeLoader, run_query, Value};
 
 #[derive(Clap, Debug)]
 #[clap(author, about, version)]
@@ -76,8 +76,9 @@ fn main() -> Result<()> {
         Ok(())
     };
 
+    let module_loader = PreludeLoader();
     if args.null_input {
-        let results = run_query(&query, vec![Value::Null].into_iter())
+        let results = run_query(&query, vec![Value::Null].into_iter(), &module_loader)
             .map_err(|e| anyhow!("{:?}", e))
             .with_context(|| "compile query")?;
         for value in results {
@@ -89,7 +90,7 @@ fn main() -> Result<()> {
         let input: Vec<_> = serde_json::de::Deserializer::from_reader(locked)
             .into_iter::<Value>()
             .collect::<Result<_, serde_json::Error>>()?;
-        let results = run_query(&query, input.into_iter())
+        let results = run_query(&query, input.into_iter(), &module_loader)
             .map_err(|e| anyhow!("{:?}", e))
             .with_context(|| "compile query")?;
         for value in results {

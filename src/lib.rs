@@ -1,9 +1,12 @@
 use thiserror::Error;
 
-use crate::vm::{
-    compiler::{CompileError, Compiler},
-    machine::Machine,
-    QueryExecutionError,
+use crate::{
+    module_loader::ModuleLoader,
+    vm::{
+        compiler::{CompileError, Compiler},
+        machine::Machine,
+        QueryExecutionError,
+    },
 };
 pub use number::{IntOrReal, Number};
 pub use value::Value;
@@ -11,6 +14,7 @@ pub use value::Value;
 pub mod ast;
 mod data_structure;
 mod intrinsic;
+pub mod module_loader;
 mod number;
 pub mod parser;
 pub mod value;
@@ -26,15 +30,20 @@ pub enum XQError {
     QueryExecutionError(#[from] QueryExecutionError),
 }
 
-pub fn run_query<I>(query: &str, input: I) -> Result<OutputIterator<I>, XQError>
+pub fn run_query<I, M>(
+    query: &str,
+    input: I,
+    module_loader: &M,
+) -> Result<OutputIterator<I>, XQError>
 where
     I: Iterator<Item = Value>,
+    M: ModuleLoader,
 {
     let parsed = parser::parse_query(query)?;
     log::info!("Parsed query = {:?}", parsed);
 
     let mut compiler = Compiler::new();
-    let program = compiler.compile(&parsed)?;
+    let program = compiler.compile(&parsed, module_loader)?;
     log::info!("Compiled program = {:?}", program);
 
     let vm = Machine::new(program);
