@@ -920,6 +920,7 @@ impl Compiler {
                 Some(query) => {
                     let slot = self.allocate_variable();
                     let load = self.emitter.emit_normal_op(ByteCode::Load(slot), next);
+                    let load = self.emitter.emit_normal_op(ByteCode::Pop, load);
                     let backtrack = self.emitter.backtrack();
                     let append = self
                         .emitter
@@ -927,10 +928,8 @@ impl Compiler {
                     let query = self.compile_query(query, append)?;
                     let next = self.emitter.emit_fork(load, query);
                     let next = self.emitter.emit_normal_op(ByteCode::Store(slot), next);
-                    let next = self
-                        .emitter
-                        .emit_constant(Value::Array(PVector::new()), next);
-                    self.emitter.emit_normal_op(ByteCode::Dup, next)
+                    self.emitter
+                        .emit_normal_op(ByteCode::Push(Value::Array(PVector::new())), next)
                 }
             },
             Term::Break(_) => todo!(),
