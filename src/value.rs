@@ -7,7 +7,7 @@ use num::ToPrimitive;
 use serde::{
     de::{Error, MapAccess, SeqAccess, Visitor},
     ser::{SerializeMap, SerializeSeq},
-    Deserialize, Deserializer, Serialize, Serializer,
+    serde_if_integer128, Deserialize, Deserializer, Serialize, Serializer,
 };
 use std::{borrow::Borrow, collections::HashMap, fmt::Formatter, rc::Rc};
 
@@ -40,12 +40,16 @@ impl Serialize for Value {
             Value::Null => serializer.serialize_none(),
             Value::True => serializer.serialize_bool(true),
             Value::False => serializer.serialize_bool(false),
-            Value::Number(v) => {
-                match v.as_int_or_real() {
-                    IntOrReal::Integer(v) => serializer.serialize_i64(v.to_i64().unwrap()), // TODO
-                    IntOrReal::Real(v) => serializer.serialize_f64(*v),
+            Value::Number(v) => match v.as_int_or_real() {
+                IntOrReal::Integer(v) => {
+                    serde_if_integer128! {
+                        return serializer.serialize_i128(v.to_i128().unwrap())
+                    }
+                    #[allow(unreachable_code)]
+                    serializer.serialize_i64(v.to_i64().unwrap())
                 }
-            }
+                IntOrReal::Real(v) => serializer.serialize_f64(*v),
+            },
             Value::String(s) => serializer.serialize_str(s),
             Value::Array(v) => {
                 let mut seq = serializer.serialize_seq(Some(v.len()))?;
@@ -104,6 +108,22 @@ impl<'de> Deserialize<'de> for Value {
                 E: serde::de::Error,
             {
                 Ok(Value::number(Number::from_integer(v.into())))
+            }
+
+            serde_if_integer128! {
+                fn visit_i128<E>(self, v: i128) -> Result<Self::Value, E>
+                where
+                    E: serde::de::Error,
+                {
+                    Ok(Value::number(Number::from_integer(v.into())))
+                }
+
+                fn visit_u128<E>(self, v: u128) -> Result<Self::Value, E>
+                where
+                    E: serde::de::Error,
+                {
+                    Ok(Value::number(Number::from_integer(v.into())))
+                }
             }
 
             fn visit_f64<E>(self, v: f64) -> Result<Self::Value, E>
