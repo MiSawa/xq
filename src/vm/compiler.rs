@@ -859,6 +859,8 @@ impl Compiler {
 
         for (i, pattern) in patterns.iter().enumerate().rev() {
             let mut tmp = if let Some(next_alt) = next_alt {
+                // Pop error
+                let next_alt = self.emitter.emit_normal_op(ByteCode::Pop, next_alt);
                 // TODO: Change code to a recursive call
                 self.compile_try(pattern, Some(&next_alt), body)?
             } else {
@@ -868,7 +870,8 @@ impl Compiler {
                 for prev_ident in variables[i - 1].iter() {
                     let slot = *self.lookup_variable(prev_ident)?;
                     tmp = self.emitter.emit_normal_op(ByteCode::Store(slot), tmp);
-                    self.emitter
+                    tmp = self
+                        .emitter
                         .emit_normal_op(ByteCode::Push(Value::Null), tmp);
                 }
             }
@@ -877,13 +880,27 @@ impl Compiler {
             }
             next_alt = Some(tmp)
         }
-        let next = next_alt.unwrap();
+        let mut next = next_alt.unwrap();
+
+        for v in variables[1..]
+            .iter()
+            .flatten()
+            .unique()
+            .filter(|&&v| !variables[0].contains(v))
+        {
+            let slot = *self.lookup_variable(v)?;
+            next = self.emitter.emit_normal_op(ByteCode::Store(slot), next);
+            next = self
+                .emitter
+                .emit_normal_op(ByteCode::Push(Value::Null), next);
+        }
+
         self.restore_scope(saved);
         let next = self.compile_term(source, next)?;
+        let next = self.emitter.emit_normal_op(ByteCode::Dup, next);
         let next = self
             .emitter
             .emit_normal_op(ByteCode::EnterNonPathTracking, next);
-        let next = self.emitter.emit_normal_op(ByteCode::Dup, next);
         Ok(next)
     }
 
