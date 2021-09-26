@@ -606,7 +606,7 @@ fn query(input: &str) -> ParseResult<Query> {
                 tuple((
                     terminated(term, ws(keyword("as"))),
                     separated_list1(ws(tag("?//")), bind_pattern),
-                    preceded(ws(char('|')), query10),
+                    preceded(ws(char('|')), query),
                 )),
                 |(term, patterns, query)| Query::Bind {
                     source: Box::new(term),
