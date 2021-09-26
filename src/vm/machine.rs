@@ -80,19 +80,19 @@ impl Iterator for PathValueIterator {
 
 #[derive(Debug, Clone)]
 struct Scope {
-    slots: PVector<Rc<RefCell<Option<Value>>>>,
-    closure_slots: PVector<Rc<RefCell<Option<Closure>>>>,
+    slots: Rc<RefCell<Vec<Option<Value>>>>,
+    closure_slots: Rc<RefCell<Vec<Option<Closure>>>>,
 }
 
 impl Scope {
     fn new(variable_cnt: usize, closure_cnt: usize) -> Self {
         Self {
-            slots: std::iter::repeat_with(|| Rc::new(RefCell::new(None)))
-                .take(variable_cnt)
-                .collect(),
-            closure_slots: std::iter::repeat_with(|| Rc::new(RefCell::new(None)))
-                .take(closure_cnt)
-                .collect(),
+            slots: Rc::new(RefCell::new(
+                std::iter::repeat(None).take(variable_cnt).collect(),
+            )),
+            closure_slots: Rc::new(RefCell::new(
+                std::iter::repeat(None).take(closure_cnt).collect(),
+            )),
         }
     }
 }
@@ -212,12 +212,12 @@ impl State {
             .and_then(|(x, _)| x.as_mut())
             .ok_or(ProgramError::UninitializedScope)
             .unwrap();
-        scope
-            .slots
-            .get_mut(scoped_slot.1)
-            .ok_or(ProgramError::UnknownSlot)
-            .unwrap()
-            .borrow_mut()
+        let slots = scope.slots.borrow_mut();
+        RefMut::map(slots, |v| {
+            v.get_mut(scoped_slot.1)
+                .ok_or(ProgramError::UnknownSlot)
+                .unwrap()
+        })
     }
 
     fn closure_slot(&mut self, scoped_slot: &ScopedSlot) -> RefMut<Option<Closure>> {
@@ -227,12 +227,12 @@ impl State {
             .and_then(|(x, _)| x.as_mut())
             .ok_or(ProgramError::UninitializedScope)
             .unwrap();
-        scope
-            .closure_slots
-            .get_mut(scoped_slot.1)
-            .ok_or(ProgramError::UnknownSlot)
-            .unwrap()
-            .borrow_mut()
+        let slots = scope.closure_slots.borrow_mut();
+        RefMut::map(slots, |v| {
+            v.get_mut(scoped_slot.1)
+                .ok_or(ProgramError::UnknownSlot)
+                .unwrap()
+        })
     }
 
     fn push_scope(
