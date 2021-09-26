@@ -778,6 +778,7 @@ impl Compiler {
             }
         }
 
+        /// Consumes a value from the stack
         impl Compile for BindPattern {
             fn compile(&self, compiler: &mut Compiler, next: Address) -> Result<Address> {
                 let next = match self {
@@ -786,6 +787,7 @@ impl Compiler {
                         compiler.emitter.emit_normal_op(ByteCode::Store(slot), next)
                     }
                     BindPattern::Array(v) => {
+                        assert!(!v.is_empty());
                         let mut tmp = next;
                         for (i, pattern) in v.iter().enumerate().rev() {
                             tmp = pattern.compile(compiler, tmp)?;
@@ -796,20 +798,21 @@ impl Compiler {
                                 ))),
                                 tmp,
                             );
-                            tmp = compiler.emitter.emit_normal_op(ByteCode::Dup, tmp);
+                            if i + 1 != v.len() {
+                                tmp = compiler.emitter.emit_normal_op(ByteCode::Dup, tmp);
+                            }
                         }
                         tmp
                     }
                     BindPattern::Object(entries) => {
+                        assert!(!entries.is_empty());
                         let mut tmp = next;
-                        for entry in entries.iter().rev() {
+                        for (i, entry) in entries.iter().rev().enumerate() {
                             match entry {
                                 ObjectBindPatternEntry::KeyValue(key, value) => {
                                     tmp = value.compile(compiler, tmp)?;
                                     tmp = compiler.emitter.emit_normal_op(ByteCode::Index, tmp);
-                                    tmp = compiler.emitter.emit_normal_op(ByteCode::Swap, tmp);
                                     tmp = compiler.compile_query(key, tmp)?;
-                                    tmp = compiler.emitter.emit_normal_op(ByteCode::Dup, tmp);
                                     tmp = compiler.emitter.emit_normal_op(ByteCode::Dup, tmp);
                                 }
                                 ObjectBindPatternEntry::KeyOnly(key) => {
@@ -821,8 +824,10 @@ impl Compiler {
                                         ByteCode::Push(Value::string(key.0.clone())),
                                         tmp,
                                     );
-                                    tmp = compiler.emitter.emit_normal_op(ByteCode::Dup, tmp);
                                 }
+                            }
+                            if i != 0 {
+                                tmp = compiler.emitter.emit_normal_op(ByteCode::Dup, tmp);
                             }
                         }
                         tmp
