@@ -14,6 +14,7 @@ use num::bigint::ToBigInt;
 use std::{
     collections::{HashMap, HashSet},
     fmt::{Debug, Formatter},
+    slice::from_ref,
 };
 use thiserror::Error;
 
@@ -282,12 +283,18 @@ impl Compile for Address {
     }
 }
 
-impl<T> Compile for T
-where
-    T: AsRef<Query>,
-{
+impl Compile for Box<Query> {
     fn compile(&self, compiler: &mut Compiler, next: Address) -> Result<Address> {
         compiler.compile_query(self.as_ref(), next)
+    }
+}
+
+impl<F> Compile for F
+where
+    F: Fn(&mut Compiler, Address) -> Result<Address>,
+{
+    fn compile(&self, compiler: &mut Compiler, next: Address) -> Result<Address> {
+        self(compiler, next)
     }
 }
 
@@ -732,11 +739,11 @@ impl Compiler {
         Ok(self.emitter.emit_normal_op(ByteCode::Store(slot), next))
     }
 
-    fn compile_bind(
+    fn compile_bind<T: Compile>(
         &mut self,
         source: &Term,
         patterns: &[BindPattern],
-        body: &Query,
+        body: &T,
         next: Address,
     ) -> Result<Address> {
         assert!(!patterns.is_empty());
@@ -836,7 +843,7 @@ impl Compiler {
         for &v in variables.iter().flatten().unique() {
             self.register_variable(v.clone());
         }
-        let body = self.compile_query(body, next)?;
+        let body = body.compile(self, next)?;
         let body = self
             .emitter
             .emit_normal_op(ByteCode::ExitNonPathTracking, body);
@@ -844,6 +851,7 @@ impl Compiler {
 
         for (i, pattern) in patterns.iter().enumerate().rev() {
             let mut tmp = if let Some(next_alt) = next_alt {
+                // TODO: Change code to a recursive call
                 self.compile_try(pattern, Some(&next_alt), body)?
             } else {
                 pattern.compile(self, body)?
@@ -961,8 +969,33 @@ impl Compiler {
                 source,
                 patterns,
                 body,
-            } => self.compile_bind(source, patterns, body, next)?,
-            Query::Reduce { .. } => todo!(),
+            } => self.compile_bind(source, patterns.as_slice(), body, next)?,
+            Query::Reduce {
+                source,
+                pattern,
+                initial,
+                accumulator,
+            } => {
+                let slot = self.allocate_variable();
+                let after = self.emitter.emit_normal_op(ByteCode::Load(slot), next);
+                let after = self.emitter.emit_normal_op(ByteCode::Pop, after);
+
+                let next = self.compile_bind(
+                    source,
+                    from_ref(pattern),
+                    &|compiler: &mut Compiler, next: Address| -> Result<Address> {
+                        let body = compiler.emitter.emit_normal_op(ByteCode::Store(slot), next);
+                        let body = compiler.compile_query(accumulator, body)?;
+                        Ok(compiler.emitter.emit_normal_op(ByteCode::Load(slot), body))
+                    },
+                    self.emitter.backtrack(),
+                )?;
+                let next = self.emitter.emit_normal_op(ByteCode::Store(slot), next);
+                // TODO: What to do if `initial` produced more than single value?
+                let next = self.compile_query(initial, next)?;
+                let next = self.emitter.emit_normal_op(ByteCode::Dup, next);
+                self.emitter.emit_fork(after, next)
+            }
             Query::ForEach { .. } => todo!(),
             Query::If {
                 cond,
@@ -1005,24 +1038,32 @@ impl Compiler {
                     self.emitter
                         .emit_normal_op(ByteCode::Push(Value::False), next)
                 }
-                BinaryOp::And => {
-                    let rhs = self.compile_if(
-                        rhs,
-                        &Term::Constant(Value::True),
-                        Some(&Term::Constant(Value::False)),
-                        next,
-                    )?;
-                    self.compile_if(lhs, &rhs, Some(&Term::Constant(Value::False)), next)?
-                }
-                BinaryOp::Or => {
-                    let rhs = self.compile_if(
-                        rhs,
-                        &Term::Constant(Value::True),
-                        Some(&Term::Constant(Value::False)),
-                        next,
-                    )?;
-                    self.compile_if(lhs, &Term::Constant(Value::True), Some(&rhs), next)?
-                }
+                BinaryOp::And => self.compile_if(
+                    lhs,
+                    &|compiler: &mut Compiler, next| {
+                        compiler.compile_if(
+                            rhs,
+                            &Term::Constant(Value::True),
+                            Some(&Term::Constant(Value::False)),
+                            next,
+                        )
+                    },
+                    Some(&Term::Constant(Value::False)),
+                    next,
+                )?,
+                BinaryOp::Or => self.compile_if(
+                    lhs,
+                    &Term::Constant(Value::True),
+                    Some(&|compiler: &mut Compiler, next| {
+                        compiler.compile_if(
+                            rhs,
+                            &Term::Constant(Value::True),
+                            Some(&Term::Constant(Value::False)),
+                            next,
+                        )
+                    }),
+                    next,
+                )?,
             },
             Query::Update { .. } => todo!(),
             Query::Compare {
