@@ -82,19 +82,31 @@ pub(crate) enum ByteCode {
     /// Pushes the slice `value[start?:end?]` to the stack.
     /// # Panics
     /// Panics if the stack didn't have enough elements.
-    Slice { start: bool, end: bool },
+    Slice {
+        start: bool,
+        end: bool,
+    },
     /// Pops a value and run forks with each "value" of it pushed to the stack.
     /// # Panics
     /// Panics if the stack was empty.
     Each,
 
+    EnterPathTracking,
+    ExitPathTracking,
+    EnterNonPathTracking,
+    ExitNonPathTracking,
+
     /// Pushes a fork that runs from `fork_pc` to the fork stack.
-    Fork { fork_pc: Address },
+    Fork {
+        fork_pc: Address,
+    },
     /// Pushes a fork to the fork stack.
     /// When the fork starts, it checks if the current state is error state, and discards the fork and continues from the next fork if it wasn't.
     /// If it was the error state and has `catch_pc`, it pushes the error message to the stack, clear error state and run again from `catch_pc`.
     /// If it was the error state and `catch_pc` was [Option::None], it discards the error and continue from the next fork.
-    ForkTryBegin { catch_pc: Option<Address> },
+    ForkTryBegin {
+        catch_pc: Option<Address>,
+    },
     /// Pushes a mark that let fork-search procedure to ignore the next [Self::ForkTryBegin] fork.
     ForkTryEnd,
     // ForkAlt,
@@ -140,10 +152,7 @@ pub(crate) enum ByteCode {
     /// # Panics
     /// Panics if the stack was empty.
     Output,
-    // ExpBegin,
-    // ExpEnd,
-    // PathBegin,
-    // PathEnd,
+
     /// Pops a value from the stack, invokes the function with the arg, and pushes the resulting value to the stack.
     /// # Panics
     /// Panics if the stack was empty, or the invoked function panicked.

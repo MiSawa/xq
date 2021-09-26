@@ -1,13 +1,15 @@
 use crate::{
-    data_structure::{PStack, PVector},
+    data_structure::{PHashMap, PStack, PVector},
     intrinsic,
     vm::{
         bytecode::{Closure, NamedFunction},
         error::QueryExecutionError,
         Address, ByteCode, Program, Result, ScopeId, ScopedSlot, Value,
     },
+    Number,
 };
 use itertools::Itertools;
+use num::bigint::ToBigInt;
 use std::{
     cell::{RefCell, RefMut},
     rc::Rc,
@@ -30,10 +32,36 @@ pub(crate) enum ProgramError {
     PopUnknownScope,
 }
 
+#[derive(Debug, Clone)]
 pub(crate) enum PathElement {
     Array(isize),
     Object(Rc<String>),
     Slice(Option<isize>, Option<isize>),
+}
+
+impl From<PathElement> for Value {
+    fn from(elem: PathElement) -> Self {
+        match elem {
+            PathElement::Array(i) => Value::number(Number::from_integer(i.to_bigint().unwrap())),
+            PathElement::Object(key) => Value::String(key),
+            PathElement::Slice(start, end) => {
+                let mut map = PHashMap::new();
+                if let Some(start) = start {
+                    map.insert(
+                        Rc::new("start".to_string()),
+                        Value::number(Number::from_integer(start.to_bigint().unwrap())),
+                    );
+                }
+                if let Some(end) = end {
+                    map.insert(
+                        Rc::new("end".to_string()),
+                        Value::number(Number::from_integer(end.to_bigint().unwrap())),
+                    );
+                }
+                Value::Object(map)
+            }
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -116,6 +144,8 @@ struct State {
     scope_stack: PStack<(Address, ScopeId)>, // (pc, pushed_scope)
     closure_stack: PStack<Closure>,
 
+    paths: PStack<Option<(Value, PStack<PathElement>)>>,
+
     iterators: PStack<PathValueIterator>,
 }
 
@@ -151,6 +181,7 @@ impl State {
         State {
             pc,
             stack: Default::default(),
+            paths: Default::default(),
             scopes: Default::default(),
             scope_stack: Default::default(),
             closure_stack: Default::default(),
@@ -158,8 +189,19 @@ impl State {
         }
     }
 
+    fn top(&mut self) -> Option<&Value> {
+        self.stack.top()
+    }
+
     fn push(&mut self, item: Value) {
         self.stack.push(item)
+    }
+
+    fn push_with_path(&mut self, item: Value, path_elem: PathElement) {
+        self.push(item);
+        if let Some(Some((_, path))) = self.paths.top_mut() {
+            path.push(path_elem);
+        }
     }
 
     fn pop(&mut self) -> Value {
@@ -177,6 +219,27 @@ impl State {
         let v2 = self.pop();
         self.push(v1);
         self.push(v2);
+    }
+
+    fn enter_path_tracking(&mut self, base_value: Value) {
+        self.paths.push(Some((base_value, Default::default())))
+    }
+
+    fn exit_tracked_path(&mut self) -> (Value, PStack<PathElement>) {
+        match self.paths.pop() {
+            Some(Some((value, path))) => (value, path),
+            x => {
+                panic!("Expected a path tracking thing but got {:?}", x);
+            }
+        }
+    }
+
+    fn enter_non_path_tracking(&mut self) {
+        self.paths.push(None);
+    }
+
+    fn exit_non_path_tracking(&mut self) {
+        assert!(matches!(self.paths.pop(), Some(None)));
     }
 
     fn push_closure(&mut self, closure: Closure) {
@@ -357,9 +420,9 @@ fn run_code(program: &Program, env: &mut Environment) -> Option<Result<Value>> {
                         state.pop_iterator();
                         continue 'backtrack;
                     }
-                    Some(value) => {
+                    Some((path_elem, value)) => {
                         env.push_fork(&state, OnFork::Iterate, state.pc);
-                        state.push(value.1.clone());
+                        state.push_with_path(value, path_elem);
                     }
                 }
             }
@@ -456,8 +519,8 @@ fn run_code(program: &Program, env: &mut Environment) -> Option<Result<Value>> {
                     let index = state.pop();
                     let value = state.pop();
                     match intrinsic::index(value, index) {
-                        Ok((value, _path_elem)) => {
-                            state.push(value);
+                        Ok((value, path_elem)) => {
+                            state.push_with_path(value, path_elem);
                         }
                         Err(e) => {
                             err.replace(e);
@@ -469,8 +532,8 @@ fn run_code(program: &Program, env: &mut Environment) -> Option<Result<Value>> {
                     let start = if *start { Some(state.pop()) } else { None };
                     let value = state.pop();
                     match intrinsic::slice(value, start, end) {
-                        Ok((value, _path_elem)) => {
-                            state.push(value);
+                        Ok((value, path_elem)) => {
+                            state.push_with_path(value, path_elem);
                         }
                         Err(e) => {
                             err.replace(e);
@@ -505,6 +568,35 @@ fn run_code(program: &Program, env: &mut Environment) -> Option<Result<Value>> {
                     state.push_iterator(iter);
                     env.push_fork(&state, OnFork::Iterate, state.pc.get_next());
                     continue 'backtrack;
+                }
+                EnterPathTracking => {
+                    state.dup(); // TODO: Push some kind of token and swap instead?
+                    let current = state
+                        .top()
+                        .ok_or(ProgramError::PopEmptyStack)
+                        .unwrap()
+                        .clone();
+                    state.enter_path_tracking(current);
+                }
+                ExitPathTracking => {
+                    let (origin, mut path) = state.exit_tracked_path();
+                    state.pop(); // Discard indexed value
+                    let supposed_to_be_origin = state.pop();
+                    if origin != supposed_to_be_origin {
+                        err = Some(QueryExecutionError::InvalidPathError(origin));
+                        continue 'backtrack;
+                    }
+                    let mut elems = PVector::new();
+                    while let Some(elem) = path.pop() {
+                        elems.push_front(elem.into());
+                    }
+                    state.push(Value::Array(elems));
+                }
+                EnterNonPathTracking => {
+                    state.enter_non_path_tracking();
+                }
+                ExitNonPathTracking => {
+                    state.exit_non_path_tracking();
                 }
                 Fork { fork_pc } => {
                     let fork_pc = *fork_pc;

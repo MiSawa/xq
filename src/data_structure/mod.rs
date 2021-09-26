@@ -45,6 +45,17 @@ impl<T: Clone, B> PStack<T, B> {
         }
     }
 
+    pub fn top(&self) -> Option<&T> {
+        if self.current.is_empty() {
+            return if let Some(p) = &self.prev {
+                p.current.last()
+            } else {
+                None
+            };
+        }
+        self.current.last()
+    }
+
     pub fn top_mut(&mut self) -> Option<&mut T> {
         if self.current.is_empty() {
             if let Some(p) = self.prev.take() {

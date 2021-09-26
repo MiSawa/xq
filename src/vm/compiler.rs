@@ -11,7 +11,10 @@ use crate::{
 };
 use itertools::Itertools;
 use num::bigint::ToBigInt;
-use std::collections::{HashMap, HashSet};
+use std::{
+    collections::{HashMap, HashSet},
+    fmt::{Debug, Formatter},
+};
 use thiserror::Error;
 
 /// # Function calling convention
@@ -57,11 +60,29 @@ pub(crate) enum ArgType {
     /// $arg
     Value,
 }
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Clone)]
 enum FunctionLike {
     Function(DeclaredFunction),
     Closure(ScopedSlot),
     Intrinsic(ByteCode, Vec<ArgType>),
+    ManuallyImplemented(
+        &'static str,
+        fn(&mut Compiler, &[Query], Address) -> Result<Address>,
+    ),
+}
+impl Debug for FunctionLike {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            FunctionLike::Function(func) => f.debug_tuple("DeclaredFunction").field(func).finish(),
+            FunctionLike::Closure(slot) => f.debug_tuple("Closure").field(slot).finish(),
+            FunctionLike::Intrinsic(code, args) => {
+                f.debug_tuple("Intrinsic").field(code).field(args).finish()
+            }
+            FunctionLike::ManuallyImplemented(name, _) => {
+                f.debug_tuple("ManuallyImplemented").field(name).finish()
+            }
+        }
+    }
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
@@ -371,6 +392,20 @@ impl Compiler {
                 "empty" => FunctionLike::Intrinsic(ByteCode::Backtrack, vec![]),
                 _ => return None,
             },
+            FunctionIdentifier(Identifier(name), 1) => match name.as_str() {
+                "path" => FunctionLike::ManuallyImplemented("path", |compiler, args, next| {
+                    assert_eq!(1, args.len());
+                    let next = compiler
+                        .emitter
+                        .emit_normal_op(ByteCode::ExitPathTracking, next);
+                    let next = compiler.compile_query(&args[0], next)?;
+                    let next = compiler
+                        .emitter
+                        .emit_normal_op(ByteCode::EnterPathTracking, next);
+                    Ok(next)
+                }),
+                _ => return None,
+            },
             _ => return None,
         })
     }
@@ -498,6 +533,9 @@ impl Compiler {
                 let next = self.emitter.emit_normal_op(bytecode, next);
                 self.compile_func_call_args(args, &types, next)?
             }
+            FunctionLike::ManuallyImplemented(_, implementation) => {
+                implementation(self, args, next)?
+            }
         })
     }
 
@@ -543,7 +581,13 @@ impl Compiler {
         let next = self
             .emitter
             .emit_normal_op(ByteCode::JumpUnless(negative_address), positive_address);
+        let next = self
+            .emitter
+            .emit_normal_op(ByteCode::ExitNonPathTracking, next);
         let next = cond.compile(self, next)?;
+        let next = self
+            .emitter
+            .emit_normal_op(ByteCode::EnterNonPathTracking, next);
         let next = self.emitter.emit_normal_op(ByteCode::Dup, next);
         Ok(next)
     }
@@ -793,6 +837,9 @@ impl Compiler {
             self.register_variable(v.clone());
         }
         let body = self.compile_query(body, next)?;
+        let body = self
+            .emitter
+            .emit_normal_op(ByteCode::ExitNonPathTracking, body);
         let mut next_alt: Option<Address> = None;
 
         for (i, pattern) in patterns.iter().enumerate().rev() {
@@ -817,6 +864,9 @@ impl Compiler {
         let next = next_alt.unwrap();
         self.restore_scope(saved);
         let next = self.compile_term(source, next)?;
+        let next = self
+            .emitter
+            .emit_normal_op(ByteCode::EnterNonPathTracking, next);
         let next = self.emitter.emit_normal_op(ByteCode::Dup, next);
         Ok(next)
     }
