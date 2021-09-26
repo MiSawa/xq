@@ -1,12 +1,15 @@
 use crate::{
     ast::{
-        self, BinaryOp, BindPattern, FuncArg, FuncDef, Identifier, ObjectBindPatternEntry, Query,
-        StringFragment, Suffix, Term,
+        self, BinaryArithmeticOp, BinaryOp, BindPattern, FuncArg, FuncDef, Identifier,
+        ObjectBindPatternEntry, Query, StringFragment, Suffix, Term,
     },
     data_structure::{PHashMap, PVector},
     intrinsic,
     module_loader::{ModuleLoadError, ModuleLoader},
-    vm::{bytecode::Closure, Address, ByteCode, Program, ScopeId, ScopedSlot},
+    vm::{
+        bytecode::{Closure, NamedFn1},
+        Address, ByteCode, Program, ScopeId, ScopedSlot,
+    },
     Number, Value,
 };
 use itertools::Itertools;
@@ -879,25 +882,65 @@ impl Compiler {
         Ok(next)
     }
 
+    fn compile_string<T: Compile>(
+        &mut self,
+        fragments: &[StringFragment],
+        stringifier: T,
+        mut next: Address,
+    ) -> Result<Address> {
+        if fragments.is_empty() {
+            return Ok(self
+                .emitter
+                .emit_constant(Value::string("".to_string()), next));
+        } else if fragments.len() == 1 {
+            if let StringFragment::String(s) = &fragments[0] {
+                return Ok(self.emitter.emit_constant(Value::string(s.clone()), next));
+            }
+        }
+
+        let add = intrinsic::binary(&BinaryArithmeticOp::Add);
+        let slot = self.allocate_variable();
+
+        for (i, fragment) in fragments.iter().enumerate() {
+            if i + 1 != fragments.len() {
+                next = self
+                    .emitter
+                    .emit_normal_op(ByteCode::Intrinsic2(add.clone()), next);
+            }
+            match fragment {
+                StringFragment::String(s) => {
+                    next = self
+                        .emitter
+                        .emit_normal_op(ByteCode::Push(Value::string(s.clone())), next);
+                }
+                StringFragment::Query(q) => {
+                    next = stringifier.compile(self, next)?;
+                    next = self.compile_query(q, next)?;
+                    next = self.emitter.emit_normal_op(ByteCode::Load(slot), next);
+                }
+            }
+        }
+        next = self.emitter.emit_normal_op(ByteCode::Store(slot), next);
+        Ok(next)
+    }
+
     /// Consumes a value from the stack, and produces a single value onto the stack.
     fn compile_term(&mut self, term: &ast::Term, next: Address) -> Result<Address> {
         let ret = match term {
             Term::Constant(value) => self.emitter.emit_constant(value.clone(), next),
-            Term::String(s) => {
-                let ret: Address = if s.is_empty() {
-                    self.emitter
-                        .emit_constant(Value::string("".to_string()), next)
-                } else if s.len() == 1 {
-                    if let StringFragment::String(s) = &s[0] {
-                        self.emitter.emit_constant(Value::string(s.clone()), next)
-                    } else {
-                        todo!()
-                    }
-                } else {
-                    todo!()
-                };
-                ret
-            }
+            Term::String(s) => self.compile_string(
+                s,
+                |compiler: &mut Compiler, next| {
+                    Ok(compiler.emitter.emit_normal_op(
+                        ByteCode::Intrinsic1(NamedFn1 {
+                            name: "stringify",
+                            func: intrinsic::stringify,
+                        }),
+                        next,
+                    ))
+                },
+                next,
+            )?,
             Term::Identity => next,
             Term::Recurse => {
                 self.lookup_and_compile_func_call(Identifier("recurse".to_string()), &[], next)?

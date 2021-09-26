@@ -12,7 +12,7 @@ required-features = ["build-binary"]
 
 [features]
 default = ["build-binary"]
-build-binary = ["anyhow", "clap", "serde_json", "simplelog"]
+build-binary = ["anyhow", "clap", "simplelog"]
 
 [dependencies]
 thiserror = "1.0.29"
@@ -24,11 +24,8 @@ num = "0.4.0"
 itertools = "0.10.1"
 serde = "1.0.130"
 phf = { version = "0.10.0", features = ["macros"] }
+serde_json = "1.0.67"
 
-serde_json = { version = "1.0.67", optional = true }
 clap = { version = "3.0.0-beta.4", optional = true }
 anyhow = { version = "1.0", optional = true }
 simplelog = { version = "0.10.0", optional = true }
-
-[dev-dependencies]
-serde_json = "1.0.67"

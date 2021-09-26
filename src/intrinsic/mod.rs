@@ -37,6 +37,10 @@ pub(crate) fn truthy(value: Value) -> bool {
     !matches!(value, Value::Null | Value::False)
 }
 
+pub(crate) fn stringify(value: Value) -> Result<Value, QueryExecutionError> {
+    Ok(Value::string(serde_json::to_string(&value).unwrap()))
+}
+
 pub(crate) fn error(value: Value) -> Result<Value, QueryExecutionError> {
     match value {
         Value::String(s) => Err(QueryExecutionError::UserDefinedError((*s).clone())),
