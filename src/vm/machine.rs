@@ -155,6 +155,7 @@ enum OnFork {
     IgnoreError,
     CatchError,
     SkipCatch,
+    TryAlternative,
     Iterate,
 }
 
@@ -410,6 +411,13 @@ fn run_code(program: &Program, env: &mut Environment) -> Option<Result<Value>> {
                 catch_skip += 1;
                 continue 'backtrack;
             }
+            OnFork::TryAlternative => {
+                if err.is_some() {
+                    err = None;
+                } else {
+                    continue 'backtrack;
+                }
+            }
             OnFork::Iterate => {
                 if err.is_some() {
                     continue 'backtrack;
@@ -610,6 +618,7 @@ fn run_code(program: &Program, env: &mut Environment) -> Option<Result<Value>> {
                     }
                 },
                 ForkTryEnd => env.push_fork(&state, OnFork::SkipCatch, state.pc.get_next()),
+                ForkAlt { fork_pc } => env.push_fork(&state, OnFork::TryAlternative, *fork_pc),
                 Backtrack => continue 'backtrack,
                 Jump(address) => {
                     state.pc = *address;

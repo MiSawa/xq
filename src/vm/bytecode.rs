@@ -109,7 +109,12 @@ pub(crate) enum ByteCode {
     },
     /// Pushes a mark that let fork-search procedure to ignore the next [Self::ForkTryBegin] fork.
     ForkTryEnd,
-    // ForkAlt,
+    /// Pushes a mark that let fork-search procedure to run from the fork if the current state is an error state,
+    /// or otherwise ignore the fork.
+    /// Note that [Self::ForkTryEnd] doesn't take this [Self::ForkAlt] into account.
+    ForkAlt {
+        fork_pc: Address,
+    },
     // ForkLabel,
     /// Discard the current fork, and continues from the next fork.
     Backtrack,
@@ -133,9 +138,6 @@ pub(crate) enum ByteCode {
         function: Address,
         return_address: Address,
     },
-    // CallRec,
-    // PushPC,
-    // CallPC,
     /// Creates a frame with the scope id, variable slots, closure slots, and the call pc specified in the previous [Self::CallClosure]/[Self::Call].
     /// # Panics
     /// Panics if this was not preceded by [Self::CallClosure]/[Self::Call].

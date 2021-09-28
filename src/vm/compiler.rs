@@ -280,12 +280,6 @@ impl Compile for Term {
     }
 }
 
-impl Compile for Address {
-    fn compile(&self, _compiler: &mut Compiler, _next: Address) -> Result<Address> {
-        Ok(*self)
-    }
-}
-
 impl Compile for Box<Query> {
     fn compile(&self, compiler: &mut Compiler, next: Address) -> Result<Address> {
         compiler.compile_query(self.as_ref(), next)
@@ -859,10 +853,9 @@ impl Compiler {
 
         for (i, pattern) in patterns.iter().enumerate().rev() {
             let mut tmp = if let Some(next_alt) = next_alt {
-                // Pop error
-                let next_alt = self.emitter.emit_normal_op(ByteCode::Pop, next_alt);
-                // TODO: Change code to a recursive call
-                self.compile_try(pattern, Some(&next_alt), body)?
+                let tmp = pattern.compile(self, body)?;
+                self.emitter
+                    .emit_normal_op(ByteCode::ForkAlt { fork_pc: next_alt }, tmp)
             } else {
                 pattern.compile(self, body)?
             };
