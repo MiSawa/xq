@@ -1,4 +1,4 @@
-use crate::{Number, Value};
+use crate::{vm::bytecode::Label, Number, Value};
 use thiserror::Error;
 
 pub type Result<T, E = QueryExecutionError> = std::result::Result<T, E>;
@@ -31,6 +31,8 @@ pub enum QueryExecutionError {
     ObjectNonStringKey(Value),
     #[error("Invalid path for `{0:?}`")]
     InvalidPathError(Value),
+    #[error("Breaking on label `{0:?}`")]
+    Breaking(Label),
     #[error("{0:?}")]
     UserDefinedError(String),
 }

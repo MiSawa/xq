@@ -4,6 +4,9 @@ use crate::{
 };
 use std::fmt::{Debug, Formatter};
 
+#[derive(Debug, Copy, Clone, Hash, Ord, PartialOrd, Eq, PartialEq)]
+pub struct Label(pub(crate) ScopeId, pub(crate) usize);
+
 #[derive(Clone, Eq, PartialEq)]
 pub struct NamedFunction<F: Clone + ?Sized> {
     pub name: &'static str,
@@ -115,7 +118,11 @@ pub(crate) enum ByteCode {
     ForkAlt {
         fork_pc: Address,
     },
-    // ForkLabel,
+    /// Pushes a fork that catches break-type error for the same label, and swallow the error to continue from the next fork.
+    /// TODO: Not sure if this is the right semantics.
+    ForkLabel(Label),
+    /// Search for the fork emitted by the corresponding [Self::ForkLabel].
+    Break(Label),
     /// Discard the current fork, and continues from the next fork.
     Backtrack,
     /// Change the current pc to the given address.

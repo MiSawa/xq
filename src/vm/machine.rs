@@ -2,7 +2,7 @@ use crate::{
     data_structure::{PHashMap, PStack, PVector},
     intrinsic,
     vm::{
-        bytecode::{Closure, NamedFunction},
+        bytecode::{Closure, Label, NamedFunction},
         error::QueryExecutionError,
         Address, ByteCode, Program, Result, ScopeId, ScopedSlot, Value,
     },
@@ -156,6 +156,7 @@ enum OnFork {
     CatchError,
     SkipCatch,
     TryAlternative,
+    CatchLabel(Label),
     Iterate,
 }
 
@@ -379,13 +380,22 @@ fn run_code(program: &Program, env: &mut Environment) -> Option<Result<Value>> {
             return err.map(Err);
         };
         log::trace!("On fork {:?} with state {:?}", on_fork, state);
-        match on_fork {
-            OnFork::Nop => {
-                if err.is_some() {
-                    continue 'backtrack;
-                }
+        match (on_fork, &err) {
+            (
+                OnFork::CatchLabel(catch_label),
+                Some(QueryExecutionError::Breaking(breaking_label)),
+            ) if catch_label == *breaking_label => {
+                err = None;
+                continue 'backtrack;
             }
-            OnFork::IgnoreError => {
+            (OnFork::CatchLabel(_), _) => {
+                continue 'backtrack;
+            }
+            (_, Some(QueryExecutionError::Breaking(_))) => {
+                continue 'backtrack;
+            }
+            (OnFork::Nop, None) => {} // nop
+            (OnFork::IgnoreError, _) => {
                 if catch_skip == 0 {
                     err = None;
                 } else {
@@ -393,7 +403,7 @@ fn run_code(program: &Program, env: &mut Environment) -> Option<Result<Value>> {
                 }
                 continue 'backtrack;
             }
-            OnFork::CatchError => {
+            (OnFork::CatchError, _) => {
                 if catch_skip == 0 {
                     match err.take() {
                         None => continue 'backtrack,
@@ -407,21 +417,15 @@ fn run_code(program: &Program, env: &mut Environment) -> Option<Result<Value>> {
                     continue 'backtrack;
                 }
             }
-            OnFork::SkipCatch => {
+            (OnFork::SkipCatch, _) => {
                 catch_skip += 1;
                 continue 'backtrack;
             }
-            OnFork::TryAlternative => {
-                if err.is_some() {
-                    err = None;
-                } else {
-                    continue 'backtrack;
-                }
+            (OnFork::TryAlternative, None) => continue 'backtrack,
+            (OnFork::TryAlternative, Some(_)) => {
+                err = None;
             }
-            OnFork::Iterate => {
-                if err.is_some() {
-                    continue 'backtrack;
-                }
+            (OnFork::Iterate, None) => {
                 let it = state.top_iterator().expect("No iterator to iterate on");
                 match it.next() {
                     None => {
@@ -434,6 +438,7 @@ fn run_code(program: &Program, env: &mut Environment) -> Option<Result<Value>> {
                     }
                 }
             }
+            (_, Some(_)) => continue 'backtrack,
         }
         assert_eq!(catch_skip, 0);
         log::trace!("Start fork with error {:?}", err);
@@ -619,6 +624,17 @@ fn run_code(program: &Program, env: &mut Environment) -> Option<Result<Value>> {
                 },
                 ForkTryEnd => env.push_fork(&state, OnFork::SkipCatch, state.pc.get_next()),
                 ForkAlt { fork_pc } => env.push_fork(&state, OnFork::TryAlternative, *fork_pc),
+                ForkLabel(label) => {
+                    env.push_fork(
+                        &state,
+                        OnFork::CatchLabel(label.clone()),
+                        state.pc.get_next(),
+                    ); // pc doesn't really matter
+                }
+                Break(label) => {
+                    err = Some(QueryExecutionError::Breaking(label.clone()));
+                    continue 'backtrack;
+                }
                 Backtrack => continue 'backtrack,
                 Jump(address) => {
                     state.pc = *address;

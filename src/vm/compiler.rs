@@ -7,7 +7,7 @@ use crate::{
     intrinsic,
     module_loader::{ModuleLoadError, ModuleLoader},
     vm::{
-        bytecode::{Closure, NamedFn1},
+        bytecode::{Closure, Label, NamedFn1},
         Address, ByteCode, Program, ScopeId, ScopedSlot,
     },
     Number, Value,
@@ -47,6 +47,8 @@ pub enum CompileError {
     UnknownFunction(Identifier),
     #[error("Bind pattern has the same variable `{0:}`")]
     SameVariableInPattern(Identifier),
+    #[error("Unknown label `{0:}`")]
+    UnknownLabel(Identifier),
     #[error(transparent)]
     ModuleLoadError(#[from] ModuleLoadError),
 }
@@ -195,8 +197,10 @@ struct Scope {
     id: ScopeId,
     next_variable_slot_id: usize,
     next_closure_slot_id: usize,
+    next_label_id: usize,
     functions: PHashMap<FunctionIdentifier, FunctionLike>,
     variables: PHashMap<Identifier, ScopedSlot>,
+    labels: PHashMap<Identifier, Label>,
 }
 
 impl Scope {
@@ -205,8 +209,10 @@ impl Scope {
             id,
             next_variable_slot_id: 0,
             next_closure_slot_id: 0,
+            next_label_id: 0,
             functions: Default::default(),
             variables: Default::default(),
+            labels: Default::default(),
         }
     }
 
@@ -215,8 +221,10 @@ impl Scope {
             id,
             next_variable_slot_id: 0,
             next_closure_slot_id: 0,
+            next_label_id: 0,
             functions: previous.functions.clone(),
             variables: previous.variables.clone(),
+            labels: previous.labels.clone(),
         }
     }
 
@@ -247,12 +255,23 @@ impl Scope {
         slot
     }
 
+    fn register_label(&mut self, name: Identifier) -> Label {
+        let label = Label(self.id, self.next_label_id);
+        self.next_label_id += 1;
+        self.labels.insert(name, label);
+        label
+    }
+
     fn lookup_variable(&self, name: &Identifier) -> Option<&ScopedSlot> {
         self.variables.get(name)
     }
 
     fn lookup_function(&self, identifier: &FunctionIdentifier) -> Option<&FunctionLike> {
         self.functions.get(identifier)
+    }
+
+    fn lookup_label(&self, name: &Identifier) -> Option<&Label> {
+        self.labels.get(name)
     }
 }
 
@@ -332,6 +351,7 @@ impl Compiler {
         assert_eq!(current.id, save.id);
         save.next_variable_slot_id = current.next_variable_slot_id;
         save.next_closure_slot_id = current.next_closure_slot_id;
+        save.next_label_id = current.next_label_id;
         *current = save;
     }
 
@@ -998,7 +1018,14 @@ impl Compiler {
                         .emit_normal_op(ByteCode::Push(Value::Array(PVector::new())), next)
                 }
             },
-            Term::Break(_) => todo!(),
+            Term::Break(name) => {
+                let label = self
+                    .current_scope()
+                    .lookup_label(name)
+                    .ok_or_else(|| CompileError::UnknownLabel(name.clone()))?
+                    .clone();
+                self.emitter.emit_normal_op(ByteCode::Break(label), next)
+            }
         };
         Ok(ret)
     }
@@ -1092,7 +1119,14 @@ impl Compiler {
                 negative,
             } => self.compile_if(cond, positive, negative.as_ref(), next)?,
             Query::Try { body, catch } => self.compile_try(body, catch.as_ref(), next)?,
-            Query::Label { .. } => todo!(),
+            Query::Label { label, body } => {
+                let saved = self.save_scope();
+                let label = self.current_scope_mut().register_label(label.clone());
+                let body = self.compile_query(body, next)?;
+                self.restore_scope(saved);
+                self.emitter
+                    .emit_normal_op(ByteCode::ForkLabel(label), body)
+            }
             Query::Operate { lhs, operator, rhs } => match operator {
                 BinaryOp::Arithmetic(operator) => {
                     let operator = intrinsic::binary(operator);
