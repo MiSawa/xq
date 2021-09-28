@@ -12,3 +12,8 @@ This program is under development. You probably want to use the original impleme
 ## Credits
 - Test cases in [tests/from_manual](./tests/from_manual) are taken from the [jq user manual](https://stedolan.github.io/jq/manual/), distributed under [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/), Copyright (C) 2012 Stephen Dolan. Please refer to [mod.rs](./tests/from_manual/mod.rs) there for more detail.
 
+## Author
+[Mi_Sawa](https://github.com/MiSawa)
+
+## LICENSE
+MIT. Please refer to [LICENSE](./LICENSE) file.
