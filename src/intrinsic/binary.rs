@@ -1,32 +1,33 @@
 use crate::{
     ast::BinaryArithmeticOp,
-    vm::{bytecode::NamedFn2, error::QueryExecutionError::DivModByZero, QueryExecutionError},
+    vm::{bytecode::NamedFn1, error::QueryExecutionError::DivModByZero, QueryExecutionError},
     Value,
 };
 use num::{ToPrimitive, Zero};
 use QueryExecutionError::{IncompatibleBinaryOperator, StringRepeatByNonUSize};
 
-pub(crate) fn binary(operator: &BinaryArithmeticOp) -> NamedFn2 {
+pub(crate) fn binary(operator: &BinaryArithmeticOp) -> NamedFn1 {
+    // NOTE: Because of the evaluation order, lhs and rhs are flipped here.
     match operator {
-        BinaryArithmeticOp::Add => NamedFn2 {
+        BinaryArithmeticOp::Add => NamedFn1 {
             name: "Add",
-            func: add,
+            func: |rhs, lhs| add(lhs, rhs),
         },
-        BinaryArithmeticOp::Subtract => NamedFn2 {
+        BinaryArithmeticOp::Subtract => NamedFn1 {
             name: "Subtract",
-            func: subtract,
+            func: |rhs, lhs| subtract(lhs, rhs),
         },
-        BinaryArithmeticOp::Multiply => NamedFn2 {
+        BinaryArithmeticOp::Multiply => NamedFn1 {
             name: "Multiply",
-            func: multiply,
+            func: |rhs, lhs| multiply(lhs, rhs),
         },
-        BinaryArithmeticOp::Divide => NamedFn2 {
+        BinaryArithmeticOp::Divide => NamedFn1 {
             name: "Divide",
-            func: divide,
+            func: |rhs, lhs| divide(lhs, rhs),
         },
-        BinaryArithmeticOp::Modulo => NamedFn2 {
+        BinaryArithmeticOp::Modulo => NamedFn1 {
             name: "Modulo",
-            func: modulo,
+            func: |rhs, lhs| modulo(lhs, rhs),
         },
     }
 }

@@ -33,6 +33,10 @@ pub enum QueryExecutionError {
     InvalidPathError(Value),
     #[error("Breaking on label `{0:?}`")]
     Breaking(Label),
+    #[error("Path should be an array but was `{0:?}`")]
+    PathNotArray(Value),
+    #[error("Invalid index `{0:?}`")]
+    InvalidIndex(Value),
     #[error("{0:?}")]
     UserDefinedError(String),
 }

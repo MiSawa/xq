@@ -1,12 +1,13 @@
-use crate::{ast::Comparator, vm::bytecode::NamedFn2, Value};
+use crate::{ast::Comparator, vm::bytecode::NamedFn1, Value};
 use itertools::Itertools;
 use std::cmp::Ordering;
 
-pub(crate) fn comparator(comparator: &Comparator) -> NamedFn2 {
+pub(crate) fn comparator(comparator: &Comparator) -> NamedFn1 {
+    // NOTE: Because of the evaluation order, lhs and rhs are flipped here.
     match comparator {
-        Comparator::Eq => NamedFn2 {
+        Comparator::Eq => NamedFn1 {
             name: "Equal",
-            func: |lhs, rhs| {
+            func: |rhs, lhs| {
                 Ok(if compare(lhs, rhs).is_eq() {
                     Value::True
                 } else {
@@ -14,9 +15,9 @@ pub(crate) fn comparator(comparator: &Comparator) -> NamedFn2 {
                 })
             },
         },
-        Comparator::Neq => NamedFn2 {
+        Comparator::Neq => NamedFn1 {
             name: "NotEqual",
-            func: |lhs, rhs| {
+            func: |rhs, lhs| {
                 Ok(if compare(lhs, rhs).is_ne() {
                     Value::True
                 } else {
@@ -24,9 +25,9 @@ pub(crate) fn comparator(comparator: &Comparator) -> NamedFn2 {
                 })
             },
         },
-        Comparator::Gt => NamedFn2 {
+        Comparator::Gt => NamedFn1 {
             name: "GreaterThan",
-            func: |lhs, rhs| {
+            func: |rhs, lhs| {
                 Ok(if compare(lhs, rhs).is_gt() {
                     Value::True
                 } else {
@@ -34,9 +35,9 @@ pub(crate) fn comparator(comparator: &Comparator) -> NamedFn2 {
                 })
             },
         },
-        Comparator::Ge => NamedFn2 {
+        Comparator::Ge => NamedFn1 {
             name: "GreaterOrEqual",
-            func: |lhs, rhs| {
+            func: |rhs, lhs| {
                 Ok(if compare(lhs, rhs).is_ge() {
                     Value::True
                 } else {
@@ -44,9 +45,9 @@ pub(crate) fn comparator(comparator: &Comparator) -> NamedFn2 {
                 })
             },
         },
-        Comparator::Lt => NamedFn2 {
+        Comparator::Lt => NamedFn1 {
             name: "LessThan",
-            func: |lhs, rhs| {
+            func: |rhs, lhs| {
                 Ok(if compare(lhs, rhs).is_lt() {
                     Value::True
                 } else {
@@ -54,9 +55,9 @@ pub(crate) fn comparator(comparator: &Comparator) -> NamedFn2 {
                 })
             },
         },
-        Comparator::Le => NamedFn2 {
+        Comparator::Le => NamedFn1 {
             name: "LessOrEqual",
-            func: |lhs, rhs| {
+            func: |rhs, lhs| {
                 Ok(if compare(lhs, rhs).is_le() {
                     Value::True
                 } else {

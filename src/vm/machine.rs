@@ -625,14 +625,11 @@ fn run_code(program: &Program, env: &mut Environment) -> Option<Result<Value>> {
                 ForkTryEnd => env.push_fork(&state, OnFork::SkipCatch, state.pc.get_next()),
                 ForkAlt { fork_pc } => env.push_fork(&state, OnFork::TryAlternative, *fork_pc),
                 ForkLabel(label) => {
-                    env.push_fork(
-                        &state,
-                        OnFork::CatchLabel(label.clone()),
-                        state.pc.get_next(),
-                    ); // pc doesn't really matter
+                    env.push_fork(&state, OnFork::CatchLabel(*label), state.pc.get_next());
+                    // pc doesn't really matter
                 }
                 Break(label) => {
-                    err = Some(QueryExecutionError::Breaking(label.clone()));
+                    err = Some(QueryExecutionError::Breaking(*label));
                     continue 'backtrack;
                 }
                 Backtrack => continue 'backtrack,
@@ -686,17 +683,26 @@ fn run_code(program: &Program, env: &mut Environment) -> Option<Result<Value>> {
                     let value = state.pop();
                     return Some(Ok(value));
                 }
+                Intrinsic0(NamedFunction { name: _name, func }) => {
+                    let context = state.pop();
+                    match func(context) {
+                        Ok(value) => state.push(value),
+                        Err(e) => err = Some(e),
+                    }
+                }
                 Intrinsic1(NamedFunction { name: _name, func }) => {
-                    let arg = state.pop();
-                    match func(arg) {
+                    let arg1 = state.pop();
+                    let context = state.pop();
+                    match func(context, arg1) {
                         Ok(value) => state.push(value),
                         Err(e) => err = Some(e),
                     }
                 }
                 Intrinsic2(NamedFunction { name: _name, func }) => {
-                    let lhs = state.pop();
-                    let rhs = state.pop();
-                    match func(lhs, rhs) {
+                    let arg2 = state.pop();
+                    let arg1 = state.pop();
+                    let context = state.pop();
+                    match func(context, arg1, arg2) {
                         Ok(value) => state.push(value),
                         Err(e) => err = Some(e),
                     }

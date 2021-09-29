@@ -7,7 +7,7 @@ use crate::{
     intrinsic,
     module_loader::{ModuleLoadError, ModuleLoader},
     vm::{
-        bytecode::{Closure, Label, NamedFn1},
+        bytecode::{Closure, Label, NamedFn0},
         Address, ByteCode, Program, ScopeId, ScopedSlot,
     },
     Number, Value,
@@ -940,7 +940,7 @@ impl Compiler {
             if i + 1 != fragments.len() {
                 next = self
                     .emitter
-                    .emit_normal_op(ByteCode::Intrinsic2(add.clone()), next);
+                    .emit_normal_op(ByteCode::Intrinsic1(add.clone()), next);
             }
             match fragment {
                 StringFragment::String(s) => {
@@ -967,7 +967,7 @@ impl Compiler {
                 s,
                 |compiler: &mut Compiler, next| {
                     Ok(compiler.emitter.emit_normal_op(
-                        ByteCode::Intrinsic1(NamedFn1 {
+                        ByteCode::Intrinsic0(NamedFn0 {
                             name: "stringify",
                             func: intrinsic::stringify,
                         }),
@@ -995,7 +995,7 @@ impl Compiler {
                 let operator = intrinsic::unary(operator);
                 let next = self
                     .emitter
-                    .emit_normal_op(ByteCode::Intrinsic1(operator), next);
+                    .emit_normal_op(ByteCode::Intrinsic0(operator), next);
                 self.compile_term(term, next)?
             }
             Term::Object(kvs) => self.compile_object(kvs, next)?,
@@ -1019,11 +1019,10 @@ impl Compiler {
                 }
             },
             Term::Break(name) => {
-                let label = self
+                let label = *self
                     .current_scope()
                     .lookup_label(name)
-                    .ok_or_else(|| CompileError::UnknownLabel(name.clone()))?
-                    .clone();
+                    .ok_or_else(|| CompileError::UnknownLabel(name.clone()))?;
                 self.emitter.emit_normal_op(ByteCode::Break(label), next)
             }
         };
@@ -1132,7 +1131,7 @@ impl Compiler {
                     let operator = intrinsic::binary(operator);
                     let next = self
                         .emitter
-                        .emit_normal_op(ByteCode::Intrinsic2(operator), next);
+                        .emit_normal_op(ByteCode::Intrinsic1(operator), next);
                     let next = self.compile_query(lhs, next)?;
                     let next = self.emitter.emit_normal_op(ByteCode::Swap, next);
                     let next = self.compile_query(rhs, next)?;
@@ -1197,7 +1196,7 @@ impl Compiler {
                 let operator = intrinsic::comparator(operator);
                 let next = self
                     .emitter
-                    .emit_normal_op(ByteCode::Intrinsic2(operator), next);
+                    .emit_normal_op(ByteCode::Intrinsic1(operator), next);
                 let next = self.compile_query(lhs, next)?;
                 let next = self.emitter.emit_normal_op(ByteCode::Swap, next);
                 let next = self.compile_query(rhs, next)?;

@@ -3,6 +3,7 @@ use crate::Value;
 mod binary;
 mod comparator;
 mod index;
+mod path;
 mod unary;
 
 pub(crate) use self::{
@@ -12,22 +13,40 @@ pub(crate) use self::{
     unary::unary,
 };
 use crate::vm::{
-    bytecode::NamedFn1,
+    bytecode::{NamedFn0, NamedFn1, NamedFn2},
     compiler::{ArgType, FunctionIdentifier},
     ByteCode, QueryExecutionError,
 };
 use phf::phf_map;
 
+static INTRINSICS0: phf::Map<&'static str, NamedFn0> = phf_map! {
+    "error" => NamedFn0 { name: "error", func: error },
+};
 static INTRINSICS1: phf::Map<&'static str, (NamedFn1, ArgType)> = phf_map! {
-    "error" => (NamedFn1 { name: "error", func: error }, ArgType::Value),
+    "error" => (NamedFn1 { name: "error", func: error1 }, ArgType::Value),
+};
+static INTRINSICS2: phf::Map<&'static str, (NamedFn2, ArgType, ArgType)> = phf_map! {
+    "setpath" => (NamedFn2 { name: "setpath", func: path::set_path }, ArgType::Value, ArgType::Value),
 };
 
-pub(crate) fn lookup_intrinsic_fn(func: &FunctionIdentifier) -> Option<(ByteCode, Vec<ArgType>)> {
-    if func.1 == 1 {
+pub(crate) fn lookup_intrinsic_fn(
+    FunctionIdentifier(ident, n_args): &FunctionIdentifier,
+) -> Option<(ByteCode, Vec<ArgType>)> {
+    if *n_args == 0 {
+        INTRINSICS0
+            .get(&ident.0)
+            .cloned()
+            .map(|f| (ByteCode::Intrinsic0(f), vec![]))
+    } else if *n_args == 1 {
         INTRINSICS1
-            .get(&func.0 .0)
+            .get(&ident.0)
             .cloned()
             .map(|(f, t)| (ByteCode::Intrinsic1(f), vec![t]))
+    } else if *n_args == 2 {
+        INTRINSICS2
+            .get(&ident.0)
+            .cloned()
+            .map(|(f, t1, t2)| (ByteCode::Intrinsic2(f), vec![t1, t2]))
     } else {
         None
     }
@@ -41,7 +60,7 @@ pub(crate) fn stringify(value: Value) -> Result<Value, QueryExecutionError> {
     Ok(Value::string(serde_json::to_string(&value).unwrap()))
 }
 
-pub(crate) fn error(value: Value) -> Result<Value, QueryExecutionError> {
+fn error(value: Value) -> Result<Value, QueryExecutionError> {
     match value {
         Value::String(s) => Err(QueryExecutionError::UserDefinedError((*s).clone())),
         value => Err(QueryExecutionError::UserDefinedError(format!(
@@ -49,4 +68,8 @@ pub(crate) fn error(value: Value) -> Result<Value, QueryExecutionError> {
             value
         ))),
     }
+}
+
+fn error1(_: Value, arg: Value) -> Result<Value, QueryExecutionError> {
+    error(arg)
 }

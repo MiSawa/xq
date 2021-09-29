@@ -1,16 +1,16 @@
 use crate::{
     ast::UnaryOp,
-    vm::{bytecode::NamedFn1, QueryExecutionError},
+    vm::{bytecode::NamedFn0, QueryExecutionError},
     Value,
 };
 
-pub(crate) fn unary(operator: &UnaryOp) -> NamedFn1 {
+pub(crate) fn unary(operator: &UnaryOp) -> NamedFn0 {
     match operator {
-        UnaryOp::Plus => NamedFn1 {
+        UnaryOp::Plus => NamedFn0 {
             name: "UnaryPlus",
             func: unary_plus,
         },
-        UnaryOp::Minus => NamedFn1 {
+        UnaryOp::Minus => NamedFn0 {
             name: "UnaryMinus",
             func: unary_minus,
         },

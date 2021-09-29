@@ -16,8 +16,9 @@ pub struct NamedFunction<F: Clone + ?Sized> {
 #[derive(Debug, Copy, Clone, Hash, Ord, PartialOrd, Eq, PartialEq)]
 pub(crate) struct Closure(pub(crate) Address);
 
-pub type NamedFn1 = NamedFunction<fn(Value) -> Result<Value>>;
-pub type NamedFn2 = NamedFunction<fn(Value, Value) -> Result<Value>>;
+pub type NamedFn0 = NamedFunction<fn(Value) -> Result<Value>>;
+pub type NamedFn1 = NamedFunction<fn(Value, Value) -> Result<Value>>;
+pub type NamedFn2 = NamedFunction<fn(Value, Value, Value) -> Result<Value>>;
 
 impl<F: Clone> Debug for NamedFunction<F> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
@@ -162,14 +163,19 @@ pub(crate) enum ByteCode {
     /// Panics if the stack was empty.
     Output,
 
-    /// Pops a value from the stack, invokes the function with the arg, and pushes the resulting value to the stack.
+    /// Pops a value `context` from the stack, invokes the function with the arg `context`, and pushes the resulting value to the stack.
     /// # Panics
     /// Panics if the stack was empty, or the invoked function panicked.
-    Intrinsic1(NamedFn1),
-    /// Pops a value `lhs` from the stack, pops another value `rhs` from the stack,
-    /// and invokes the function with the arg `lhs, rhs`, and pushes the resulting value to the stack.
+    Intrinsic0(NamedFn0),
+    /// Pops a value `arg1` from the stack, pops another value `context` from the stack,
+    /// and invokes the function with the arg `context, arg1`, and pushes the resulting value to the stack.
     /// # Panics
     /// Panics if the stack had less than 2 elements, or the invoked function panicked.
+    Intrinsic1(NamedFn1),
+    /// Pops a value `arg2` from the stack, pops another value `arg1` from the stack, and another value `context` from the stack,
+    /// and invokes the function with the arg `context, arg1, arg2`, and pushes the resulting value to the stack.
+    /// # Panics
+    /// Panics if the stack had less than 3 elements, or the invoked function panicked.
     Intrinsic2(NamedFn2),
 }
 
