@@ -18,9 +18,11 @@ use crate::vm::{
     ByteCode, QueryExecutionError,
 };
 use phf::phf_map;
+use std::rc::Rc;
 
 static INTRINSICS0: phf::Map<&'static str, NamedFn0> = phf_map! {
     "error" => NamedFn0 { name: "error", func: error },
+    "type" => NamedFn0 { name: "type", func: get_type },
 };
 static INTRINSICS1: phf::Map<&'static str, (NamedFn1, ArgType)> = phf_map! {
     "error" => (NamedFn1 { name: "error", func: error1 }, ArgType::Value),
@@ -72,4 +74,16 @@ fn error(value: Value) -> Result<Value, QueryExecutionError> {
 
 fn error1(_: Value, arg: Value) -> Result<Value, QueryExecutionError> {
     error(arg)
+}
+
+fn get_type(context: Value) -> Result<Value, QueryExecutionError> {
+    let ret = match context {
+        Value::Null => "null",
+        Value::True | Value::False => "boolean",
+        Value::Number(_) => "number",
+        Value::String(_) => "string",
+        Value::Array(_) => "array",
+        Value::Object(_) => "object",
+    };
+    Ok(Value::String(Rc::new(ret.to_string())))
 }
