@@ -1,7 +1,7 @@
 use crate::{
     ast::{
         self, BinaryArithmeticOp, BinaryOp, BindPattern, FuncArg, FuncDef, Identifier,
-        ObjectBindPatternEntry, Query, StringFragment, Suffix, Term,
+        ObjectBindPatternEntry, Query, StringFragment, Suffix, Term, UpdateOp,
     },
     data_structure::{PHashMap, PVector},
     intrinsic,
@@ -1187,7 +1187,19 @@ impl Compiler {
                     next,
                 )?,
             },
-            Query::Update { .. } => todo!(),
+            Query::Update {
+                lhs: _lhs,
+                operator,
+                rhs: _rhs,
+            } => {
+                match operator {
+                    UpdateOp::Modify => {}
+                    UpdateOp::Assign => {}
+                    UpdateOp::Alt => {}
+                    UpdateOp::Arithmetic(_) => {}
+                }
+                todo!()
+            }
             Query::Compare {
                 lhs,
                 comparator: operator,

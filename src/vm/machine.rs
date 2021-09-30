@@ -386,77 +386,83 @@ impl Iterator for ResultIterator {
 
 fn run_code(program: &Program, env: &mut Environment) -> Option<Result<Value>> {
     let mut err: Option<QueryExecutionError> = None;
-    let mut call_pc: Option<Address> = None;
-    let mut catch_skip: usize = 0;
     log::trace!("Start from environment {:?}", env);
     'backtrack: loop {
-        let (mut state, on_fork) = if let Some(x) = env.pop_fork() {
-            x
-        } else {
-            return err.map(Err);
-        };
-        log::trace!("On fork {:?} with state {:?}", on_fork, state);
-        match (on_fork, &err) {
-            (
-                OnFork::CatchLabel(catch_label),
-                Some(QueryExecutionError::Breaking(breaking_label)),
-            ) if catch_label == *breaking_label => {
-                err = None;
-                continue 'backtrack;
-            }
-            (OnFork::CatchLabel(_), _) => {
-                continue 'backtrack;
-            }
-            (_, Some(QueryExecutionError::Breaking(_))) => {
-                continue 'backtrack;
-            }
-            (OnFork::Nop, None) => {} // nop
-            (OnFork::IgnoreError, _) => {
-                if catch_skip == 0 {
+        log::trace!(
+            "Fork stack: {:?}",
+            env.forks.iter().map(|(_, f)| f).collect_vec()
+        );
+        let mut catch_skip: usize = 0;
+        let mut state = 'select_fork: loop {
+            let (mut state, on_fork) = if let Some(x) = env.pop_fork() {
+                x
+            } else {
+                return err.map(Err);
+            };
+            log::trace!("On fork {:?} with state {:?}", on_fork, state);
+            match (on_fork, &err) {
+                (
+                    OnFork::CatchLabel(catch_label),
+                    Some(QueryExecutionError::Breaking(breaking_label)),
+                ) if catch_label == *breaking_label => {
                     err = None;
-                } else {
-                    catch_skip -= 1;
+                    continue 'select_fork;
                 }
-                continue 'backtrack;
-            }
-            (OnFork::CatchError, _) => {
-                if catch_skip == 0 {
-                    match err.take() {
-                        None => continue 'backtrack,
-                        Some(QueryExecutionError::UserDefinedError(s)) => {
-                            state.push(Value::string(s))
+                (OnFork::CatchLabel(_), _) => {
+                    continue 'select_fork;
+                }
+                (_, Some(QueryExecutionError::Breaking(_))) => {
+                    continue 'select_fork;
+                }
+                (OnFork::Nop, None) => {} // nop
+                (OnFork::IgnoreError, _) => {
+                    if catch_skip == 0 {
+                        err = None;
+                    } else {
+                        catch_skip -= 1;
+                    }
+                    continue 'select_fork;
+                }
+                (OnFork::CatchError, _) => {
+                    if catch_skip == 0 {
+                        match err.take() {
+                            None => continue 'select_fork,
+                            Some(QueryExecutionError::UserDefinedError(s)) => {
+                                state.push(Value::string(s))
+                            }
+                            Some(e) => state.push(Value::string(format!("{:?}", e))),
                         }
-                        Some(e) => state.push(Value::string(format!("{:?}", e))),
-                    }
-                } else {
-                    catch_skip -= 1;
-                    continue 'backtrack;
-                }
-            }
-            (OnFork::SkipCatch, _) => {
-                catch_skip += 1;
-                continue 'backtrack;
-            }
-            (OnFork::TryAlternative, None) => continue 'backtrack,
-            (OnFork::TryAlternative, Some(_)) => {
-                err = None;
-            }
-            (OnFork::Iterate, None) => {
-                let it = state.top_iterator().expect("No iterator to iterate on");
-                match it.next() {
-                    None => {
-                        state.pop_iterator();
-                        continue 'backtrack;
-                    }
-                    Some((path_elem, value)) => {
-                        env.push_fork(&state, OnFork::Iterate, state.pc);
-                        state.push_with_path(value, path_elem);
+                    } else {
+                        catch_skip -= 1;
+                        continue 'select_fork;
                     }
                 }
+                (OnFork::SkipCatch, _) => {
+                    catch_skip += 1;
+                    continue 'select_fork;
+                }
+                (OnFork::TryAlternative, None) => continue 'select_fork,
+                (OnFork::TryAlternative, Some(_)) => {
+                    err = None;
+                }
+                (OnFork::Iterate, None) => {
+                    let it = state.top_iterator().expect("No iterator to iterate on");
+                    match it.next() {
+                        None => {
+                            state.pop_iterator();
+                            continue 'select_fork;
+                        }
+                        Some((path_elem, value)) => {
+                            env.push_fork(&state, OnFork::Iterate, state.pc);
+                            state.push_with_path(value, path_elem);
+                        }
+                    }
+                }
+                (_, Some(_)) => continue 'select_fork,
             }
-            (_, Some(_)) => continue 'backtrack,
-        }
-        assert_eq!(catch_skip, 0);
+            break 'select_fork state;
+        };
+        let mut call_pc: Option<Address> = None;
         log::trace!("Start fork with error {:?}", err);
         'cycle: loop {
             if err.is_some() {
