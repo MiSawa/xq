@@ -70,7 +70,7 @@ fn main() -> Result<()> {
                 .with_context(|| "Write to output")
                 .and_then(|()| writeln!(stdout()).with_context(|| "Write ln"))?,
             Err(e) => {
-                log::error!("Error: {:?}", e)
+                eprintln!("Error: {:?}", e);
             }
         }
         Ok(())

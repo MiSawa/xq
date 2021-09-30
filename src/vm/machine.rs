@@ -144,7 +144,7 @@ struct State {
     scope_stack: PStack<(Address, ScopeId)>, // (pc, pushed_scope)
     closure_stack: PStack<Closure>,
 
-    paths: PStack<Option<(Value, PStack<PathElement>)>>,
+    paths: PStack<Option<(Value, Value, PStack<PathElement>)>>, // origin, current, path stack
 
     iterators: PStack<PathValueIterator>,
 }
@@ -199,9 +199,22 @@ impl State {
         self.stack.push(item)
     }
 
+    fn check_origin_of_path(&mut self, origin: &Value) -> Result<()> {
+        if let Some(Some((_, current, _))) = self.paths.top_mut() {
+            if current == origin {
+                Ok(())
+            } else {
+                Err(QueryExecutionError::InvalidPathError(origin.clone()))
+            }
+        } else {
+            Ok(())
+        }
+    }
+
     fn push_with_path(&mut self, item: Value, path_elem: PathElement) {
-        self.push(item);
-        if let Some(Some((_, path))) = self.paths.top_mut() {
+        self.push(item.clone());
+        if let Some(Some((_, current, path))) = self.paths.top_mut() {
+            *current = item;
             path.push(path_elem);
         }
     }
@@ -224,12 +237,13 @@ impl State {
     }
 
     fn enter_path_tracking(&mut self, base_value: Value) {
-        self.paths.push(Some((base_value, Default::default())))
+        self.paths
+            .push(Some((base_value.clone(), base_value, Default::default())))
     }
 
     fn exit_tracked_path(&mut self) -> (Value, PStack<PathElement>) {
         match self.paths.pop() {
-            Some(Some((value, path))) => (value, path),
+            Some(Some((value, _, path))) => (value, path),
             x => {
                 panic!("Expected a path tracking thing but got {:?}", x);
             }
@@ -531,6 +545,10 @@ fn run_code(program: &Program, env: &mut Environment) -> Option<Result<Value>> {
                 Index => {
                     let index = state.pop();
                     let value = state.pop();
+                    if let Err(e) = state.check_origin_of_path(&value) {
+                        err.replace(e);
+                        continue 'backtrack;
+                    }
                     match intrinsic::index(value, index) {
                         Ok((value, path_elem)) => {
                             state.push_with_path(value, path_elem);
@@ -544,6 +562,10 @@ fn run_code(program: &Program, env: &mut Environment) -> Option<Result<Value>> {
                     let end = if *end { Some(state.pop()) } else { None };
                     let start = if *start { Some(state.pop()) } else { None };
                     let value = state.pop();
+                    if let Err(e) = state.check_origin_of_path(&value) {
+                        err = Some(e);
+                        continue 'backtrack;
+                    }
                     match intrinsic::slice(value, start, end) {
                         Ok((value, path_elem)) => {
                             state.push_with_path(value, path_elem);
@@ -555,6 +577,10 @@ fn run_code(program: &Program, env: &mut Environment) -> Option<Result<Value>> {
                 }
                 Each => {
                     let value = state.pop();
+                    if let Err(e) = state.check_origin_of_path(&value) {
+                        err = Some(e);
+                        continue 'backtrack;
+                    }
                     let iter = match value {
                         value
                         @
