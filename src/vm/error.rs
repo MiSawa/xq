@@ -37,6 +37,12 @@ pub enum QueryExecutionError {
     PathNotArray(Value),
     #[error("Invalid index `{0:?}`")]
     InvalidIndex(Value),
+    #[error("Expected an array but was `{0:?}`")]
+    ExpectedAnArray(Value),
+    #[error("Expected slicing but got an invalid one `{0:?}`")]
+    InvalidSlicing(Value),
+    #[error("At least one of range start or end has to be specified")]
+    UnboundedRange,
     #[error("{0:?}")]
     UserDefinedError(String),
 }

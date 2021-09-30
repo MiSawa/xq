@@ -1,11 +1,15 @@
 use crate::{
-    vm::{machine::PathElement, QueryExecutionError},
+    data_structure::PHashMap,
+    vm::{error::Result, machine::PathElement, QueryExecutionError},
     IntOrReal, Number, Value,
 };
 use num::ToPrimitive;
-use std::ops::{Bound, RangeBounds};
+use std::{
+    ops::{Bound, Range},
+    rc::Rc,
+};
 
-fn try_into_isize(n: &Number) -> Result<isize, QueryExecutionError> {
+fn try_into_isize(n: &Number) -> Result<isize> {
     match n.as_int_or_real() {
         IntOrReal::Integer(n) => {
             // TODO: actually should be positive usize and negative usize
@@ -16,33 +20,30 @@ fn try_into_isize(n: &Number) -> Result<isize, QueryExecutionError> {
     }
 }
 
-fn get_array_index<F: Fn(Value) -> QueryExecutionError>(
+fn parse_and_shift_index<F: Fn(Value) -> QueryExecutionError>(
     array_length: usize,
-    index: Value,
+    index: &Value,
     err: F,
-) -> Result<(Option<usize>, isize), QueryExecutionError> {
+) -> Result<Option<usize>> {
     let i = match index {
         Value::Number(i) => i,
-        value => return Err(err(value)),
+        value => return Err(err(value.clone())),
     };
     let i = try_into_isize(&i)?;
     let idx = if i < 0 {
         let shifted = i + (array_length as isize);
         if shifted < 0 {
-            return Ok((None, i));
+            return Ok(None);
         } else {
             shifted as usize
         }
     } else {
         i as usize
     };
-    Ok((Some(idx), i))
+    Ok(Some(idx))
 }
 
-pub(crate) fn index(
-    value: Value,
-    index: Value,
-) -> Result<(Value, PathElement), QueryExecutionError> {
+pub(crate) fn index(value: Value, index: Value) -> Result<(Value, PathElement)> {
     match value {
         Value::Null
             if matches!(
@@ -57,22 +58,24 @@ pub(crate) fn index(
         }
         Value::String(s) => {
             let len = s.chars().count();
-            let (idx, path_idx) =
-                get_array_index(len, index, QueryExecutionError::ArrayIndexByNonInt)?;
+            let idx = parse_and_shift_index(len, &index, QueryExecutionError::ArrayIndexByNonInt)?;
             Ok((
                 idx.and_then(|i| s.chars().nth(i))
                     .map(|c| Value::string(String::from(c)))
                     .unwrap_or_else(|| Value::string("".to_string())),
-                PathElement::Array(path_idx),
+                PathElement::Any(index),
             ))
         }
         Value::Array(array) => {
-            let (idx, path_idx) =
-                get_array_index(array.len(), index, QueryExecutionError::ArrayIndexByNonInt)?;
+            let idx = parse_and_shift_index(
+                array.len(),
+                &index,
+                QueryExecutionError::ArrayIndexByNonInt,
+            )?;
             Ok((
                 idx.and_then(|i| array.get(i).cloned())
                     .unwrap_or(Value::Null),
-                PathElement::Array(path_idx),
+                PathElement::Any(index),
             ))
         }
         Value::Object(map) => {
@@ -88,72 +91,96 @@ pub(crate) fn index(
     }
 }
 
+pub(crate) fn calculate_slice_index(
+    length: usize,
+    start: Option<&Value>,
+    end: Option<&Value>,
+) -> Result<Range<usize>> {
+    if start.is_none() && end.is_none() {
+        return Err(QueryExecutionError::UnboundedRange);
+    }
+    let end = if let Some(end) = end {
+        let shifted = parse_and_shift_index(length, end, QueryExecutionError::SliceByNonInt)?;
+        if let Some(i) = shifted {
+            if i < length {
+                Bound::Excluded(i)
+            } else {
+                // e.g. [:99999]
+                Bound::Unbounded
+            }
+        } else {
+            Bound::Excluded(0) // e.g. [:-99999]
+        }
+    } else {
+        Bound::Unbounded
+    };
+    let start = if let Some(start) = start {
+        let shifted = parse_and_shift_index(length, start, QueryExecutionError::SliceByNonInt)?;
+        if let Some(i) = shifted {
+            if i < length {
+                Bound::Included(i)
+            } else {
+                // e.g. [99999:]
+                Bound::Included(length)
+            }
+        } else {
+            // e.g. [-99999:]
+            Bound::Unbounded
+        }
+    } else {
+        Bound::Unbounded
+    };
+    let start = match start {
+        Bound::Included(i) => i,
+        Bound::Excluded(i) => i + 1,
+        Bound::Unbounded => 0,
+    };
+    let end = match end {
+        Bound::Included(i) => i + 1,
+        Bound::Excluded(i) => i,
+        Bound::Unbounded => length,
+    };
+    Ok(start..end)
+}
+
 pub(crate) fn slice(
     value: Value,
     start: Option<Value>,
     end: Option<Value>,
-) -> Result<(Value, PathElement), QueryExecutionError> {
+) -> Result<(Value, PathElement)> {
+    let path_element = {
+        let mut map = PHashMap::new();
+        if let Some(start) = &start {
+            map.insert(Rc::new("start".to_string()), start.clone());
+        }
+        if let Some(end) = &end {
+            map.insert(Rc::new("end".to_string()), end.clone());
+        }
+        PathElement::Any(Value::Object(map))
+    };
     let length = match &value {
-        Value::Null | Value::True | Value::False | Value::Number(_) | Value::Object(_) => {
+        Value::Null => {
+            return Ok((Value::Null, path_element)); // Why jq doesn't check `start` and `end` type...
+        }
+        Value::True | Value::False | Value::Number(_) | Value::Object(_) => {
             return Err(QueryExecutionError::SliceOnNonArrayNorString(value));
         }
         Value::String(s) => s.chars().count(),
         Value::Array(v) => v.len(),
     };
-    let (end, end_path_elem) = if let Some(end) = end {
-        let (i, end_path_elem) = get_array_index(length, end, QueryExecutionError::SliceByNonInt)?;
-        if let Some(i) = i {
-            if i == 0 {
-                (None, Some(end_path_elem))
-            } else if i < length {
-                (Some(Bound::Excluded(i)), Some(end_path_elem))
-            } else {
-                (Some(Bound::Unbounded), Some(end_path_elem))
-            }
-        } else if end_path_elem < 0 {
-            (Some(Bound::Unbounded), Some(end_path_elem))
-        } else {
-            (None, Some(end_path_elem))
-        }
-    } else {
-        (Some(Bound::Unbounded), None)
-    };
-    let (start, start_path_elem) = if let Some(start) = start {
-        let (i, start_path_elem) =
-            get_array_index(length, start, QueryExecutionError::SliceByNonInt)?;
-        if let Some(i) = i {
-            if i < length {
-                (Some(Bound::Included(i)), Some(start_path_elem))
-            } else {
-                (None, Some(start_path_elem))
-            }
-        } else if start_path_elem < 0 {
-            (None, Some(start_path_elem))
-        } else {
-            (Some(Bound::Unbounded), Some(start_path_elem))
-        }
-    } else {
-        (Some(Bound::Unbounded), None)
-    };
-    let path_element = PathElement::Slice(start_path_elem, end_path_elem);
+    let range = calculate_slice_index(length, start.as_ref(), end.as_ref())?;
     match value {
-        Value::String(s) => match (start, end) {
-            (Some(start), Some(end)) => Ok((
-                Value::string(
-                    s.chars()
-                        .enumerate()
-                        .filter(|(i, _)| (start, end).contains(i))
-                        .map(|(_, c)| c)
-                        .collect::<String>(),
-                ),
-                path_element,
-            )),
-            _ => Ok((Value::Array(Default::default()), path_element)),
-        },
-        Value::Array(mut array) => match (start, end) {
-            (Some(start), Some(end)) => Ok((Value::Array(array.slice((start, end))), path_element)),
-            _ => Ok((Value::Array(Default::default()), path_element)),
-        },
+        Value::String(s) => Ok((
+            Value::string(
+                s.chars()
+                    .enumerate()
+                    .filter(|(i, _)| range.contains(i))
+                    .map(|(_, c)| c)
+                    .collect::<String>(),
+            ),
+            path_element,
+        )),
+        Value::Array(mut array) => Ok((Value::Array(array.slice(range)), path_element)),
         _ => unreachable!(),
     }
 }

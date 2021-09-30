@@ -10,6 +10,7 @@ pub(crate) use self::{
     binary::binary,
     comparator::comparator,
     index::{index, slice},
+    path::set_path,
     unary::unary,
 };
 use crate::vm::{

@@ -7,7 +7,7 @@ use crate::{
     intrinsic,
     module_loader::{ModuleLoadError, ModuleLoader},
     vm::{
-        bytecode::{Closure, Label, NamedFn0},
+        bytecode::{Closure, Label, NamedFn0, NamedFn2},
         Address, ByteCode, Program, ScopeId, ScopedSlot,
     },
     Number, Value,
@@ -253,6 +253,12 @@ impl Scope {
         self.functions
             .insert(FunctionIdentifier(name, 0), FunctionLike::Closure(slot));
         slot
+    }
+
+    fn allocate_label(&mut self) -> Label {
+        let label = Label(self.id, self.next_label_id);
+        self.next_label_id += 1;
+        label
     }
 
     fn register_label(&mut self, name: Identifier) -> Label {
@@ -1023,7 +1029,7 @@ impl Compiler {
                     .current_scope()
                     .lookup_label(name)
                     .ok_or_else(|| CompileError::UnknownLabel(name.clone()))?;
-                self.emitter.emit_normal_op(ByteCode::Break(label), next)
+                self.emitter.emit_terminal_op(ByteCode::Break(label))
             }
         };
         Ok(ret)
@@ -1187,18 +1193,52 @@ impl Compiler {
                     next,
                 )?,
             },
-            Query::Update {
-                lhs: _lhs,
-                operator,
-                rhs: _rhs,
-            } => {
+            Query::Update { lhs, operator, rhs } => {
                 match operator {
-                    UpdateOp::Modify => {}
-                    UpdateOp::Assign => {}
-                    UpdateOp::Alt => {}
-                    UpdateOp::Arithmetic(_) => {}
+                    UpdateOp::Modify => {
+                        let slot = self.allocate_variable();
+                        let tmp_slot = self.allocate_variable();
+                        let label = self.current_scope_mut().allocate_label();
+
+                        let outer = self.emitter.emit_normal_op(ByteCode::Load(slot), next);
+                        // for each path(lhs), call set_path(., path, . | getpath(path) | rhs) for the first value produced
+                        let next = self.emitter.emit_terminal_op(ByteCode::Break(label));
+                        let next = self.emitter.emit_normal_op(ByteCode::Store(slot), next);
+                        let next = self.emitter.emit_normal_op(
+                            ByteCode::Intrinsic2(NamedFn2 {
+                                name: "setpath",
+                                func: intrinsic::set_path,
+                            }),
+                            next,
+                        );
+                        let next = self.compile_query(rhs, next)?;
+                        // value, path, indexed value
+                        let next = self.emitter.emit_normal_op(ByteCode::Load(tmp_slot), next);
+                        let next = self.emitter.emit_normal_op(ByteCode::Swap, next);
+                        let next = self.emitter.emit_normal_op(ByteCode::Load(slot), next);
+                        let next = self
+                            .emitter
+                            .emit_normal_op(ByteCode::ExitPathTracking, next);
+                        let next = self.emitter.emit_normal_op(ByteCode::Store(tmp_slot), next);
+                        let next = self.emitter.emit_normal_op(ByteCode::Dup, next);
+                        let next = self
+                            .emitter
+                            .emit_normal_op(ByteCode::ForkLabel(label), next);
+                        let next = self.compile_query(lhs, next)?;
+                        let next = self
+                            .emitter
+                            .emit_normal_op(ByteCode::EnterPathTracking, next);
+                        let next = self.emitter.emit_normal_op(ByteCode::Store(slot), next);
+                        let next = self.emitter.emit_normal_op(ByteCode::Dup, next);
+                        let next = self
+                            .emitter
+                            .emit_normal_op(ByteCode::Fork { fork_pc: outer }, next);
+                        next
+                    }
+                    UpdateOp::Assign => todo!(),
+                    UpdateOp::Alt => todo!(),
+                    UpdateOp::Arithmetic(_) => todo!(),
                 }
-                todo!()
             }
             Query::Compare {
                 lhs,

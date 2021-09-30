@@ -1,5 +1,5 @@
 use crate::{
-    data_structure::{PHashMap, PStack, PVector},
+    data_structure::{PStack, PVector},
     intrinsic,
     vm::{
         bytecode::{Closure, Label, NamedFunction},
@@ -36,7 +36,6 @@ pub(crate) enum ProgramError {
 pub(crate) enum PathElement {
     Array(isize),
     Object(Rc<String>),
-    Slice(Option<isize>, Option<isize>),
     Any(Value),
 }
 
@@ -45,22 +44,6 @@ impl From<PathElement> for Value {
         match elem {
             PathElement::Array(i) => Value::number(Number::from_integer(i.to_bigint().unwrap())),
             PathElement::Object(key) => Value::String(key),
-            PathElement::Slice(start, end) => {
-                let mut map = PHashMap::new();
-                if let Some(start) = start {
-                    map.insert(
-                        Rc::new("start".to_string()),
-                        Value::number(Number::from_integer(start.to_bigint().unwrap())),
-                    );
-                }
-                if let Some(end) = end {
-                    map.insert(
-                        Rc::new("end".to_string()),
-                        Value::number(Number::from_integer(end.to_bigint().unwrap())),
-                    );
-                }
-                Value::Object(map)
-            }
             PathElement::Any(value) => value,
         }
     }
@@ -399,7 +382,12 @@ fn run_code(program: &Program, env: &mut Environment) -> Option<Result<Value>> {
             } else {
                 return err.map(Err);
             };
-            log::trace!("On fork {:?} with state {:?}", on_fork, state);
+            log::trace!(
+                "On fork {:?} with err {:?} and state {:?}",
+                on_fork,
+                err,
+                state
+            );
             match (on_fork, &err) {
                 (
                     OnFork::CatchLabel(catch_label),
@@ -717,25 +705,39 @@ fn run_code(program: &Program, env: &mut Environment) -> Option<Result<Value>> {
                     let value = state.pop();
                     return Some(Ok(value));
                 }
-                Intrinsic0(NamedFunction { name: _name, func }) => {
+                Intrinsic0(NamedFunction { name, func }) => {
                     let context = state.pop();
+                    log::trace!("Calling function {} with context {:?}", name, context);
                     match func(context) {
                         Ok(value) => state.push(value),
                         Err(e) => err = Some(e),
                     }
                 }
-                Intrinsic1(NamedFunction { name: _name, func }) => {
+                Intrinsic1(NamedFunction { name, func }) => {
                     let arg1 = state.pop();
                     let context = state.pop();
+                    log::trace!(
+                        "Calling function {} with context {:?} and arg {:?}",
+                        name,
+                        context,
+                        arg1
+                    );
                     match func(context, arg1) {
                         Ok(value) => state.push(value),
                         Err(e) => err = Some(e),
                     }
                 }
-                Intrinsic2(NamedFunction { name: _name, func }) => {
+                Intrinsic2(NamedFunction { name, func }) => {
                     let arg2 = state.pop();
                     let arg1 = state.pop();
                     let context = state.pop();
+                    log::trace!(
+                        "Calling function {} with context {:?} and arg1 {:?} and arg2 {:?}",
+                        name,
+                        context,
+                        arg1,
+                        arg2
+                    );
                     match func(context, arg1, arg2) {
                         Ok(value) => state.push(value),
                         Err(e) => err = Some(e),
