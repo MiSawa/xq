@@ -44,6 +44,14 @@ pub(crate) fn index(
     index: Value,
 ) -> Result<(Value, PathElement), QueryExecutionError> {
     match value {
+        Value::Null
+            if matches!(
+                index,
+                Value::String(_) | Value::Number(_) | Value::Object(_)
+            ) =>
+        {
+            Ok((Value::Null, PathElement::Any(index)))
+        }
         value @ (Value::Null | Value::True | Value::False | Value::Number(_)) => {
             Err(QueryExecutionError::IndexOnNonIndexable(value))
         }

@@ -37,6 +37,7 @@ pub(crate) enum PathElement {
     Array(isize),
     Object(Rc<String>),
     Slice(Option<isize>, Option<isize>),
+    Any(Value),
 }
 
 impl From<PathElement> for Value {
@@ -60,6 +61,7 @@ impl From<PathElement> for Value {
                 }
                 Value::Object(map)
             }
+            PathElement::Any(value) => value,
         }
     }
 }
