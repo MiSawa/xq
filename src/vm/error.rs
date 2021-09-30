@@ -37,6 +37,8 @@ pub enum QueryExecutionError {
     PathNotArray(Value),
     #[error("Invalid index `{0:?}`")]
     InvalidIndex(Value),
+    #[error("Invalid indexing for value `{0:?}` and index `{0:?}`")]
+    InvalidIndexing(Value, Value),
     #[error("Expected an array but was `{0:?}`")]
     ExpectedAnArray(Value),
     #[error("Expected slicing but got an invalid one `{0:?}`")]

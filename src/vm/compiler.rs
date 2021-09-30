@@ -7,7 +7,7 @@ use crate::{
     intrinsic,
     module_loader::{ModuleLoadError, ModuleLoader},
     vm::{
-        bytecode::{Closure, Label, NamedFn0, NamedFn2},
+        bytecode::{Closure, Label, NamedFn0, NamedFn1, NamedFn2},
         Address, ByteCode, Program, ScopeId, ScopedSlot,
     },
     Number, Value,
@@ -1194,18 +1194,40 @@ impl Compiler {
                 )?,
             },
             Query::Update { lhs, operator, rhs } => {
-                fn compile_update<C: Compile>(
+                // TODO: Research on the evaluation order.... maybe using `input`?
+                fn compile_update<T: Compile>(
                     compiler: &mut Compiler,
                     path_expression: &Query,
-                    modification: &C,
+                    modification: &T,
+                    del_on_empty: bool,
                     next: Address,
                 ) -> Result<Address> {
                     let slot = compiler.allocate_variable();
                     let tmp_slot = compiler.allocate_variable();
                     let label = compiler.current_scope_mut().allocate_label();
+                    let yield_empty_label = compiler.current_scope_mut().allocate_label();
 
                     let after = compiler.emitter.emit_normal_op(ByteCode::Load(slot), next);
                     let after = compiler.emitter.emit_normal_op(ByteCode::Pop, after);
+
+                    let on_empty = if del_on_empty {
+                        let on_empty = compiler.emitter.emit_terminal_op(ByteCode::Break(label));
+                        let on_empty = compiler
+                            .emitter
+                            .emit_normal_op(ByteCode::Store(slot), on_empty);
+                        let on_empty = compiler.emitter.emit_normal_op(
+                            ByteCode::Intrinsic1(NamedFn1 {
+                                name: "delpath",
+                                func: intrinsic::del_path,
+                            }),
+                            on_empty,
+                        );
+                        compiler.emitter.emit_normal_op(ByteCode::Pop, on_empty)
+                    } else {
+                        compiler
+                            .emitter
+                            .emit_terminal_op(ByteCode::Break(yield_empty_label))
+                    };
 
                     // for each path(lhs), call set_path(., path, . | getpath(path) | rhs) for the first value produced
                     let next = compiler.emitter.emit_terminal_op(ByteCode::Break(label));
@@ -1218,6 +1240,7 @@ impl Compiler {
                         next,
                     );
                     let next = modification.compile(compiler, next)?;
+                    let next = compiler.emitter.emit_fork(on_empty, next);
                     // value, path, indexed value
                     let next = compiler
                         .emitter
@@ -1240,14 +1263,18 @@ impl Compiler {
                         .emit_normal_op(ByteCode::EnterPathTracking, next);
                     let next = compiler.emitter.emit_normal_op(ByteCode::Store(slot), next);
                     let next = compiler.emitter.emit_normal_op(ByteCode::Dup, next);
-                    let next = compiler
-                        .emitter
-                        .emit_normal_op(ByteCode::Fork { fork_pc: after }, next);
+                    let next = compiler.emitter.emit_fork(after, next);
+                    let next = if del_on_empty {
+                        next
+                    } else {
+                        compiler
+                            .emitter
+                            .emit_normal_op(ByteCode::ForkLabel(yield_empty_label), next)
+                    };
                     Ok(next)
                 }
 
                 match operator {
-                    UpdateOp::Modify => compile_update(self, lhs, rhs, next)?,
                     UpdateOp::Assign => {
                         let updated_value_slot = self.allocate_variable();
                         let replacement_slot = self.allocate_variable();
@@ -1295,6 +1322,7 @@ impl Compiler {
                         let next = self.compile_query(rhs, next)?;
                         self.emitter.emit_normal_op(ByteCode::Dup, next)
                     }
+                    UpdateOp::Modify => compile_update(self, lhs, rhs, true, next)?,
                     UpdateOp::Alt => compile_update(
                         self,
                         lhs,
@@ -1307,6 +1335,7 @@ impl Compiler {
                             let next = compiler.emitter.emit_normal_op(ByteCode::Dup, next);
                             Ok(next)
                         },
+                        false,
                         next,
                     )?,
                     UpdateOp::Arithmetic(op) => compile_update(
@@ -1322,6 +1351,7 @@ impl Compiler {
                             let next = compiler.emitter.emit_normal_op(ByteCode::Dup, next);
                             Ok(next)
                         },
+                        false,
                         next,
                     )?,
                 }

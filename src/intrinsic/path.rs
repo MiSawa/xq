@@ -14,6 +14,13 @@ pub(crate) fn set_path(context: Value, path: Value, value: Value) -> Result<Valu
     }
 }
 
+pub(crate) fn del_path(context: Value, path: Value) -> Result<Value> {
+    match path {
+        Value::Array(path_entries) => del_path_rec(context, path_entries),
+        v => Err(QueryExecutionError::PathNotArray(v)),
+    }
+}
+
 fn map_to_slice_range(length: usize, index: &PHashMap<Rc<String>, Value>) -> Result<Range<usize>> {
     let start = index.get(&"start".to_string());
     let end = index.get(&"end".to_string());
@@ -89,9 +96,71 @@ fn set_path_rec(context: Value, mut path: PVector<Value>, replacement: Value) ->
                 map.insert(key, set_path_rec(v, path, replacement)?);
                 Value::Object(map)
             }
-            (_, _) => {
-                todo!()
+            (value, index) => return Err(QueryExecutionError::InvalidIndexing(value, index)),
+        },
+    };
+    Ok(ret)
+}
+
+fn del_path_rec(context: Value, mut path: PVector<Value>) -> Result<Value> {
+    let ret = match path.pop_front() {
+        None => Value::Null,
+        Some(index) => match (context, index) {
+            (context @ (Value::True | Value::False | Value::Number(_) | Value::String(_)), _) => {
+                return Err(QueryExecutionError::IndexOnNonIndexable(context))
             }
+            (Value::Null, _) => Value::Null,
+            (Value::Array(mut arr), Value::Number(n)) => {
+                let index = n
+                    .to_isize()
+                    .ok_or_else(|| QueryExecutionError::InvalidIndex(Value::Number(n.clone())))?;
+                if index + (arr.len() as isize) < 0 {
+                    return Err(QueryExecutionError::InvalidIndex(Value::Number(n)));
+                }
+                let index = if index < 0 {
+                    (index + arr.len() as isize) as usize
+                } else {
+                    index as usize
+                };
+                if index >= arr.len() {
+                    // nop
+                } else if path.is_empty() {
+                    arr.remove(index);
+                } else {
+                    let prev = arr.set(index, Value::Null);
+                    arr[index] = del_path_rec(prev, path)?;
+                }
+                Value::Array(arr)
+            }
+            (Value::Array(mut arr), Value::Object(map)) => {
+                let range = map_to_slice_range(arr.len(), &map)?;
+                if range.is_empty() {
+                    return Ok(Value::Array(arr));
+                }
+                let after = arr.split_off(range.end);
+                let middle = arr.split_off(range.start + 1);
+                let before = arr;
+                if path.is_empty() {
+                    Value::Array(before + after)
+                } else {
+                    let middle = del_path_rec(Value::Array(middle), path)?;
+                    if let Value::Array(middle) = middle {
+                        Value::Array(before + middle + after)
+                    } else {
+                        return Err(QueryExecutionError::ExpectedAnArray(middle));
+                    }
+                }
+            }
+            (Value::Object(mut map), Value::String(key)) => {
+                if path.is_empty() {
+                    map.remove(&key);
+                } else {
+                    let v = map.remove(&key).unwrap_or(Value::Null);
+                    map.insert(key, del_path_rec(v, path)?);
+                }
+                Value::Object(map)
+            }
+            (value, index) => return Err(QueryExecutionError::InvalidIndexing(value, index)),
         },
     };
     Ok(ret)
