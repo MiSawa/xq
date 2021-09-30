@@ -4,6 +4,7 @@
 
 mod advanced_features;
 mod arithmetic;
+mod assignment;
 mod basic_filters;
 mod condition_and_comparison;
 mod types_and_values;
