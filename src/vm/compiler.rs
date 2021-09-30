@@ -1194,16 +1194,73 @@ impl Compiler {
                 )?,
             },
             Query::Update { lhs, operator, rhs } => {
-                match operator {
-                    UpdateOp::Modify => {
-                        let slot = self.allocate_variable();
-                        let tmp_slot = self.allocate_variable();
-                        let label = self.current_scope_mut().allocate_label();
+                fn compile_update<C: Compile>(
+                    compiler: &mut Compiler,
+                    path_expression: &Query,
+                    modification: &C,
+                    next: Address,
+                ) -> Result<Address> {
+                    let slot = compiler.allocate_variable();
+                    let tmp_slot = compiler.allocate_variable();
+                    let label = compiler.current_scope_mut().allocate_label();
 
-                        let outer = self.emitter.emit_normal_op(ByteCode::Load(slot), next);
-                        // for each path(lhs), call set_path(., path, . | getpath(path) | rhs) for the first value produced
-                        let next = self.emitter.emit_terminal_op(ByteCode::Break(label));
-                        let next = self.emitter.emit_normal_op(ByteCode::Store(slot), next);
+                    let after = compiler.emitter.emit_normal_op(ByteCode::Load(slot), next);
+                    let after = compiler.emitter.emit_normal_op(ByteCode::Pop, after);
+
+                    // for each path(lhs), call set_path(., path, . | getpath(path) | rhs) for the first value produced
+                    let next = compiler.emitter.emit_terminal_op(ByteCode::Break(label));
+                    let next = compiler.emitter.emit_normal_op(ByteCode::Store(slot), next);
+                    let next = compiler.emitter.emit_normal_op(
+                        ByteCode::Intrinsic2(NamedFn2 {
+                            name: "setpath",
+                            func: intrinsic::set_path,
+                        }),
+                        next,
+                    );
+                    let next = modification.compile(compiler, next)?;
+                    // value, path, indexed value
+                    let next = compiler
+                        .emitter
+                        .emit_normal_op(ByteCode::Load(tmp_slot), next);
+                    let next = compiler.emitter.emit_normal_op(ByteCode::Swap, next);
+                    let next = compiler.emitter.emit_normal_op(ByteCode::Load(slot), next);
+                    let next = compiler
+                        .emitter
+                        .emit_normal_op(ByteCode::ExitPathTracking, next);
+                    let next = compiler
+                        .emitter
+                        .emit_normal_op(ByteCode::Store(tmp_slot), next);
+                    let next = compiler.emitter.emit_normal_op(ByteCode::Dup, next);
+                    let next = compiler
+                        .emitter
+                        .emit_normal_op(ByteCode::ForkLabel(label), next);
+                    let next = compiler.compile_query(path_expression, next)?;
+                    let next = compiler
+                        .emitter
+                        .emit_normal_op(ByteCode::EnterPathTracking, next);
+                    let next = compiler.emitter.emit_normal_op(ByteCode::Store(slot), next);
+                    let next = compiler.emitter.emit_normal_op(ByteCode::Dup, next);
+                    let next = compiler
+                        .emitter
+                        .emit_normal_op(ByteCode::Fork { fork_pc: after }, next);
+                    Ok(next)
+                }
+
+                match operator {
+                    UpdateOp::Modify => compile_update(self, lhs, rhs, next)?,
+                    UpdateOp::Assign => {
+                        let updated_value_slot = self.allocate_variable();
+                        let replacement_slot = self.allocate_variable();
+
+                        let after = self
+                            .emitter
+                            .emit_normal_op(ByteCode::Load(updated_value_slot), next);
+                        let after = self.emitter.emit_normal_op(ByteCode::Pop, after);
+
+                        let next = self.emitter.backtrack();
+                        let next = self
+                            .emitter
+                            .emit_normal_op(ByteCode::Store(updated_value_slot), next);
                         let next = self.emitter.emit_normal_op(
                             ByteCode::Intrinsic2(NamedFn2 {
                                 name: "setpath",
@@ -1211,33 +1268,62 @@ impl Compiler {
                             }),
                             next,
                         );
-                        let next = self.compile_query(rhs, next)?;
-                        // value, path, indexed value
-                        let next = self.emitter.emit_normal_op(ByteCode::Load(tmp_slot), next);
+                        let next = self
+                            .emitter
+                            .emit_normal_op(ByteCode::Load(replacement_slot), next);
                         let next = self.emitter.emit_normal_op(ByteCode::Swap, next);
-                        let next = self.emitter.emit_normal_op(ByteCode::Load(slot), next);
+                        let next = self
+                            .emitter
+                            .emit_normal_op(ByteCode::Load(updated_value_slot), next);
                         let next = self
                             .emitter
                             .emit_normal_op(ByteCode::ExitPathTracking, next);
-                        let next = self.emitter.emit_normal_op(ByteCode::Store(tmp_slot), next);
-                        let next = self.emitter.emit_normal_op(ByteCode::Dup, next);
-                        let next = self
-                            .emitter
-                            .emit_normal_op(ByteCode::ForkLabel(label), next);
                         let next = self.compile_query(lhs, next)?;
                         let next = self
                             .emitter
                             .emit_normal_op(ByteCode::EnterPathTracking, next);
-                        let next = self.emitter.emit_normal_op(ByteCode::Store(slot), next);
-                        let next = self.emitter.emit_normal_op(ByteCode::Dup, next);
+
                         let next = self
                             .emitter
-                            .emit_normal_op(ByteCode::Fork { fork_pc: outer }, next);
-                        next
+                            .emit_normal_op(ByteCode::Store(updated_value_slot), next);
+                        let next = self.emitter.emit_normal_op(ByteCode::Dup, next);
+                        let next = self.emitter.emit_fork(after, next);
+
+                        let next = self
+                            .emitter
+                            .emit_normal_op(ByteCode::Store(replacement_slot), next);
+                        let next = self.compile_query(rhs, next)?;
+                        self.emitter.emit_normal_op(ByteCode::Dup, next)
                     }
-                    UpdateOp::Assign => todo!(),
-                    UpdateOp::Alt => todo!(),
-                    UpdateOp::Arithmetic(_) => todo!(),
+                    UpdateOp::Alt => compile_update(
+                        self,
+                        lhs,
+                        &|compiler: &mut Compiler, next| -> Result<Address> {
+                            let on_truthy = next;
+                            let on_falsy = compiler.compile_query(rhs, next)?;
+                            let next = compiler
+                                .emitter
+                                .emit_normal_op(ByteCode::JumpUnless(on_falsy), on_truthy);
+                            let next = compiler.emitter.emit_normal_op(ByteCode::Dup, next);
+                            Ok(next)
+                        },
+                        next,
+                    )?,
+                    UpdateOp::Arithmetic(op) => compile_update(
+                        self,
+                        lhs,
+                        &|compiler: &mut Compiler, next| -> Result<Address> {
+                            let func = intrinsic::binary(op);
+                            let next = compiler
+                                .emitter
+                                .emit_normal_op(ByteCode::Intrinsic1(func), next);
+                            let next = compiler.emitter.emit_normal_op(ByteCode::Swap, next);
+                            let next = compiler.compile_query(rhs, next)?;
+                            let next = compiler.emitter.emit_normal_op(ByteCode::Dup, next);
+                            Ok(next)
+                        },
+                        next,
+                    )?,
                 }
             }
             Query::Compare {

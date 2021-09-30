@@ -29,7 +29,7 @@ fn parse_and_shift_index<F: Fn(Value) -> QueryExecutionError>(
         Value::Number(i) => i,
         value => return Err(err(value.clone())),
     };
-    let i = try_into_isize(&i)?;
+    let i = try_into_isize(i)?;
     let idx = if i < 0 {
         let shifted = i + (array_length as isize);
         if shifted < 0 {
