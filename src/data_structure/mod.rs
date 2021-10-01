@@ -1,3 +1,5 @@
+pub mod undo;
+
 use std::{borrow::Borrow, rc::Rc};
 
 pub type PVector<T> = im_rc::Vector<T>;
@@ -18,6 +20,7 @@ impl<T, B> Default for PStack<T, B> {
     }
 }
 
+#[allow(dead_code)]
 impl<T: Clone, B> PStack<T, B> {
     pub fn new() -> Self {
         Default::default()

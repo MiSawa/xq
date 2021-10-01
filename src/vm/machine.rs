@@ -1,5 +1,11 @@
 use crate::{
-    data_structure::{PStack, PVector},
+    data_structure::{
+        undo::{
+            stack::{UStack, UStackToken},
+            Undo,
+        },
+        PStack, PVector,
+    },
     intrinsic,
     vm::{
         bytecode::{Closure, Label, NamedFunction},
@@ -117,21 +123,21 @@ pub struct Machine {
 
 #[derive(Debug)]
 struct Environment {
-    forks: Vec<(State, OnFork)>,
+    forks: Vec<(<State as Undo>::UndoToken, OnFork)>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 struct State {
     pc: Address,
-    stack: PStack<Value>,
+    stack: UStack<Value>,
 
     scopes: PVector<(Option<Scope>, PStack<Scope>)>,
-    scope_stack: PStack<(Address, ScopeId)>, // (pc, pushed_scope)
-    closure_stack: PStack<Closure>,
+    scope_stack: UStack<(Address, ScopeId)>, // (pc, pushed_scope)
+    closure_stack: UStack<Closure>,
 
-    paths: PStack<Option<(Value, Value, PStack<PathElement>)>>, // origin, current, path stack
+    paths: UStack<Option<(Value, Value, PStack<PathElement>)>>, // origin, current, path stack
 
-    iterators: PStack<PathValueIterator>,
+    iterators: UStack<PathValueIterator>,
 }
 
 #[derive(Debug, Clone)]
@@ -146,19 +152,20 @@ enum OnFork {
 }
 
 impl Environment {
-    fn new(state: State) -> Self {
+    fn new(state: <State as Undo>::UndoToken) -> Self {
         Self {
             forks: vec![(state, OnFork::Nop)],
         }
     }
 
-    fn push_fork(&mut self, state: &State, on_fork: OnFork, new_pc: Address) {
-        let mut new_state = state.clone();
-        new_state.pc = new_pc;
-        self.forks.push((new_state, on_fork));
+    fn push_fork(&mut self, state: &mut State, on_fork: OnFork, mut new_pc: Address) {
+        std::mem::swap(&mut state.pc, &mut new_pc);
+        let token = state.save();
+        self.forks.push((token, on_fork));
+        std::mem::swap(&mut state.pc, &mut new_pc);
     }
 
-    fn pop_fork(&mut self) -> Option<(State, OnFork)> {
+    fn pop_fork(&mut self) -> Option<(<State as Undo>::UndoToken, OnFork)> {
         self.forks.pop()
     }
 }
@@ -209,16 +216,11 @@ impl State {
     }
 
     fn dup(&mut self) {
-        let value = self.pop();
-        self.push(value.clone());
-        self.push(value);
+        self.stack.dup();
     }
 
     fn swap(&mut self) {
-        let v1 = self.pop();
-        let v2 = self.pop();
-        self.push(v1);
-        self.push(v2);
+        self.stack.swap();
     }
 
     fn enter_path_tracking(&mut self, base_value: Value) {
@@ -256,13 +258,6 @@ impl State {
 
     fn push_iterator(&mut self, iter: PathValueIterator) {
         self.iterators.push(iter)
-    }
-
-    fn pop_iterator(&mut self) {
-        self.iterators
-            .pop()
-            .ok_or(ProgramError::PopEmptyStack)
-            .unwrap();
     }
 
     fn top_iterator(&mut self) -> Option<&mut PathValueIterator> {
@@ -336,6 +331,49 @@ impl State {
     }
 }
 
+#[derive(Debug)]
+struct StateToken {
+    pc: Address,
+    stack: UStackToken,
+
+    scopes: PVector<(Option<Scope>, PStack<Scope>)>,
+    scope_stack: UStackToken,
+    closure_stack: UStackToken,
+
+    paths: UStackToken,
+
+    iterators: UStackToken,
+}
+
+impl Undo for State {
+    type UndoToken = StateToken;
+
+    fn save(&mut self) -> Self::UndoToken {
+        log::debug!("Save with scope stack {:?}", self.scope_stack);
+        StateToken {
+            pc: self.pc,
+            stack: self.stack.save(),
+            scopes: self.scopes.clone(),
+            scope_stack: self.scope_stack.save(),
+            closure_stack: self.closure_stack.save(),
+            paths: self.paths.save(),
+            iterators: self.iterators.save(),
+        }
+    }
+
+    fn undo(&mut self, token: Self::UndoToken) {
+        self.pc = token.pc;
+        self.stack.undo(token.stack);
+        self.scopes = token.scopes;
+        self.scope_stack.undo(token.scope_stack);
+        self.closure_stack.undo(token.closure_stack);
+        self.paths.undo(token.paths);
+        self.iterators.undo(token.iterators);
+
+        log::debug!("Undo to scope stack {:?}", self.scope_stack);
+    }
+}
+
 impl Machine {
     pub fn new(program: Program) -> Self {
         Self {
@@ -346,10 +384,11 @@ impl Machine {
     pub fn run(&mut self, value: Value) -> ResultIterator {
         let mut state = State::new(self.program.entry_point);
         state.push(value);
-        let env = Environment::new(state);
+        let env = Environment::new(state.save());
         ResultIterator {
             program: self.program.clone(),
             env,
+            state,
         }
     }
 }
@@ -357,17 +396,18 @@ impl Machine {
 pub struct ResultIterator {
     program: Rc<Program>,
     env: Environment,
+    state: State,
 }
 
 impl Iterator for ResultIterator {
     type Item = Result<Value>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        run_code(&self.program, &mut self.env)
+        run_code(&self.program, &mut self.state, &mut self.env)
     }
 }
 
-fn run_code(program: &Program, env: &mut Environment) -> Option<Result<Value>> {
+fn run_code(program: &Program, state: &mut State, env: &mut Environment) -> Option<Result<Value>> {
     let mut err: Option<QueryExecutionError> = None;
     log::trace!("Start from environment {:?}", env);
     'backtrack: loop {
@@ -376,17 +416,17 @@ fn run_code(program: &Program, env: &mut Environment) -> Option<Result<Value>> {
             env.forks.iter().map(|(_, f)| f).collect_vec()
         );
         let mut catch_skip: usize = 0;
-        let mut state = 'select_fork: loop {
-            let (mut state, on_fork) = if let Some(x) = env.pop_fork() {
+        let token = 'select_fork: loop {
+            let (token, on_fork) = if let Some(x) = env.pop_fork() {
                 x
             } else {
                 return err.map(Err);
             };
             log::trace!(
-                "On fork {:?} with err {:?} and state {:?}",
+                "On fork {:?} with err {:?} and token {:?}",
                 on_fork,
                 err,
-                state
+                token
             );
             match (on_fork, &err) {
                 (
@@ -416,9 +456,15 @@ fn run_code(program: &Program, env: &mut Environment) -> Option<Result<Value>> {
                         match err.take() {
                             None => continue 'select_fork,
                             Some(QueryExecutionError::UserDefinedError(s)) => {
-                                state.push(Value::string(s))
+                                state.undo(token);
+                                state.push(Value::string(s));
+                                break 'select_fork state.save();
                             }
-                            Some(e) => state.push(Value::string(format!("{:?}", e))),
+                            Some(e) => {
+                                state.undo(token);
+                                state.push(Value::string(format!("{:?}", e)));
+                                break 'select_fork state.save();
+                            }
                         }
                     } else {
                         catch_skip -= 1;
@@ -434,34 +480,34 @@ fn run_code(program: &Program, env: &mut Environment) -> Option<Result<Value>> {
                     err = None;
                 }
                 (OnFork::Iterate, None) => {
+                    state.undo(token);
                     let it = state.top_iterator().expect("No iterator to iterate on");
                     match it.next() {
-                        None => {
-                            state.pop_iterator();
-                            continue 'select_fork;
-                        }
+                        None => continue 'select_fork,
                         Some((path_elem, value)) => {
-                            env.push_fork(&state, OnFork::Iterate, state.pc);
+                            env.push_fork(state, OnFork::Iterate, state.pc);
                             state.push_with_path(value, path_elem);
+                            break 'select_fork state.save();
                         }
                     }
                 }
                 (_, Some(_)) => continue 'select_fork,
             }
-            break 'select_fork state;
+            break 'select_fork token;
         };
+        state.undo(token);
         let mut call_pc: Option<Address> = None;
-        log::trace!("Start fork with error {:?}", err);
+        log::trace!("Start fork with state {:?}", state);
         'cycle: loop {
             if err.is_some() {
                 continue 'backtrack;
             }
             let code = program.fetch_code(state.pc)?;
             log::trace!(
-                "Execute code {:?} on stack {:?}, slots = {:?}",
+                "Execute code {:?} on stack = {:?}, slots = {:?}",
                 code,
                 state.stack,
-                state.scopes
+                state.scopes.iter().enumerate().collect_vec()
             );
             use ByteCode::*;
             match code {
@@ -601,7 +647,7 @@ fn run_code(program: &Program, env: &mut Environment) -> Option<Result<Value>> {
                         }
                     };
                     state.push_iterator(iter);
-                    env.push_fork(&state, OnFork::Iterate, state.pc.get_next());
+                    env.push_fork(state, OnFork::Iterate, state.pc.get_next());
                     continue 'backtrack;
                 }
                 EnterPathTracking => {
@@ -635,19 +681,19 @@ fn run_code(program: &Program, env: &mut Environment) -> Option<Result<Value>> {
                 }
                 Fork { fork_pc } => {
                     let fork_pc = *fork_pc;
-                    env.push_fork(&state, OnFork::Nop, fork_pc);
+                    env.push_fork(state, OnFork::Nop, fork_pc);
                 }
                 ForkTryBegin { catch_pc } => match catch_pc {
-                    None => env.push_fork(&state, OnFork::IgnoreError, state.pc.get_next()),
+                    None => env.push_fork(state, OnFork::IgnoreError, state.pc.get_next()),
                     Some(pc) => {
                         let new_pc = *pc;
-                        env.push_fork(&state, OnFork::CatchError, new_pc)
+                        env.push_fork(state, OnFork::CatchError, new_pc)
                     }
                 },
-                ForkTryEnd => env.push_fork(&state, OnFork::SkipCatch, state.pc.get_next()),
-                ForkAlt { fork_pc } => env.push_fork(&state, OnFork::TryAlternative, *fork_pc),
+                ForkTryEnd => env.push_fork(state, OnFork::SkipCatch, state.pc.get_next()),
+                ForkAlt { fork_pc } => env.push_fork(state, OnFork::TryAlternative, *fork_pc),
                 ForkLabel(label) => {
-                    env.push_fork(&state, OnFork::CatchLabel(*label), state.pc.get_next());
+                    env.push_fork(state, OnFork::CatchLabel(*label), state.pc.get_next());
                     // pc doesn't really matter
                 }
                 Break(label) => {
