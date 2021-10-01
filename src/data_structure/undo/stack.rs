@@ -16,6 +16,7 @@ struct UndoSpanInfo {
     stack_bottom: usize,
 }
 
+// TODO: SmallVec
 #[derive(Debug, Display)]
 #[display(fmt = "{}", stack)]
 pub struct UStack<T> {
