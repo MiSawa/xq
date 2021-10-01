@@ -4,7 +4,14 @@
 
 
 ## Caution
-This program is under development. You probably want to use the original implementation of [jq](https://stedolan.github.io/jq/manual/), or pure Go implementation of it called [gojq](https://github.com/itchyny/gojq/) built by [itchyny](https://github.com/itchyny) instead.
+This program is under development. You probably want to use the original implementation of [jq](https://stedolan.github.io/jq/), or pure Go implementation of it called [gojq](https://github.com/itchyny/gojq/) built by [itchyny](https://github.com/itchyny) instead.
+
+
+## Current state
+Most of the jq components that require syntactical support are, hmm, implemented and tested against queries taken from the [jq user manual](https://stedolan.github.io/jq/manual/).
+Exceptions are string format (`@base64` etc.), imports and module headers.
+Many builtin functions are missing, include those require intrinsic implementation.
+Need more unit tests.
 
 
 ## Goals
