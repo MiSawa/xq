@@ -14,7 +14,6 @@ use crate::{
     },
 };
 use itertools::Itertools;
-
 use std::{
     cell::{RefCell, RefMut},
     rc::Rc,

@@ -1,5 +1,11 @@
-use std::convert::TryFrom;
-
+use crate::{
+    lang::ast::{
+        BinaryArithmeticOp, BinaryOp, BindPattern, Comparator, ConstantArray, ConstantObject,
+        ConstantPrimitive, ConstantValue, FuncArg, FuncDef, Identifier, Import,
+        ObjectBindPatternEntry, Program, Query, StringFragment, Suffix, Term, UnaryOp, UpdateOp,
+    },
+    Number, Value,
+};
 use nom::{
     branch::alt,
     bytes::complete::{is_not, tag, take_while_m_n},
@@ -11,15 +17,7 @@ use nom::{
     sequence::{delimited, pair, preceded, separated_pair, terminated, tuple},
     Finish, IResult, Parser,
 };
-
-use crate::{
-    lang::ast::{
-        BinaryArithmeticOp, BinaryOp, BindPattern, Comparator, ConstantArray, ConstantObject,
-        ConstantPrimitive, ConstantValue, FuncArg, FuncDef, Identifier, Import,
-        ObjectBindPatternEntry, Program, Query, StringFragment, Suffix, Term, UnaryOp, UpdateOp,
-    },
-    Number, Value,
-};
+use std::convert::TryFrom;
 
 pub type ParseResult<'a, T> = IResult<&'a str, T>;
 

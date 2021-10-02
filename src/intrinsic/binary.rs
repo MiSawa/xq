@@ -1,12 +1,9 @@
-use num::{ToPrimitive, Zero};
-
-use QueryExecutionError::{IncompatibleBinaryOperator, StringRepeatByNonUSize};
-
 use crate::{
     lang::ast::BinaryArithmeticOp,
-    vm::{bytecode::NamedFn1, error::QueryExecutionError::DivModByZero, QueryExecutionError},
+    vm::{bytecode::NamedFn1, QueryExecutionError},
     Value,
 };
+use num::{ToPrimitive, Zero};
 
 pub(crate) fn binary(operator: &BinaryArithmeticOp) -> NamedFn1 {
     // NOTE: Because of the evaluation order, lhs and rhs are flipped here.
@@ -44,7 +41,9 @@ fn add(lhs: Value, rhs: Value) -> Result<Value, QueryExecutionError> {
         (Array(lhs), Array(rhs)) => Value::Array(lhs + rhs),
         (Object(lhs), Object(rhs)) => Value::Object(rhs.union(lhs)),
         (lhs @ (True | False | Number(_) | String(_) | Array(_) | Object(_)), rhs) => {
-            return Err(IncompatibleBinaryOperator("add", lhs, rhs));
+            return Err(QueryExecutionError::IncompatibleBinaryOperator(
+                "add", lhs, rhs,
+            ));
         }
     })
 }
@@ -58,7 +57,9 @@ fn subtract(lhs: Value, rhs: Value) -> Result<Value, QueryExecutionError> {
             Array(iter.collect())
         }
         (lhs @ (Null | True | False | Number(_) | String(_) | Array(_) | Object(_)), rhs) => {
-            return Err(IncompatibleBinaryOperator("add", lhs, rhs));
+            return Err(QueryExecutionError::IncompatibleBinaryOperator(
+                "add", lhs, rhs,
+            ));
         }
     })
 }
@@ -74,7 +75,9 @@ fn multiply(lhs: Value, rhs: Value) -> Result<Value, QueryExecutionError> {
     Ok(match (lhs, rhs) {
         (Number(lhs), Number(rhs)) => Value::number(lhs * rhs),
         (String(lhs), Number(rhs)) => {
-            let repeat = rhs.to_usize().ok_or(StringRepeatByNonUSize(rhs))?;
+            let repeat = rhs
+                .to_usize()
+                .ok_or(QueryExecutionError::StringRepeatByNonUSize(rhs))?;
             if repeat == 0 {
                 Value::Null // Why not ""....
             } else {
@@ -83,7 +86,9 @@ fn multiply(lhs: Value, rhs: Value) -> Result<Value, QueryExecutionError> {
         }
         (lhs @ Object(_), rhs @ Object(_)) => merge(lhs, rhs),
         (lhs @ (Null | True | False | Number(_) | String(_) | Array(_) | Object(_)), rhs) => {
-            return Err(IncompatibleBinaryOperator("add", lhs, rhs));
+            return Err(QueryExecutionError::IncompatibleBinaryOperator(
+                "add", lhs, rhs,
+            ));
         }
     })
 }
@@ -93,7 +98,7 @@ fn divide(lhs: Value, rhs: Value) -> Result<Value, QueryExecutionError> {
     Ok(match (lhs, rhs) {
         (Number(lhs), Number(rhs)) => {
             if rhs.is_zero() {
-                return Err(DivModByZero);
+                return Err(QueryExecutionError::DivModByZero);
             }
             Value::number(lhs / rhs)
         }
@@ -104,7 +109,9 @@ fn divide(lhs: Value, rhs: Value) -> Result<Value, QueryExecutionError> {
                 .collect(),
         ),
         (lhs @ (Null | True | False | Number(_) | String(_) | Array(_) | Object(_)), rhs) => {
-            return Err(IncompatibleBinaryOperator("add", lhs, rhs));
+            return Err(QueryExecutionError::IncompatibleBinaryOperator(
+                "add", lhs, rhs,
+            ));
         }
     })
 }
@@ -114,12 +121,14 @@ fn modulo(lhs: Value, rhs: Value) -> Result<Value, QueryExecutionError> {
     Ok(match (lhs, rhs) {
         (Number(lhs), Number(rhs)) => {
             if rhs.is_zero() {
-                return Err(DivModByZero);
+                return Err(QueryExecutionError::DivModByZero);
             }
             Value::number(lhs % rhs)
         }
         (lhs @ (Null | True | False | Number(_) | String(_) | Array(_) | Object(_)), rhs) => {
-            return Err(IncompatibleBinaryOperator("add", lhs, rhs));
+            return Err(QueryExecutionError::IncompatibleBinaryOperator(
+                "add", lhs, rhs,
+            ));
         }
     })
 }

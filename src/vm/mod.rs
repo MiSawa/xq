@@ -1,13 +1,13 @@
-pub(crate) use bytecode::{ByteCode, Program};
-pub use error::{QueryExecutionError, Result};
-
-use crate::value::Value;
-
 #[allow(dead_code)]
 pub mod bytecode;
 #[allow(dead_code)]
 pub mod error;
 pub mod machine;
+
+pub(crate) use bytecode::{ByteCode, Program};
+pub use error::{QueryExecutionError, Result};
+
+use crate::Value;
 
 #[derive(Debug, Copy, Clone, Hash, Ord, PartialOrd, Eq, PartialEq)]
 pub(crate) struct Address(pub(crate) usize);

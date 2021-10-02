@@ -1,10 +1,9 @@
-use thiserror::Error;
-
 use crate::{
     lang::{ast::Program, parser::parse_query},
     module_loader::ModuleLoadError::NotFoundError,
     Value,
 };
+use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum ModuleLoadError {

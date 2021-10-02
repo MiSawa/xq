@@ -1,11 +1,9 @@
+use itertools::Itertools;
 use std::{
     collections::{HashMap, HashSet},
     fmt::{Debug, Formatter},
     slice::from_ref,
 };
-
-use itertools::Itertools;
-
 use thiserror::Error;
 
 use crate::{

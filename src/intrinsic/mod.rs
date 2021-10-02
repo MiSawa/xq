@@ -1,6 +1,5 @@
-use std::rc::Rc;
-
 use phf::phf_map;
+use std::rc::Rc;
 
 use crate::{
     compile::compiler::{ArgType, FunctionIdentifier},

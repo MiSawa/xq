@@ -1,8 +1,6 @@
-use std::cmp::Ordering;
-
-use itertools::Itertools;
-
 use crate::{lang::ast::Comparator, vm::bytecode::NamedFn1, Value};
+use itertools::Itertools;
+use std::cmp::Ordering;
 
 pub(crate) fn comparator(comparator: &Comparator) -> NamedFn1 {
     // NOTE: Because of the evaluation order, lhs and rhs are flipped here.
