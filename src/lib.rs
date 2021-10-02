@@ -2,7 +2,7 @@ use thiserror::Error;
 
 use compile::compiler::{CompileError, Compiler};
 use lang::parser;
-pub use number::{IntOrReal, Number};
+pub use number::Number;
 pub use value::Value;
 
 use crate::{

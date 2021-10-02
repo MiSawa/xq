@@ -919,7 +919,7 @@ mod test {
                 "",
                 Term::Unary(
                     UnaryOp::Minus,
-                    Box::new(Term::Constant(Value::number(123.into())))
+                    Box::new(Term::Constant(Value::number(123)))
                 )
             ))
         );
@@ -977,7 +977,7 @@ mod test {
                         Box::new(Term::Identity),
                         Suffix::Index("foo".into())
                     )),
-                    Suffix::Query(Box::new(Term::Constant(Value::number(4.into())).into()))
+                    Suffix::Query(Box::new(Term::Constant(Value::number(4)).into()))
                 )
             ))
         );
@@ -998,9 +998,9 @@ mod test {
                 vec![
                     String("abc".to_string()),
                     Query(ast::Query::Operate {
-                        lhs: Box::new(Term::Constant(Value::number(1.into())).into()),
+                        lhs: Box::new(Term::Constant(Value::number(1)).into()),
                         operator: BinaryOp::Arithmetic(BinaryArithmeticOp::Add),
-                        rhs: Box::new(Term::Constant(Value::number(2.into())).into())
+                        rhs: Box::new(Term::Constant(Value::number(2)).into())
                     }),
                     String("def".to_string())
                 ]

@@ -5,7 +5,7 @@ use std::{
 };
 
 use itertools::Itertools;
-use num::bigint::ToBigInt;
+
 use thiserror::Error;
 
 use crate::{
@@ -20,7 +20,7 @@ use crate::{
         bytecode::{Closure, Label, NamedFn0, NamedFn1, NamedFn2},
         Address, ByteCode, Program, ScopeId, ScopedSlot,
     },
-    Number, Value,
+    Value,
 };
 
 /// # Function calling convention
@@ -809,12 +809,9 @@ impl Compiler {
                         for (i, pattern) in v.iter().enumerate().rev() {
                             tmp = pattern.compile(compiler, tmp)?;
                             tmp = compiler.emitter.emit_normal_op(ByteCode::Index, tmp);
-                            tmp = compiler.emitter.emit_normal_op(
-                                ByteCode::Push(Value::number(Number::from_integer(
-                                    i.to_bigint().unwrap(),
-                                ))),
-                                tmp,
-                            );
+                            tmp = compiler
+                                .emitter
+                                .emit_normal_op(ByteCode::Push(Value::number(i)), tmp);
                             if i + 1 != v.len() {
                                 tmp = compiler.emitter.emit_normal_op(ByteCode::Dup, tmp);
                             }

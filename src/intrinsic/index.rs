@@ -1,7 +1,7 @@
 use crate::{
     data_structure::PHashMap,
     vm::{error::Result, machine::PathElement, QueryExecutionError},
-    IntOrReal, Number, Value,
+    Number, Value,
 };
 use num::ToPrimitive;
 use std::{
@@ -10,14 +10,8 @@ use std::{
 };
 
 fn try_into_isize(n: &Number) -> Result<isize> {
-    match n.as_int_or_real() {
-        IntOrReal::Integer(n) => {
-            // TODO: actually should be positive usize and negative usize
-            // but I believe it's fine.
-            Ok(n.to_isize().unwrap_or(isize::MAX))
-        }
-        _ => Err(QueryExecutionError::NonIntegralNumber(n.clone())),
-    }
+    n.to_isize()
+        .ok_or_else(|| QueryExecutionError::NonIndexableNumber(n.clone()))
 }
 
 fn parse_and_shift_index<F: Fn(Value) -> QueryExecutionError>(

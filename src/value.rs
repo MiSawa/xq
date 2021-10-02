@@ -1,9 +1,8 @@
 use crate::{
     data_structure::{PHashMap, PVector},
-    number::IntOrReal,
     Number,
 };
-use num::ToPrimitive;
+
 use serde::{
     de::{Error, MapAccess, SeqAccess, Visitor},
     ser::{SerializeMap, SerializeSeq},
@@ -23,8 +22,8 @@ pub enum Value {
 }
 
 impl Value {
-    pub fn number(n: Number) -> Self {
-        Self::Number(Rc::new(n))
+    pub fn number<T: Into<Number>>(n: T) -> Self {
+        Self::Number(Rc::new(n.into()))
     }
     pub fn string(s: String) -> Self {
         Self::String(Rc::new(s))
@@ -40,16 +39,7 @@ impl Serialize for Value {
             Value::Null => serializer.serialize_none(),
             Value::True => serializer.serialize_bool(true),
             Value::False => serializer.serialize_bool(false),
-            Value::Number(v) => match v.as_int_or_real() {
-                IntOrReal::Integer(v) => {
-                    serde_if_integer128! {
-                        return serializer.serialize_i128(v.to_i128().unwrap())
-                    }
-                    #[allow(unreachable_code)]
-                    serializer.serialize_i64(v.to_i64().unwrap())
-                }
-                IntOrReal::Real(v) => serializer.serialize_f64(*v),
-            },
+            Value::Number(v) => v.serialize(serializer),
             Value::String(s) => serializer.serialize_str(s),
             Value::Array(v) => {
                 let mut seq = serializer.serialize_seq(Some(v.len()))?;
@@ -100,14 +90,14 @@ impl<'de> Deserialize<'de> for Value {
             where
                 E: serde::de::Error,
             {
-                Ok(Value::number(Number::from_integer(v.into())))
+                Ok(Value::number(v))
             }
 
             fn visit_u64<E>(self, v: u64) -> Result<Self::Value, E>
             where
                 E: serde::de::Error,
             {
-                Ok(Value::number(Number::from_integer(v.into())))
+                Ok(Value::number(v))
             }
 
             serde_if_integer128! {
@@ -115,14 +105,14 @@ impl<'de> Deserialize<'de> for Value {
                 where
                     E: serde::de::Error,
                 {
-                    Ok(Value::number(Number::from_integer(v.into())))
+                    Ok(Value::number(v))
                 }
 
                 fn visit_u128<E>(self, v: u128) -> Result<Self::Value, E>
                 where
                     E: serde::de::Error,
                 {
-                    Ok(Value::number(Number::from_integer(v.into())))
+                    Ok(Value::number(v))
                 }
             }
 
@@ -130,7 +120,7 @@ impl<'de> Deserialize<'de> for Value {
             where
                 E: serde::de::Error,
             {
-                Ok(Value::number(Number::from_real(v)))
+                Ok(Value::number(v))
             }
 
             fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>

@@ -12,10 +12,9 @@ use crate::{
         error::QueryExecutionError,
         Address, ByteCode, Program, Result, ScopeId, ScopedSlot, Value,
     },
-    Number,
 };
 use itertools::Itertools;
-use num::bigint::ToBigInt;
+
 use std::{
     cell::{RefCell, RefMut},
     rc::Rc,
@@ -48,7 +47,7 @@ pub(crate) enum PathElement {
 impl From<PathElement> for Value {
     fn from(elem: PathElement) -> Self {
         match elem {
-            PathElement::Array(i) => Value::number(Number::from_integer(i.to_bigint().unwrap())),
+            PathElement::Array(i) => Value::number(i),
             PathElement::Object(key) => Value::String(key),
             PathElement::Any(value) => value,
         }
