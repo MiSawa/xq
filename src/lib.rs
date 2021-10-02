@@ -7,20 +7,17 @@ pub use value::Value;
 
 use crate::{
     module_loader::ModuleLoader,
-    vm::{
-        machine::Machine,
-        QueryExecutionError,
-    },
+    vm::{machine::Machine, QueryExecutionError},
 };
 
+mod compile;
 mod data_structure;
 mod intrinsic;
+pub mod lang;
 pub mod module_loader;
 mod number;
 pub mod value;
 pub mod vm;
-pub mod lang;
-mod compile;
 
 #[derive(Debug, Error)]
 pub enum XQError {

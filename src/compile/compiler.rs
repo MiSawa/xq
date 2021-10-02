@@ -11,16 +11,16 @@ use thiserror::Error;
 use crate::{
     data_structure::{PHashMap, PVector},
     intrinsic,
-    module_loader::{ModuleLoader, ModuleLoadError},
-    Number,
-    Value, vm::{
-        Address,
-        bytecode::{Closure, Label, NamedFn0, NamedFn1, NamedFn2}, ByteCode, Program, ScopedSlot, ScopeId,
+    lang::ast::{
+        self, BinaryArithmeticOp, BinaryOp, BindPattern, FuncArg, FuncDef, Identifier,
+        ObjectBindPatternEntry, Query, StringFragment, Suffix, Term, UpdateOp,
     },
-};
-use crate::lang::ast::{
-    self, BinaryArithmeticOp, BinaryOp, BindPattern, FuncArg, FuncDef, Identifier,
-    ObjectBindPatternEntry, Query, StringFragment, Suffix, Term, UpdateOp,
+    module_loader::{ModuleLoadError, ModuleLoader},
+    vm::{
+        bytecode::{Closure, Label, NamedFn0, NamedFn1, NamedFn2},
+        Address, ByteCode, Program, ScopeId, ScopedSlot,
+    },
+    Number, Value,
 };
 
 /// # Function calling convention

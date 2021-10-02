@@ -2,8 +2,7 @@ use std::cmp::Ordering;
 
 use itertools::Itertools;
 
-use crate::{Value, vm::bytecode::NamedFn1};
-use crate::lang::ast::Comparator;
+use crate::{lang::ast::Comparator, vm::bytecode::NamedFn1, Value};
 
 pub(crate) fn comparator(comparator: &Comparator) -> NamedFn1 {
     // NOTE: Because of the evaluation order, lhs and rhs are flipped here.

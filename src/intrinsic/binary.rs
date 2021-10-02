@@ -3,10 +3,10 @@ use num::{ToPrimitive, Zero};
 use QueryExecutionError::{IncompatibleBinaryOperator, StringRepeatByNonUSize};
 
 use crate::{
-    Value,
+    lang::ast::BinaryArithmeticOp,
     vm::{bytecode::NamedFn1, error::QueryExecutionError::DivModByZero, QueryExecutionError},
+    Value,
 };
-use crate::lang::ast::BinaryArithmeticOp;
 
 pub(crate) fn binary(operator: &BinaryArithmeticOp) -> NamedFn1 {
     // NOTE: Because of the evaluation order, lhs and rhs are flipped here.

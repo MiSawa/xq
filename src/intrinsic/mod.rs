@@ -2,11 +2,13 @@ use std::rc::Rc;
 
 use phf::phf_map;
 
-use crate::compile::compiler::{ArgType, FunctionIdentifier};
-use crate::Value;
-use crate::vm::{
-    bytecode::{NamedFn0, NamedFn1, NamedFn2},
-    ByteCode, QueryExecutionError,
+use crate::{
+    compile::compiler::{ArgType, FunctionIdentifier},
+    vm::{
+        bytecode::{NamedFn0, NamedFn1, NamedFn2},
+        ByteCode, QueryExecutionError,
+    },
+    Value,
 };
 
 pub(crate) use self::{

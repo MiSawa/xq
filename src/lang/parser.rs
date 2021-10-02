@@ -6,19 +6,19 @@ use nom::{
     character::complete::{alpha1, alphanumeric1, char, digit1, multispace0, multispace1},
     combinator::{eof, map, map_res, opt, recognize, success, value, verify},
     error::{Error, ParseError},
-    Finish,
-    IResult,
     multi::{fold_many0, many0, separated_list0, separated_list1},
-    number::complete::double, Parser, sequence::{delimited, pair, preceded, separated_pair, terminated, tuple},
+    number::complete::double,
+    sequence::{delimited, pair, preceded, separated_pair, terminated, tuple},
+    Finish, IResult, Parser,
 };
 
 use crate::{
+    lang::ast::{
+        BinaryArithmeticOp, BinaryOp, BindPattern, Comparator, ConstantArray, ConstantObject,
+        ConstantPrimitive, ConstantValue, FuncArg, FuncDef, Identifier, Import,
+        ObjectBindPatternEntry, Program, Query, StringFragment, Suffix, Term, UnaryOp, UpdateOp,
+    },
     Number, Value,
-};
-use crate::lang::ast::{
-    BinaryArithmeticOp, BinaryOp, BindPattern, Comparator, ConstantArray, ConstantObject,
-    ConstantPrimitive, ConstantValue, FuncArg, FuncDef, Identifier, Import,
-    ObjectBindPatternEntry, Program, Query, StringFragment, Suffix, Term, UnaryOp, UpdateOp,
 };
 
 pub type ParseResult<'a, T> = IResult<&'a str, T>;
@@ -863,9 +863,13 @@ pub fn parse_query(input: &str) -> Result<Program, Error<String>> {
 
 #[cfg(test)]
 mod test {
-    use crate::lang::ast::{BinaryArithmeticOp, BinaryOp, StringFragment, Suffix, Term, UnaryOp};
-    use crate::lang::parser::{format, identifier, string, term, variable};
-    use crate::Value;
+    use crate::{
+        lang::{
+            ast::{BinaryArithmeticOp, BinaryOp, StringFragment, Suffix, Term, UnaryOp},
+            parser::{format, identifier, string, term, variable},
+        },
+        Value,
+    };
 
     fn string_term(s: &str) -> Term {
         Term::String(vec![StringFragment::String(s.to_string())])
