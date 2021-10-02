@@ -39,7 +39,7 @@ fn add(lhs: Value, rhs: Value) -> Result<Value, QueryExecutionError> {
     Ok(match (lhs, rhs) {
         (Null, rhs) => rhs,
         (lhs, Null) => lhs,
-        (Number(lhs), Number(rhs)) => Value::number((*lhs).clone() + (*rhs).clone()), // TODO: Fix rhs.clone()
+        (Number(lhs), Number(rhs)) => Value::number(*lhs + *rhs),
         (String(lhs), String(rhs)) => Value::string((*lhs).clone() + &*rhs),
         (Array(lhs), Array(rhs)) => Value::Array(lhs + rhs),
         (Object(lhs), Object(rhs)) => Value::Object(rhs.union(lhs)),
@@ -52,7 +52,7 @@ fn add(lhs: Value, rhs: Value) -> Result<Value, QueryExecutionError> {
 fn subtract(lhs: Value, rhs: Value) -> Result<Value, QueryExecutionError> {
     use Value::*;
     Ok(match (lhs, rhs) {
-        (Number(lhs), Number(rhs)) => Value::number((*lhs).clone() - (*rhs).clone()), // TODO: Fix rhs.clone()
+        (Number(lhs), Number(rhs)) => Value::number(*lhs - *rhs),
         (Array(lhs), Array(rhs)) => {
             let iter = lhs.into_iter().filter(|v| !rhs.contains(v)); // TODO: O(n log n) or expected O(n) instead of O(n^2). NaN though...
             Array(iter.collect())
@@ -72,7 +72,7 @@ fn multiply(lhs: Value, rhs: Value) -> Result<Value, QueryExecutionError> {
         }
     }
     Ok(match (lhs, rhs) {
-        (Number(lhs), Number(rhs)) => Value::number((*lhs).clone() * (*rhs).clone()), // TODO: Fix rhs.clone()
+        (Number(lhs), Number(rhs)) => Value::number(*lhs * *rhs),
         (String(lhs), Number(rhs)) => {
             let repeat = rhs
                 .to_usize()
@@ -97,7 +97,7 @@ fn divide(lhs: Value, rhs: Value) -> Result<Value, QueryExecutionError> {
             if rhs.is_zero() {
                 return Err(DivModByZero);
             }
-            Value::number((*lhs).clone() / (*rhs).clone()) // TODO: Fix rhs.clone()
+            Value::number(*lhs / *rhs)
         }
         (String(lhs), String(rhs)) => Array(
             lhs.split(&*rhs)
@@ -118,7 +118,7 @@ fn modulo(lhs: Value, rhs: Value) -> Result<Value, QueryExecutionError> {
             if rhs.is_zero() {
                 return Err(DivModByZero);
             }
-            Value::number((*lhs).clone() % (*rhs).clone()) // TODO: Fix rhs.clone()
+            Value::number(*lhs % *rhs)
         }
         (lhs @ (Null | True | False | Number(_) | String(_) | Array(_) | Object(_)), rhs) => {
             return Err(IncompatibleBinaryOperator("add", lhs, rhs));

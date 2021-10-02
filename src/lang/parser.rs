@@ -917,10 +917,7 @@ mod test {
             term("-123"),
             Ok((
                 "",
-                Term::Unary(
-                    UnaryOp::Minus,
-                    Box::new(Term::Constant(Value::number(123)))
-                )
+                Term::Unary(UnaryOp::Minus, Box::new(Term::Constant(Value::number(123))))
             ))
         );
         assert_eq!(term("[ ]"), Ok(("", Term::Array(None))));
