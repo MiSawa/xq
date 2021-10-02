@@ -1,7 +1,8 @@
 use std::rc::Rc;
 
-// TODO: Is there a better way?
-pub fn make_owned<T: Clone + Default>(mut v: Rc<T>) -> T {
-    let ret = Rc::make_mut(&mut v);
-    std::mem::take(ret)
+pub fn make_owned<T: Clone>(v: Rc<T>) -> T {
+    match Rc::try_unwrap(v) {
+        Ok(v) => v,
+        Err(v) => (*v).clone(),
+    }
 }
