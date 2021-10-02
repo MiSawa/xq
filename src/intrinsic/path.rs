@@ -37,7 +37,7 @@ fn set_path_rec(context: Value, mut path: PVector<Value>, replacement: Value) ->
             (Value::Null, Value::Number(n)) => {
                 let index = n
                     .to_usize()
-                    .ok_or_else(|| QueryExecutionError::InvalidIndex(Value::Number(n.clone())))?;
+                    .ok_or(QueryExecutionError::InvalidIndex(Value::Number(n)))?;
                 let mut arr: PVector<Value> = repeat_n(Value::Null, index).collect();
                 arr.push_back(set_path_rec(Value::Null, path, replacement)?);
                 Value::Array(arr)
@@ -60,7 +60,7 @@ fn set_path_rec(context: Value, mut path: PVector<Value>, replacement: Value) ->
             (Value::Array(mut arr), Value::Number(n)) => {
                 let index = n
                     .to_isize()
-                    .ok_or_else(|| QueryExecutionError::InvalidIndex(Value::Number(n.clone())))?;
+                    .ok_or(QueryExecutionError::InvalidIndex(Value::Number(n)))?;
                 if index + (arr.len() as isize) < 0 {
                     return Err(QueryExecutionError::InvalidIndex(Value::Number(n)));
                 }
@@ -113,7 +113,7 @@ fn del_path_rec(context: Value, mut path: PVector<Value>) -> Result<Value> {
             (Value::Array(mut arr), Value::Number(n)) => {
                 let index = n
                     .to_isize()
-                    .ok_or_else(|| QueryExecutionError::InvalidIndex(Value::Number(n.clone())))?;
+                    .ok_or(QueryExecutionError::InvalidIndex(Value::Number(n)))?;
                 if index + (arr.len() as isize) < 0 {
                     return Err(QueryExecutionError::InvalidIndex(Value::Number(n)));
                 }

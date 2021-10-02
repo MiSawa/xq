@@ -74,7 +74,7 @@ fn multiply(lhs: Value, rhs: Value) -> Result<Value, QueryExecutionError> {
     Ok(match (lhs, rhs) {
         (Number(lhs), Number(rhs)) => Value::number(lhs * rhs),
         (String(lhs), Number(rhs)) => {
-            let repeat = rhs.to_usize().ok_or_else(|| StringRepeatByNonUSize(rhs))?;
+            let repeat = rhs.to_usize().ok_or(StringRepeatByNonUSize(rhs))?;
             if repeat == 0 {
                 Value::Null // Why not ""....
             } else {

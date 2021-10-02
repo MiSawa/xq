@@ -9,9 +9,9 @@ use std::{
     rc::Rc,
 };
 
-fn try_into_isize(n: &Number) -> Result<isize> {
+fn try_into_isize(n: Number) -> Result<isize> {
     n.to_isize()
-        .ok_or_else(|| QueryExecutionError::NonIndexableNumber(n.clone()))
+        .ok_or(QueryExecutionError::NonIndexableNumber(n))
 }
 
 fn parse_and_shift_index<F: Fn(Value) -> QueryExecutionError>(
@@ -20,7 +20,7 @@ fn parse_and_shift_index<F: Fn(Value) -> QueryExecutionError>(
     err: F,
 ) -> Result<Option<usize>> {
     let i = match index {
-        Value::Number(i) => i,
+        Value::Number(i) => *i,
         value => return Err(err(value.clone())),
     };
     let i = try_into_isize(i)?;
