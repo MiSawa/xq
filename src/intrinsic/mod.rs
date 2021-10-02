@@ -1,10 +1,13 @@
-use crate::Value;
+use std::rc::Rc;
 
-mod binary;
-mod comparator;
-mod index;
-mod path;
-mod unary;
+use phf::phf_map;
+
+use crate::compile::compiler::{ArgType, FunctionIdentifier};
+use crate::Value;
+use crate::vm::{
+    bytecode::{NamedFn0, NamedFn1, NamedFn2},
+    ByteCode, QueryExecutionError,
+};
 
 pub(crate) use self::{
     binary::binary,
@@ -13,13 +16,12 @@ pub(crate) use self::{
     path::{del_path, set_path},
     unary::unary,
 };
-use crate::vm::{
-    bytecode::{NamedFn0, NamedFn1, NamedFn2},
-    compiler::{ArgType, FunctionIdentifier},
-    ByteCode, QueryExecutionError,
-};
-use phf::phf_map;
-use std::rc::Rc;
+
+mod binary;
+mod comparator;
+mod index;
+mod path;
+mod unary;
 
 static INTRINSICS0: phf::Map<&'static str, NamedFn0> = phf_map! {
     "error" => NamedFn0 { name: "error", func: error },

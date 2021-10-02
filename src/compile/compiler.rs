@@ -1,25 +1,27 @@
-use crate::{
-    ast::{
-        self, BinaryArithmeticOp, BinaryOp, BindPattern, FuncArg, FuncDef, Identifier,
-        ObjectBindPatternEntry, Query, StringFragment, Suffix, Term, UpdateOp,
-    },
-    data_structure::{PHashMap, PVector},
-    intrinsic,
-    module_loader::{ModuleLoadError, ModuleLoader},
-    vm::{
-        bytecode::{Closure, Label, NamedFn0, NamedFn1, NamedFn2},
-        Address, ByteCode, Program, ScopeId, ScopedSlot,
-    },
-    Number, Value,
-};
-use itertools::Itertools;
-use num::bigint::ToBigInt;
 use std::{
     collections::{HashMap, HashSet},
     fmt::{Debug, Formatter},
     slice::from_ref,
 };
+
+use itertools::Itertools;
+use num::bigint::ToBigInt;
 use thiserror::Error;
+
+use crate::{
+    data_structure::{PHashMap, PVector},
+    intrinsic,
+    module_loader::{ModuleLoader, ModuleLoadError},
+    Number,
+    Value, vm::{
+        Address,
+        bytecode::{Closure, Label, NamedFn0, NamedFn1, NamedFn2}, ByteCode, Program, ScopedSlot, ScopeId,
+    },
+};
+use crate::lang::ast::{
+    self, BinaryArithmeticOp, BinaryOp, BindPattern, FuncArg, FuncDef, Identifier,
+    ObjectBindPatternEntry, Query, StringFragment, Suffix, Term, UpdateOp,
+};
 
 /// # Function calling convention
 /// ## Caller
@@ -171,11 +173,6 @@ impl CodeEmitter {
 
     fn emit_fork(&mut self, fork_pc: Address, next: Address) -> Address {
         self.emit_normal_op(ByteCode::Fork { fork_pc }, next)
-    }
-
-    fn emit_placeholder(&mut self, next: Address) -> (Address, PlaceHolder) {
-        let address = self.emit_normal_op(ByteCode::PlaceHolder, next);
-        (address, PlaceHolder(address))
     }
 
     fn emit_terminal_placeholder(&mut self) -> (Address, PlaceHolder) {

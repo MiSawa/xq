@@ -6,13 +6,11 @@ use crate::value::Value;
 #[allow(dead_code)]
 pub mod bytecode;
 #[allow(dead_code)]
-pub mod compiler;
-#[allow(dead_code)]
 pub mod error;
 pub mod machine;
 
 #[derive(Debug, Copy, Clone, Hash, Ord, PartialOrd, Eq, PartialEq)]
-pub(crate) struct Address(usize);
+pub(crate) struct Address(pub(crate) usize);
 
 impl Address {
     fn next(&mut self) {
@@ -25,7 +23,7 @@ impl Address {
 }
 
 #[derive(Debug, Copy, Clone, Hash, Ord, PartialOrd, Eq, PartialEq)]
-pub(crate) struct ScopeId(usize);
+pub(crate) struct ScopeId(pub(crate) usize);
 
 #[derive(Debug, Copy, Clone, Hash, Ord, PartialOrd, Eq, PartialEq)]
-pub(crate) struct ScopedSlot(ScopeId, usize);
+pub(crate) struct ScopedSlot(pub(crate) ScopeId, pub(crate) usize);

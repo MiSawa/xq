@@ -1,8 +1,8 @@
 use crate::{
-    ast::UnaryOp,
-    vm::{bytecode::NamedFn0, QueryExecutionError},
     Value,
+    vm::{bytecode::NamedFn0, QueryExecutionError},
 };
+use crate::lang::ast::UnaryOp;
 
 pub(crate) fn unary(operator: &UnaryOp) -> NamedFn0 {
     match operator {

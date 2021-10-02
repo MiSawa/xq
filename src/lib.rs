@@ -1,24 +1,26 @@
 use thiserror::Error;
 
+use compile::compiler::{CompileError, Compiler};
+use lang::parser;
+pub use number::{IntOrReal, Number};
+pub use value::Value;
+
 use crate::{
     module_loader::ModuleLoader,
     vm::{
-        compiler::{CompileError, Compiler},
         machine::Machine,
         QueryExecutionError,
     },
 };
-pub use number::{IntOrReal, Number};
-pub use value::Value;
 
-pub mod ast;
 mod data_structure;
 mod intrinsic;
 pub mod module_loader;
 mod number;
-pub mod parser;
 pub mod value;
 pub mod vm;
+pub mod lang;
+mod compile;
 
 #[derive(Debug, Error)]
 pub enum XQError {
