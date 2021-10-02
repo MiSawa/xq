@@ -1,7 +1,6 @@
 use crate::{
-    data_structure::PHashMap,
     vm::{error::Result, machine::PathElement, QueryExecutionError},
-    Number, Value,
+    Array, Number, Object, Value,
 };
 use num::ToPrimitive;
 use std::{
@@ -47,7 +46,7 @@ pub(crate) fn index(value: Value, index: Value) -> Result<(Value, PathElement)> 
         {
             Ok((Value::Null, PathElement::Any(index)))
         }
-        value @ (Value::Null | Value::True | Value::False | Value::Number(_)) => {
+        value @ (Value::Null | Value::Boolean(_) | Value::Number(_)) => {
             Err(QueryExecutionError::IndexOnNonIndexable(value))
         }
         Value::String(s) => {
@@ -143,20 +142,20 @@ pub(crate) fn slice(
     end: Option<Value>,
 ) -> Result<(Value, PathElement)> {
     let path_element = {
-        let mut map = PHashMap::new();
+        let mut obj = Object::new();
         if let Some(start) = &start {
-            map.insert(Rc::new("start".to_string()), start.clone());
+            obj.insert(Rc::new("start".to_string()), start.clone());
         }
         if let Some(end) = &end {
-            map.insert(Rc::new("end".to_string()), end.clone());
+            obj.insert(Rc::new("end".to_string()), end.clone());
         }
-        PathElement::Any(Value::Object(map))
+        PathElement::Any(obj.into())
     };
     let length = match &value {
         Value::Null => {
             return Ok((Value::Null, path_element)); // Why jq doesn't check `start` and `end` type...
         }
-        Value::True | Value::False | Value::Number(_) | Value::Object(_) => {
+        Value::Boolean(_) | Value::Number(_) | Value::Object(_) => {
             return Err(QueryExecutionError::SliceOnNonArrayNorString(value));
         }
         Value::String(s) => s.chars().count(),
@@ -174,7 +173,10 @@ pub(crate) fn slice(
             ),
             path_element,
         )),
-        Value::Array(mut array) => Ok((Value::Array(array.slice(range)), path_element)),
+        Value::Array(array) => Ok((
+            (&array[range]).iter().cloned().collect::<Array>().into(),
+            path_element,
+        )),
         _ => unreachable!(),
     }
 }

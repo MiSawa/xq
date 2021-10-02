@@ -4,6 +4,7 @@ use crate::{
     Value,
 };
 use num::{ToPrimitive, Zero};
+use std::collections::HashSet;
 
 pub(crate) fn binary(operator: &BinaryArithmeticOp) -> NamedFn1 {
     // NOTE: Because of the evaluation order, lhs and rhs are flipped here.
@@ -36,11 +37,21 @@ fn add(lhs: Value, rhs: Value) -> Result<Value, QueryExecutionError> {
     Ok(match (lhs, rhs) {
         (Null, rhs) => rhs,
         (lhs, Null) => lhs,
-        (Number(lhs), Number(rhs)) => Value::number(lhs + rhs),
-        (String(lhs), String(rhs)) => Value::string((*lhs).clone() + &*rhs),
-        (Array(lhs), Array(rhs)) => Value::Array(lhs + rhs),
-        (Object(lhs), Object(rhs)) => Value::Object(rhs.union(lhs)),
-        (lhs @ (True | False | Number(_) | String(_) | Array(_) | Object(_)), rhs) => {
+        (Number(lhs), Number(rhs)) => (lhs + rhs).into(),
+        (String(lhs), String(rhs)) => ((*lhs).clone() + &*rhs).into(),
+        (Array(lhs), Array(rhs)) => lhs
+            .iter()
+            .chain(rhs.iter())
+            .cloned()
+            .collect::<crate::Array>()
+            .into(),
+        (Object(lhs), Object(rhs)) => lhs
+            .iter()
+            .chain(rhs.iter())
+            .map(|(k, v)| (k.clone(), v.clone())) // TODO: Better way?
+            .collect::<crate::Object>()
+            .into(),
+        (lhs @ (Boolean(_) | Number(_) | String(_) | Array(_) | Object(_)), rhs) => {
             return Err(QueryExecutionError::IncompatibleBinaryOperator(
                 "add", lhs, rhs,
             ));
@@ -53,12 +64,13 @@ fn subtract(lhs: Value, rhs: Value) -> Result<Value, QueryExecutionError> {
     Ok(match (lhs, rhs) {
         (Number(lhs), Number(rhs)) => Value::number(lhs - rhs),
         (Array(lhs), Array(rhs)) => {
-            let iter = lhs.into_iter().filter(|v| !rhs.contains(v)); // TODO: O(n log n) or expected O(n) instead of O(n^2). NaN though...
-            Array(iter.collect())
+            let set: HashSet<_> = rhs.iter().collect();
+            let iter = lhs.iter().filter(|v| !set.contains(v));
+            iter.cloned().collect::<crate::Array>().into()
         }
-        (lhs @ (Null | True | False | Number(_) | String(_) | Array(_) | Object(_)), rhs) => {
+        (lhs @ (Null | Boolean(_) | Number(_) | String(_) | Array(_) | Object(_)), rhs) => {
             return Err(QueryExecutionError::IncompatibleBinaryOperator(
-                "add", lhs, rhs,
+                "subtract", lhs, rhs,
             ));
         }
     })
@@ -68,7 +80,18 @@ fn multiply(lhs: Value, rhs: Value) -> Result<Value, QueryExecutionError> {
     use Value::*;
     fn merge(lhs: Value, rhs: Value) -> Value {
         match (lhs, rhs) {
-            (Object(lhs), Object(rhs)) => Object(lhs.union_with(rhs, merge)),
+            (Object(lhs), Object(rhs)) => {
+                let mut lhs = (*lhs).clone();
+                for (k, r) in rhs.iter() {
+                    lhs.entry(k.clone())
+                        .and_modify(|l| {
+                            let tmp = std::mem::replace(l, Value::Null);
+                            *l = merge(tmp, r.clone())
+                        })
+                        .or_insert_with(|| r.clone());
+                }
+                lhs.into()
+            }
             (_, rhs) => rhs,
         }
     }
@@ -85,9 +108,9 @@ fn multiply(lhs: Value, rhs: Value) -> Result<Value, QueryExecutionError> {
             }
         }
         (lhs @ Object(_), rhs @ Object(_)) => merge(lhs, rhs),
-        (lhs @ (Null | True | False | Number(_) | String(_) | Array(_) | Object(_)), rhs) => {
+        (lhs @ (Null | Boolean(_) | Number(_) | String(_) | Array(_) | Object(_)), rhs) => {
             return Err(QueryExecutionError::IncompatibleBinaryOperator(
-                "add", lhs, rhs,
+                "multiply", lhs, rhs,
             ));
         }
     })
@@ -102,15 +125,15 @@ fn divide(lhs: Value, rhs: Value) -> Result<Value, QueryExecutionError> {
             }
             Value::number(lhs / rhs)
         }
-        (String(lhs), String(rhs)) => Array(
-            lhs.split(&*rhs)
-                .into_iter()
-                .map(|s| Value::string(s.to_string()))
-                .collect(),
-        ),
-        (lhs @ (Null | True | False | Number(_) | String(_) | Array(_) | Object(_)), rhs) => {
+        (String(lhs), String(rhs)) => lhs
+            .split(&*rhs)
+            .into_iter()
+            .map(|s| s.to_string().into())
+            .collect::<crate::Array>()
+            .into(),
+        (lhs @ (Null | Boolean(_) | Number(_) | String(_) | Array(_) | Object(_)), rhs) => {
             return Err(QueryExecutionError::IncompatibleBinaryOperator(
-                "add", lhs, rhs,
+                "divide", lhs, rhs,
             ));
         }
     })
@@ -125,9 +148,9 @@ fn modulo(lhs: Value, rhs: Value) -> Result<Value, QueryExecutionError> {
             }
             Value::number(lhs % rhs)
         }
-        (lhs @ (Null | True | False | Number(_) | String(_) | Array(_) | Object(_)), rhs) => {
+        (lhs @ (Null | Boolean(_) | Number(_) | String(_) | Array(_) | Object(_)), rhs) => {
             return Err(QueryExecutionError::IncompatibleBinaryOperator(
-                "add", lhs, rhs,
+                "modulo", lhs, rhs,
             ));
         }
     })

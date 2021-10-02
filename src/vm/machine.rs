@@ -7,11 +7,13 @@ use crate::{
         PStack, PVector,
     },
     intrinsic,
+    util::make_owned,
     vm::{
         bytecode::{Closure, Label, NamedFunction},
         error::QueryExecutionError,
         Address, ByteCode, Program, Result, ScopeId, ScopedSlot, Value,
     },
+    Array,
 };
 use itertools::Itertools;
 use std::{
@@ -56,11 +58,11 @@ impl From<PathElement> for Value {
 #[derive(Debug, Clone)]
 enum PathValueIterator {
     Array {
-        array: PVector<Value>,
+        array: Rc<Array>,
         next: usize,
     },
     Object {
-        sorted_elements: PVector<(Rc<String>, Value)>,
+        sorted_elements: Rc<Vec<(Rc<String>, Value)>>,
         next: usize,
     },
 }
@@ -553,10 +555,11 @@ fn run_code(program: &Program, state: &mut State, env: &mut Environment) -> Opti
                     let key = state.pop();
                     let obj = state.pop();
                     match obj {
-                        Value::Object(mut map) => match key {
+                        Value::Object(map) => match key {
                             Value::String(s) => {
+                                let mut map = make_owned(map);
                                 map.insert(s, value);
-                                state.push(Value::Object(map));
+                                state.push(map.into());
                             }
                             value => {
                                 err.replace(QueryExecutionError::ObjectNonStringKey(value));
@@ -575,7 +578,7 @@ fn run_code(program: &Program, state: &mut State, env: &mut Environment) -> Opti
                         .unwrap();
                     match slot_item {
                         Value::Array(v) => {
-                            v.push_back(value);
+                            Rc::make_mut(v).push(value);
                         }
                         _ => {
                             panic!("expected an array to append to, but was not an array");
@@ -625,8 +628,7 @@ fn run_code(program: &Program, state: &mut State, env: &mut Environment) -> Opti
                         value
                         @
                         (Value::Null
-                        | Value::True
-                        | Value::False
+                        | Value::Boolean(_)
                         | Value::Number(_)
                         | Value::String(_)) => {
                             err.replace(QueryExecutionError::IterateOnNonIterable(value));
@@ -634,12 +636,13 @@ fn run_code(program: &Program, state: &mut State, env: &mut Environment) -> Opti
                         }
                         Value::Array(array) => PathValueIterator::Array { array, next: 0 },
                         Value::Object(map) => {
-                            let sorted_elements: PVector<_> = map
-                                .into_iter()
+                            let sorted_elements = map
+                                .iter()
+                                .map(|(k, v)| (k.clone(), v.clone())) // TODO: Is there a better way?
                                 .sorted_by(|(lhs, _), (rhs, _)| Ord::cmp(lhs, rhs))
                                 .collect();
                             PathValueIterator::Object {
-                                sorted_elements,
+                                sorted_elements: Rc::new(sorted_elements),
                                 next: 0,
                             }
                         }
@@ -665,11 +668,12 @@ fn run_code(program: &Program, state: &mut State, env: &mut Environment) -> Opti
                         err = Some(QueryExecutionError::InvalidPathError(origin));
                         continue 'backtrack;
                     }
-                    let mut elems = PVector::new();
+                    let mut elems = Vec::new();
                     while let Some(elem) = path.pop() {
-                        elems.push_front(elem.into());
+                        elems.push(elem.into());
                     }
-                    state.push(Value::Array(elems));
+                    elems.reverse();
+                    state.push(Array::from_vec(elems).into());
                 }
                 EnterNonPathTracking => {
                     state.enter_non_path_tracking();

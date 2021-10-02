@@ -4,10 +4,14 @@ mod intrinsic;
 pub mod lang;
 pub mod module_loader;
 mod number;
+mod util;
 mod value;
 pub mod vm;
 
-pub use crate::{number::Number, value::Value};
+pub use crate::{
+    number::Number,
+    value::{Array, Object, Value},
+};
 
 use crate::{
     compile::compiler::{CompileError, Compiler},

@@ -59,7 +59,7 @@ pub(crate) fn lookup_intrinsic_fn(
 }
 
 pub(crate) fn truthy(value: Value) -> bool {
-    !matches!(value, Value::Null | Value::False)
+    !matches!(value, Value::Null | Value::Boolean(false))
 }
 
 pub(crate) fn stringify(value: Value) -> Result<Value, QueryExecutionError> {
@@ -83,7 +83,7 @@ fn error1(_: Value, arg: Value) -> Result<Value, QueryExecutionError> {
 fn get_type(context: Value) -> Result<Value, QueryExecutionError> {
     let ret = match context {
         Value::Null => "null",
-        Value::True | Value::False => "boolean",
+        Value::Boolean(_) => "boolean",
         Value::Number(_) => "number",
         Value::String(_) => "string",
         Value::Array(_) => "array",

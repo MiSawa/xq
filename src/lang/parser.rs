@@ -383,8 +383,8 @@ fn term(input: &str) -> ParseResult<Term> {
     fn term_inner(input: &str) -> ParseResult<Term> {
         alt((
             value(Term::Constant(Value::Null), keyword("null")),
-            value(Term::Constant(Value::False), keyword("false")),
-            value(Term::Constant(Value::True), keyword("true")),
+            value(Term::Constant(Value::Boolean(false)), keyword("false")),
+            value(Term::Constant(Value::Boolean(true)), keyword("true")),
             map(number, |n| Term::Constant(Value::number(n))),
             map(
                 delimited(
@@ -908,8 +908,11 @@ mod test {
 
     #[test]
     fn test_term() {
-        assert_eq!(term("true"), Ok(("", Term::Constant(Value::True))));
-        assert_eq!(term("false"), Ok(("", Term::Constant(Value::False))));
+        assert_eq!(term("true"), Ok(("", Term::Constant(Value::Boolean(true)))));
+        assert_eq!(
+            term("false"),
+            Ok(("", Term::Constant(Value::Boolean(false))))
+        );
         assert_eq!(term("null"), Ok(("", Term::Constant(Value::Null))));
         assert_eq!(
             term("-123"),

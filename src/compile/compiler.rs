@@ -7,13 +7,14 @@ use std::{
 use thiserror::Error;
 
 use crate::{
-    data_structure::{PHashMap, PVector},
+    data_structure::PHashMap,
     intrinsic,
     lang::ast::{
         self, BinaryArithmeticOp, BinaryOp, BindPattern, FuncArg, FuncDef, Identifier,
         ObjectBindPatternEntry, Query, StringFragment, Suffix, Term, UpdateOp,
     },
     module_loader::{ModuleLoadError, ModuleLoader},
+    value::Array,
     vm::{
         bytecode::{Closure, Label, NamedFn0, NamedFn1, NamedFn2},
         Address, ByteCode, Program, ScopeId, ScopedSlot,
@@ -165,8 +166,18 @@ impl CodeEmitter {
         })
     }
 
-    fn emit_constant(&mut self, value: Value, next: Address) -> Address {
-        self.emit_normal_op(ByteCode::Const(value), next)
+    fn emit_constant<V>(&mut self, value: V, next: Address) -> Address
+    where
+        V: Into<Value>,
+    {
+        self.emit_normal_op(ByteCode::Const(value.into()), next)
+    }
+
+    fn emit_push<V>(&mut self, value: V, next: Address) -> Address
+    where
+        V: Into<Value>,
+    {
+        self.emit_normal_op(ByteCode::Push(value.into()), next)
     }
 
     fn emit_fork(&mut self, fork_pc: Address, next: Address) -> Address {
@@ -998,9 +1009,7 @@ impl Compiler {
             }
             Term::Object(kvs) => self.compile_object(kvs, next)?,
             Term::Array(query) => match query {
-                None => self
-                    .emitter
-                    .emit_constant(Value::Array(PVector::new()), next),
+                None => self.emitter.emit_constant(Array::new(), next),
                 Some(query) => {
                     let slot = self.allocate_variable();
                     let load = self.emitter.emit_normal_op(ByteCode::Load(slot), next);
@@ -1012,8 +1021,7 @@ impl Compiler {
                     let query = self.compile_query(query, append)?;
                     let next = self.emitter.emit_fork(load, query);
                     let next = self.emitter.emit_normal_op(ByteCode::Store(slot), next);
-                    self.emitter
-                        .emit_normal_op(ByteCode::Push(Value::Array(PVector::new())), next)
+                    self.emitter.emit_push(Array::new(), next)
                 }
             },
             Term::Break(name) => {
@@ -1145,9 +1153,7 @@ impl Compiler {
                     let rhs = self.emitter.emit_normal_op(ByteCode::Load(found), rhs);
 
                     let next = self.emitter.emit_normal_op(ByteCode::Store(found), next);
-                    let next = self
-                        .emitter
-                        .emit_normal_op(ByteCode::Push(Value::True), next);
+                    let next = self.emitter.emit_push(true, next);
                     let next = self
                         .emitter
                         .emit_normal_op(ByteCode::JumpUnless(backtrack), next);
@@ -1155,30 +1161,29 @@ impl Compiler {
                     let lhs = self.compile_query(lhs, next)?;
                     let fork = self.emitter.emit_fork(rhs, lhs);
                     let next = self.emitter.emit_normal_op(ByteCode::Store(found), fork);
-                    self.emitter
-                        .emit_normal_op(ByteCode::Push(Value::False), next)
+                    self.emitter.emit_push(false, next)
                 }
                 BinaryOp::And => self.compile_if(
                     lhs,
                     &|compiler: &mut Compiler, next| {
                         compiler.compile_if(
                             rhs,
-                            &Term::Constant(Value::True),
-                            Some(&Term::Constant(Value::False)),
+                            &Term::Constant(true.into()),
+                            Some(&Term::Constant(false.into())),
                             next,
                         )
                     },
-                    Some(&Term::Constant(Value::False)),
+                    Some(&Term::Constant(false.into())),
                     next,
                 )?,
                 BinaryOp::Or => self.compile_if(
                     lhs,
-                    &Term::Constant(Value::True),
+                    &Term::Constant(true.into()),
                     Some(&|compiler: &mut Compiler, next| {
                         compiler.compile_if(
                             rhs,
-                            &Term::Constant(Value::True),
-                            Some(&Term::Constant(Value::False)),
+                            &Term::Constant(true.into()),
+                            Some(&Term::Constant(false.into())),
                             next,
                         )
                     }),
