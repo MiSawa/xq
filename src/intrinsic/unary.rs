@@ -26,7 +26,7 @@ fn unary_plus(value: Value) -> Result<Value, QueryExecutionError> {
 
 fn unary_minus(value: Value) -> Result<Value, QueryExecutionError> {
     match value {
-        Value::Number(n) => Ok(Value::number(-(*n).clone())),
+        Value::Number(n) => Ok(Value::number(-n)),
         _ => Err(QueryExecutionError::UnaryOnNonNumeric("minus", value)),
     }
 }

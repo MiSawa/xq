@@ -15,7 +15,7 @@ pub enum Value {
     Null,
     True,
     False,
-    Number(Rc<Number>),
+    Number(Number),
     String(Rc<String>),
     Array(PVector<Value>),
     Object(PHashMap<Rc<String>, Value>),
@@ -23,7 +23,7 @@ pub enum Value {
 
 impl Value {
     pub fn number<T: Into<Number>>(n: T) -> Self {
-        Self::Number(Rc::new(n.into()))
+        Self::Number(n.into())
     }
     pub fn string(s: String) -> Self {
         Self::String(Rc::new(s))
