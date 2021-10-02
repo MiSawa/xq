@@ -1,4 +1,4 @@
-use derive_more::Display;
+use derive_more::{DebugCustom, Display};
 use ordered_float::OrderedFloat;
 use serde::{serde_if_integer128, Deserialize, Deserializer, Serialize, Serializer};
 use std::{fmt::Formatter, ops::Neg};
@@ -12,7 +12,7 @@ type PrimitiveReal = f64;
     Ord,
     PartialOrd,
     Hash,
-    Debug,
+    DebugCustom,
     Display,
     num_derive::FromPrimitive,
     num_derive::ToPrimitive,
@@ -23,6 +23,7 @@ type PrimitiveReal = f64;
     num_derive::Num,
     num_derive::Float,
 )]
+#[debug(fmt = "{}", _0)]
 #[display(fmt = "{}", _0)]
 pub struct Number(OrderedFloat<PrimitiveReal>);
 
