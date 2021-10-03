@@ -9,8 +9,8 @@ use crate::{
 use nom::{
     branch::alt,
     bytes::complete::{is_not, tag, take_while_m_n},
-    character::complete::{alpha1, alphanumeric1, char, digit1, multispace0, multispace1},
-    combinator::{eof, map, map_res, opt, recognize, success, value, verify},
+    character::complete::{alpha1, alphanumeric1, char, multispace0, multispace1},
+    combinator::{eof, map, opt, recognize, success, value, verify},
     error::{Error, ParseError},
     multi::{fold_many0, many0, separated_list0, separated_list1},
     number::complete::double,
@@ -188,10 +188,7 @@ fn format(input: &str) -> ParseResult<Term> {
 }
 
 fn number(input: &str) -> ParseResult<Number> {
-    alt((
-        map(double, |x| x.into()),
-        map_res(digit1, |s: &str| s.parse().map(|n: i64| n.into())),
-    ))(input)
+    map(double, |x| x.into())(input)
 }
 
 fn escaped_char(input: &str) -> ParseResult<std::primitive::char> {
