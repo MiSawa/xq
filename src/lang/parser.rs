@@ -189,8 +189,8 @@ fn format(input: &str) -> ParseResult<Term> {
 
 fn number(input: &str) -> ParseResult<Number> {
     alt((
-        map_res(digit1, |s: &str| s.parse().map(|n: i64| n.into())),
         map(double, |x| x.into()),
+        map_res(digit1, |s: &str| s.parse().map(|n: i64| n.into())),
     ))(input)
 }
 
@@ -921,6 +921,7 @@ mod test {
                 Term::Unary(UnaryOp::Minus, Box::new(Term::Constant(Value::number(123))))
             ))
         );
+        assert_eq!(term("3.14"), Ok(("", Term::Constant(Value::number(3.14)))));
         assert_eq!(term("[ ]"), Ok(("", Term::Array(None))));
         assert_eq!(
             term(". [ ]"),
