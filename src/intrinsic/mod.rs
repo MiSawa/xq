@@ -63,7 +63,10 @@ pub(crate) fn truthy(value: Value) -> bool {
 }
 
 pub(crate) fn stringify(value: Value) -> Result<Value, QueryExecutionError> {
-    Ok(Value::string(serde_json::to_string(&value).unwrap()))
+    match value {
+        Value::String(s) => Ok(Value::string(s.to_string())),
+        _ => Ok(Value::string(serde_json::to_string(&value).unwrap())),
+    }
 }
 
 fn error(value: Value) -> Result<Value, QueryExecutionError> {
