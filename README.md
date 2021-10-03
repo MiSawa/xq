@@ -9,9 +9,9 @@ This program is under development. You probably want to use the original impleme
 
 ## Current state
 Most of the jq components that require syntactical support are, hmm, implemented and tested against queries taken from the [jq user manual](https://stedolan.github.io/jq/manual/).
-Exceptions are string format (`@base64` etc.), imports and module headers.
+Exceptions are string format (`@base64` etc.), imports, and module headers.
 Many builtin functions are missing, include those require intrinsic implementation.
-Need more unit tests.
+Need more unit tests. Most of the CLI options are missing.
 
 
 ## Goals
