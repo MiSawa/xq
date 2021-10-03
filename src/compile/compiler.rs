@@ -1,7 +1,9 @@
 use itertools::Itertools;
 use std::{
+    cell::RefCell,
     collections::{HashMap, HashSet},
     fmt::{Debug, Formatter},
+    rc::Rc,
     slice::from_ref,
 };
 use thiserror::Error;
@@ -59,7 +61,17 @@ type Result<T, E = CompileError> = std::result::Result<T, E>;
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub(crate) struct FunctionIdentifier(pub(crate) Identifier, pub(crate) usize);
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
-pub(crate) struct DeclaredFunction(Address, Vec<ArgType>);
+pub(crate) struct DeclaredFunction {
+    /// The address for normal function call. [ByteCode::NewFrame] will be there.
+    address: Address,
+    /// The address for tail call that doesn't require caller's frame anymore.
+    tail_call_discard_frame: Address,
+    /// The address for tail call in case the caller's frame has to be preserved.
+    /// Compiles either to a [ByteCode::Jump] or to the normal path [ByteCode::NewFrame].
+    tail_call_preserve_frame: Address,
+    /// The list of arg type.
+    arg_types: Vec<ArgType>,
+}
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub(crate) enum ArgType {
     /// arg
@@ -118,7 +130,7 @@ impl CodeEmitter {
         Address(1)
     }
 
-    fn follow_jump(&mut self, mut address: Address) -> Address {
+    fn follow_jump(&self, mut address: Address) -> Address {
         while let ByteCode::Jump(next) = self.code[address.0] {
             address = next;
         }
@@ -132,19 +144,22 @@ impl CodeEmitter {
         let address = self.follow_jump(address);
         let code = match self.code.get(address.0) {
             Some(ByteCode::Unreachable) => ByteCode::Unreachable,
-            Some(ByteCode::Call {
-                function,
-                return_address,
-            }) => ByteCode::Call {
-                function: *function,
-                return_address: *return_address,
-            },
+            Some(ByteCode::Call(func_address)) => {
+                let func_address = *func_address;
+                self.jump_or_follow(address.get_next());
+                ByteCode::Call(func_address)
+            }
+            Some(ByteCode::TailCall(address)) => ByteCode::TailCall(*address),
             Some(ByteCode::Backtrack) => ByteCode::Backtrack,
             Some(ByteCode::Ret) => ByteCode::Ret,
             Some(ByteCode::Output) => ByteCode::Output,
             _ => ByteCode::Jump(address),
         };
         self.code.push(code);
+    }
+
+    fn get_next_op(&self, next: Address) -> &ByteCode {
+        &self.code[self.follow_jump(next).0]
     }
 
     fn emit_normal_op(&mut self, code: ByteCode, next: Address) -> Address {
@@ -156,14 +171,6 @@ impl CodeEmitter {
     fn emit_terminal_op(&mut self, code: ByteCode) -> Address {
         self.code.push(code);
         self.address()
-    }
-
-    fn emit_function_call(&mut self, function: Address, return_address: Address) -> Address {
-        let function = self.follow_jump(function);
-        self.emit_terminal_op(ByteCode::Call {
-            function,
-            return_address,
-        })
     }
 
     fn emit_constant<V>(&mut self, value: V, next: Address) -> Address
@@ -182,6 +189,11 @@ impl CodeEmitter {
 
     fn emit_fork(&mut self, fork_pc: Address, next: Address) -> Address {
         self.emit_normal_op(ByteCode::Fork { fork_pc }, next)
+    }
+
+    fn emit_normal_placeholder(&mut self, next: Address) -> (Address, PlaceHolder) {
+        let address = self.emit_normal_op(ByteCode::PlaceHolder, next);
+        (address, PlaceHolder(address))
     }
 
     fn emit_terminal_placeholder(&mut self) -> (Address, PlaceHolder) {
@@ -207,6 +219,7 @@ struct Scope {
     functions: PHashMap<FunctionIdentifier, FunctionLike>,
     variables: PHashMap<Identifier, ScopedSlot>,
     labels: PHashMap<Identifier, Label>,
+    leaked_scope_ids: Rc<RefCell<HashSet<ScopeId>>>,
 }
 
 impl Scope {
@@ -219,6 +232,7 @@ impl Scope {
             functions: Default::default(),
             variables: Default::default(),
             labels: Default::default(),
+            leaked_scope_ids: Rc::new(RefCell::new(Default::default())),
         }
     }
 
@@ -231,7 +245,16 @@ impl Scope {
             functions: previous.functions.clone(),
             variables: previous.variables.clone(),
             labels: previous.labels.clone(),
+            leaked_scope_ids: previous.leaked_scope_ids.clone(),
         }
+    }
+
+    fn require_slot(&self) -> bool {
+        self.next_variable_slot_id > 0 || self.next_closure_slot_id > 0
+    }
+
+    fn has_slot_leaked_scope(&self) -> bool {
+        self.leaked_scope_ids.borrow().contains(&self.id)
     }
 
     fn allocate_variable(&mut self) -> ScopedSlot {
@@ -248,7 +271,7 @@ impl Scope {
 
     fn register_function(&mut self, name: Identifier, function: DeclaredFunction) {
         self.functions.insert(
-            FunctionIdentifier(name, function.1.len()),
+            FunctionIdentifier(name, function.arg_types.len()),
             FunctionLike::Function(function),
         );
     }
@@ -275,11 +298,23 @@ impl Scope {
     }
 
     fn lookup_variable(&self, name: &Identifier) -> Option<&ScopedSlot> {
-        self.variables.get(name)
+        let ret = self.variables.get(name);
+        if let Some(ScopedSlot(id, _)) = ret {
+            if id != &self.id {
+                self.leaked_scope_ids.borrow_mut().insert(*id);
+            }
+        }
+        ret
     }
 
     fn lookup_function(&self, identifier: &FunctionIdentifier) -> Option<&FunctionLike> {
-        self.functions.get(identifier)
+        let ret = self.functions.get(identifier);
+        if let Some(FunctionLike::Closure(ScopedSlot(id, _))) = ret {
+            if id != &self.id {
+                self.leaked_scope_ids.borrow_mut().insert(*id);
+            }
+        }
+        ret
     }
 
     fn lookup_label(&self, name: &Identifier) -> Option<&Label> {
@@ -391,6 +426,10 @@ impl Compiler {
         ret
     }
 
+    fn current_scope_require_slot(&self) -> bool {
+        self.current_scope().require_slot()
+    }
+
     fn exit_scope(&mut self, id: ScopeId) -> (usize, usize) {
         let scope = self
             .scope_stack
@@ -400,10 +439,10 @@ impl Compiler {
         (scope.next_variable_slot_id, scope.next_closure_slot_id)
     }
 
-    fn exit_scope_and_emit_new_scope(&mut self, id: ScopeId, next: Address) -> Address {
+    fn exit_scope_and_emit_new_frame(&mut self, id: ScopeId, next: Address) -> Address {
         let scope_info = self.exit_scope(id);
         self.emitter.emit_normal_op(
-            ByteCode::NewScope {
+            ByteCode::NewFrame {
                 id,
                 variable_cnt: scope_info.0,
                 closure_cnt: scope_info.1,
@@ -412,8 +451,8 @@ impl Compiler {
         )
     }
 
-    fn exit_global_scope_and_emit_new_scope(&mut self, next: Address) -> Address {
-        self.exit_scope_and_emit_new_scope(ScopeId(0), next)
+    fn exit_global_scope_and_emit_new_frame(&mut self, next: Address) -> Address {
+        self.exit_scope_and_emit_new_frame(ScopeId(0), next)
     }
 
     fn lookup_variable(&self, name: &Identifier) -> Result<&ScopedSlot> {
@@ -460,7 +499,6 @@ impl Compiler {
 
     /// Consumes nothing, produces nothing. Just places the code.
     fn compile_function_inner(&mut self, args: &[FuncArg], body: &Query) -> Result<Address> {
-        let scope_id = self.enter_scope();
         #[allow(clippy::needless_collect)] // This collect is needed to unborrow `self`
         let slots: Vec<_> = args
             .iter()
@@ -480,19 +518,25 @@ impl Compiler {
                     .emit_normal_op(ByteCode::StoreClosure(slot), next),
             };
         }
-        let next = self.exit_scope_and_emit_new_scope(scope_id, next);
         Ok(next)
     }
 
     /// Consumes nothing, produces nothing. Just places the code.
     fn compile_closure(&mut self, closure: &Query) -> Result<Address> {
-        self.compile_function_inner(&[], closure)
+        let scope_id = self.enter_scope();
+        let next = self.compile_function_inner(&[], closure)?;
+        let next = self.exit_scope_and_emit_new_frame(scope_id, next);
+        Ok(next)
     }
 
     /// Consumes nothing, produces nothing. Registers function to the current scope.
     fn compile_funcdef(&mut self, func: &FuncDef) -> Result<()> {
         let (func_address, placeholder) = self.emitter.emit_terminal_placeholder();
-        let types = func
+        let (tail_call_discard_frame, tail_call_discard_frame_placeholder) =
+            self.emitter.emit_terminal_placeholder();
+        let (tail_call_preserve_frame, tail_call_preserve_frame_placeholder) =
+            self.emitter.emit_terminal_placeholder();
+        let arg_types = func
             .args
             .iter()
             .map(|arg| match arg {
@@ -500,10 +544,41 @@ impl Compiler {
                 FuncArg::Closure(_) => ArgType::Closure,
             })
             .collect();
-        self.register_function(func.name.clone(), DeclaredFunction(func_address, types));
-        let real_address = self.compile_function_inner(&func.args, &func.body)?;
+        self.register_function(
+            func.name.clone(),
+            DeclaredFunction {
+                address: func_address,
+                tail_call_discard_frame,
+                tail_call_preserve_frame,
+                arg_types,
+            },
+        );
+
+        let scope_id = self.enter_scope();
+        let function_body = self.compile_function_inner(&func.args, &func.body)?;
+        let require_slot = self.current_scope_require_slot();
+        let real_address = self.exit_scope_and_emit_new_frame(scope_id, function_body);
         self.emitter
             .replace_placeholder(placeholder, ByteCode::Jump(real_address));
+        if require_slot {
+            self.emitter.replace_placeholder(
+                tail_call_discard_frame_placeholder,
+                ByteCode::TailCall(real_address),
+            );
+            self.emitter.replace_placeholder(
+                tail_call_preserve_frame_placeholder,
+                ByteCode::CallChainRet(real_address),
+            );
+        } else {
+            self.emitter.replace_placeholder(
+                tail_call_discard_frame_placeholder,
+                ByteCode::Jump(function_body),
+            );
+            self.emitter.replace_placeholder(
+                tail_call_preserve_frame_placeholder,
+                ByteCode::Jump(function_body),
+            );
+        }
         Ok(())
     }
 
@@ -554,16 +629,57 @@ impl Compiler {
         next: Address,
     ) -> Result<Address> {
         Ok(match function {
-            FunctionLike::Function(DeclaredFunction(address, types)) => {
-                let next = self.emitter.emit_function_call(address, next);
-                self.compile_func_call_args(args, &types, next)?
+            FunctionLike::Function(DeclaredFunction {
+                address,
+                tail_call_discard_frame,
+                tail_call_preserve_frame,
+                arg_types,
+            }) => {
+                let (func_call_address, call_placeholder) =
+                    self.emitter.emit_normal_placeholder(next);
+                // Compile the args (especially closures) first, so that we can decide whether we need to keep the
+                // current frame on the function call.
+                let ret = self.compile_func_call_args(args, &arg_types, func_call_address)?;
+                if matches!(self.emitter.get_next_op(next), ByteCode::Ret) {
+                    // The destination `tail_call_address` will be (or is already) replaced with either
+                    // a `ByteCode::TailCall(new_frame_address)` or a `ByteCode::Jump(after_new_frame_address)`
+                    // depending on whether the function requires a slot.
+                    // To use `ByteCode::TailCall`, we can't have any slot that are referenced from the function we're calling,
+                    // since we'll discard the current frame.
+                    // As an estimation, we care if there's any slot on the current scope already referenced from another scope.
+                    // The function we call, and functions that the function can be invoked from there
+                    // are either a function that we've already compiled, or a function currently in the scope stack.
+                    // Either way, this heuristic should catch the usage of a slot by them.
+                    let can_discard_frame = !self.current_scope().has_slot_leaked_scope();
+                    if can_discard_frame {
+                        self.emitter.replace_placeholder(
+                            call_placeholder,
+                            ByteCode::Jump(tail_call_discard_frame),
+                        );
+                    } else {
+                        self.emitter.replace_placeholder(
+                            call_placeholder,
+                            ByteCode::Jump(tail_call_preserve_frame),
+                        );
+                    }
+                } else {
+                    self.emitter
+                        .replace_placeholder(call_placeholder, ByteCode::Call(address));
+                };
+                ret
             }
             FunctionLike::Closure(slot) => {
                 assert!(args.is_empty());
-                self.emitter.emit_terminal_op(ByteCode::CallClosure {
-                    slot,
-                    return_address: next,
-                })
+                if matches!(self.emitter.get_next_op(next), ByteCode::Ret)
+                    && !self.current_scope().has_slot_leaked_scope()
+                {
+                    log::info!("Tail call closure for slot {:?}", slot);
+                    self.emitter
+                        .emit_terminal_op(ByteCode::TailCallClosure(slot))
+                } else {
+                    self.emitter
+                        .emit_normal_op(ByteCode::CallClosure(slot), next)
+                }
             }
             FunctionLike::Intrinsic(bytecode, types) => {
                 let next = self.emitter.emit_normal_op(bytecode, next);
@@ -1414,11 +1530,10 @@ impl Compiler {
         let output = self.emitter.output();
         let backtrack = self.emitter.backtrack();
         let query_start = self.compile_query(&ast.query, output)?;
-        let new_scope = self.exit_global_scope_and_emit_new_scope(query_start);
-        let entry_point = self.emitter.emit_terminal_op(ByteCode::Call {
-            function: new_scope,
-            return_address: backtrack,
-        });
+        let new_frame = self.exit_global_scope_and_emit_new_frame(query_start);
+        let entry_point = self
+            .emitter
+            .emit_normal_op(ByteCode::Call(new_frame), backtrack);
         Ok(Program {
             code: self.emitter.code.clone(),
             entry_point,

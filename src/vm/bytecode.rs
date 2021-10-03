@@ -132,24 +132,30 @@ pub(crate) enum ByteCode {
     /// # Panics
     /// Panics if the stack was empty.
     JumpUnless(Address),
-    /// Lookup the closure stored in the closure slot, and invokes it with setting the return address `return_address`.
+    /// Lookup the closure stored in the closure slot, and invokes it with setting the next return address as the `return_address`.
     /// # Panics
-    /// Panics if the call pc was already set, i.e. no [Self::NewScope] was called after the previous [Self::CallClosure]/[Self::Call].
-    CallClosure {
-        slot: ScopedSlot,
-        return_address: Address,
-    },
-    /// Calls function in the given address, and invokes it with setting the return address `return_address`.
+    /// Panics if the call pc was already set, i.e. no [Self::NewFrame] was called after the previous [Self::CallClosure]/[Self::Call]/[Self::TailCall]/[Self::TailCallClosure].
+    CallClosure(ScopedSlot),
+    /// Calls function in the given address, and invokes it with setting the next address as the `return_address`.
     /// # Panics
-    /// Panics if the call pc was already set, i.e. no [Self::NewScope] was called after the previous [Self::CallClosure]/[Self::Call].
-    Call {
-        function: Address,
-        return_address: Address,
-    },
-    /// Creates a frame with the scope id, variable slots, closure slots, and the call pc specified in the previous [Self::CallClosure]/[Self::Call].
+    /// Panics if the call pc was already set, i.e. no [Self::NewFrame] was called after the previous Call bytecode family.
+    Call(Address),
+    /// Abandon the current frame, obtain the return address from there and set that as `return_address`, and calls the function as [Self::Call].
     /// # Panics
-    /// Panics if this was not preceded by [Self::CallClosure]/[Self::Call].
-    NewScope {
+    /// Panics if the call pc was already set, i.e. no [Self::NewFrame] was called after the previous Call bytecode family.
+    TailCall(Address),
+    /// _Don't_ abandon the current frame, obtain the return address from the current frame and set that as `return_address`,
+    /// and calls the function. A flag will be set on the next [Self::NewFrame] to indicate that the [Self::Ret] that pops the frame
+    /// should also pop the next (i.e. the current as of the [Self::CallDoubleRet]) frame.
+    CallChainRet(Address),
+    /// This is to [Self::CallClosure] what [Self::TailCall] is to [Self::Call].
+    /// # Panics
+    /// Panics if the call pc was already set, i.e. no [Self::NewFrame] was called after the previous Call bytecode family.
+    TailCallClosure(ScopedSlot),
+    /// Creates a frame with the scope id, variable slots, closure slots, and the call pc specified in the previous Call bytecode family.
+    /// # Panics
+    /// Panics if this was not preceded by Call bytecode family
+    NewFrame {
         id: ScopeId,
         variable_cnt: usize,
         closure_cnt: usize,

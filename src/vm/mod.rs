@@ -17,7 +17,7 @@ impl Address {
         self.0 -= 1;
     }
 
-    fn get_next(&self) -> Self {
+    pub(crate) fn get_next(&self) -> Self {
         Self(self.0 - 1)
     }
 }

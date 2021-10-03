@@ -132,7 +132,7 @@ struct State {
     stack: UStack<Value>,
 
     scopes: PVector<(Option<Scope>, PStack<Scope>)>,
-    scope_stack: UStack<(Address, ScopeId)>, // (pc, pushed_scope)
+    scope_stack: UStack<(Address, ScopeId, bool)>, // (pc, pushed_scope, chain pop)
     closure_stack: UStack<Closure>,
 
     paths: UStack<Option<(Value, Value, PStack<PathElement>)>>, // origin, current, path stack
@@ -299,7 +299,8 @@ impl State {
         scope_id: ScopeId,
         variable_cnt: usize,
         closure_cnt: usize,
-        pc: Address,
+        chain_ret: bool,
+        return_address: Address,
     ) {
         if self.scopes.len() <= scope_id.0 {
             self.scopes.extend(
@@ -311,23 +312,35 @@ impl State {
         if let Some(prev_scope) = scope.replace(Scope::new(variable_cnt, closure_cnt)) {
             stack.push(prev_scope);
         }
-        self.scope_stack.push((pc, scope_id));
+        self.scope_stack.push((return_address, scope_id, chain_ret));
     }
 
     fn pop_scope(&mut self) -> Address {
-        let (pc, scope_id) = self
+        loop {
+            let (return_address, scope_id, chain) = self
+                .scope_stack
+                .pop()
+                .ok_or(ProgramError::PopEmptyScope)
+                .unwrap();
+            let (current, prev) = self
+                .scopes
+                .get_mut(scope_id.0)
+                .ok_or(ProgramError::PopUnknownScope)
+                .unwrap();
+            assert!(current.is_some(), "Pop unknown scope");
+            *current = prev.pop();
+            if !chain {
+                break return_address;
+            }
+        }
+    }
+
+    fn current_return_address(&self) -> Address {
+        let frame = self
             .scope_stack
-            .pop()
-            .ok_or(ProgramError::PopEmptyScope)
-            .unwrap();
-        let (current, prev) = self
-            .scopes
-            .get_mut(scope_id.0)
-            .ok_or(ProgramError::PopUnknownScope)
-            .unwrap();
-        assert!(current.is_some(), "Pop unknown scope");
-        *current = prev.pop();
-        pc
+            .top()
+            .expect("Tried to obtain return address but the frame stack was empty");
+        frame.0
     }
 }
 
@@ -497,6 +510,8 @@ fn run_code(program: &Program, state: &mut State, env: &mut Environment) -> Opti
         };
         state.undo(token);
         let mut call_pc: Option<Address> = None;
+        let mut chain_ret = false;
+
         log::trace!("Start fork with state {:?}", state);
         'cycle: loop {
             if err.is_some() {
@@ -714,35 +729,53 @@ fn run_code(program: &Program, state: &mut State, env: &mut Environment) -> Opti
                         continue 'cycle;
                     }
                 }
-                CallClosure {
-                    slot,
-                    return_address,
-                } => {
+                CallClosure(slot) => {
                     let closure = state
                         .closure_slot(slot)
                         .ok_or(ProgramError::UninitializedSlot)
                         .unwrap();
-                    assert_eq!(call_pc.replace(*return_address), None);
+                    assert_eq!(call_pc.replace(state.pc.get_next()), None);
                     state.pc = closure.0;
                     continue 'cycle;
                 }
-                Call {
-                    function,
-                    return_address,
-                } => {
-                    assert_eq!(call_pc.replace(*return_address), None);
+                Call(function) => {
+                    assert_eq!(call_pc.replace(state.pc.get_next()), None);
                     state.pc = *function;
                     continue 'cycle;
                 }
-                NewScope {
+                TailCallClosure(slot) => {
+                    let closure = state
+                        .closure_slot(slot)
+                        .ok_or(ProgramError::UninitializedSlot)
+                        .unwrap();
+                    let return_address = state.pop_scope();
+                    assert_eq!(call_pc.replace(return_address), None);
+                    state.pc = closure.0;
+                    continue 'cycle;
+                }
+                TailCall(function) => {
+                    let return_address = state.pop_scope();
+                    assert_eq!(call_pc.replace(return_address), None);
+                    state.pc = *function;
+                    continue 'cycle;
+                }
+                CallChainRet(function) => {
+                    let return_address = state.current_return_address();
+                    assert_eq!(call_pc.replace(return_address), None);
+                    chain_ret = true;
+                    state.pc = *function;
+                    continue 'cycle;
+                }
+                NewFrame {
                     id,
                     variable_cnt,
                     closure_cnt,
                 } => {
                     let return_address = call_pc
                         .take()
-                        .expect("NewScope should be called after Call");
-                    state.push_scope(*id, *variable_cnt, *closure_cnt, return_address);
+                        .expect("NewFrame should be called after Call");
+                    state.push_scope(*id, *variable_cnt, *closure_cnt, chain_ret, return_address);
+                    chain_ret = false;
                 }
                 Ret => {
                     let return_address = state.pop_scope();
