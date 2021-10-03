@@ -26,16 +26,16 @@ use thiserror::Error;
 pub(crate) enum ProgramError {
     #[error("tried to pop an empty stack")]
     PopEmptyStack,
-    #[error("tried to use an uninitialized scope")]
-    UninitializedScope,
-    #[error("tried to load from an uninitialized slot of a scope")]
+    #[error("tried to use an uninitialized frame")]
+    UninitializedFrame,
+    #[error("tried to load from an uninitialized slot of a frame")]
     UnknownSlot,
-    #[error("tried to load from an uninitialized slot of a scope")]
+    #[error("tried to load from an uninitialized slot of a frame")]
     UninitializedSlot,
-    #[error("tried to pop a scope but there was no scope to pop")]
-    PopEmptyScope,
-    #[error("tried to restore an unknown scope")]
-    PopUnknownScope,
+    #[error("tried to pop a frame but there was no frame to pop")]
+    PopEmptyFrame,
+    #[error("tried to restore an unknown frame")]
+    PopUnknownFrame,
 }
 
 #[derive(Debug, Clone)]
@@ -98,12 +98,12 @@ impl Iterator for PathValueIterator {
 }
 
 #[derive(Debug, Clone)]
-struct Scope {
+struct Frame {
     slots: Rc<RefCell<Vec<Option<Value>>>>,
     closure_slots: Rc<RefCell<Vec<Option<Closure>>>>,
 }
 
-impl Scope {
+impl Frame {
     fn new(variable_cnt: usize, closure_cnt: usize) -> Self {
         Self {
             slots: Rc::new(RefCell::new(
@@ -131,8 +131,8 @@ struct State {
     pc: Address,
     stack: UStack<Value>,
 
-    scopes: PVector<(Option<Scope>, PStack<Scope>)>,
-    scope_stack: UStack<(Address, ScopeId)>, // (pc, pushed_scope)
+    frames: PVector<(Option<Frame>, PStack<Frame>)>,
+    frame_stack: UStack<(Address, ScopeId, bool)>, // (pc, pushed_scope, chain pop)
     closure_stack: UStack<Closure>,
 
     paths: UStack<Option<(Value, Value, PStack<PathElement>)>>, // origin, current, path stack
@@ -176,8 +176,8 @@ impl State {
             pc,
             stack: Default::default(),
             paths: Default::default(),
-            scopes: Default::default(),
-            scope_stack: Default::default(),
+            frames: Default::default(),
+            frame_stack: Default::default(),
             closure_stack: Default::default(),
             iterators: Default::default(),
         }
@@ -265,13 +265,13 @@ impl State {
     }
 
     fn slot(&mut self, scoped_slot: &ScopedSlot) -> RefMut<Option<Value>> {
-        let scope = self
-            .scopes
+        let frame = self
+            .frames
             .get_mut(scoped_slot.0 .0)
             .and_then(|(x, _)| x.as_mut())
-            .ok_or(ProgramError::UninitializedScope)
+            .ok_or(ProgramError::UninitializedFrame)
             .unwrap();
-        let slots = scope.slots.borrow_mut();
+        let slots = frame.slots.borrow_mut();
         RefMut::map(slots, |v| {
             v.get_mut(scoped_slot.1)
                 .ok_or(ProgramError::UnknownSlot)
@@ -280,13 +280,13 @@ impl State {
     }
 
     fn closure_slot(&mut self, scoped_slot: &ScopedSlot) -> RefMut<Option<Closure>> {
-        let scope = self
-            .scopes
+        let frame = self
+            .frames
             .get_mut(scoped_slot.0 .0)
             .and_then(|(x, _)| x.as_mut())
-            .ok_or(ProgramError::UninitializedScope)
+            .ok_or(ProgramError::UninitializedFrame)
             .unwrap();
-        let slots = scope.closure_slots.borrow_mut();
+        let slots = frame.closure_slots.borrow_mut();
         RefMut::map(slots, |v| {
             v.get_mut(scoped_slot.1)
                 .ok_or(ProgramError::UnknownSlot)
@@ -294,40 +294,53 @@ impl State {
         })
     }
 
-    fn push_scope(
+    fn push_frame(
         &mut self,
         scope_id: ScopeId,
         variable_cnt: usize,
         closure_cnt: usize,
-        pc: Address,
+        chain_ret: bool,
+        return_address: Address,
     ) {
-        if self.scopes.len() <= scope_id.0 {
-            self.scopes.extend(
+        if self.frames.len() <= scope_id.0 {
+            self.frames.extend(
                 std::iter::repeat_with(|| (None, PStack::new()))
-                    .take(scope_id.0 - self.scopes.len() + 1),
+                    .take(scope_id.0 - self.frames.len() + 1),
             )
         }
-        let (scope, stack) = &mut self.scopes[scope_id.0];
-        if let Some(prev_scope) = scope.replace(Scope::new(variable_cnt, closure_cnt)) {
-            stack.push(prev_scope);
+        let (frame, stack) = &mut self.frames[scope_id.0];
+        if let Some(prev_frame) = frame.replace(Frame::new(variable_cnt, closure_cnt)) {
+            stack.push(prev_frame);
         }
-        self.scope_stack.push((pc, scope_id));
+        self.frame_stack.push((return_address, scope_id, chain_ret));
     }
 
-    fn pop_scope(&mut self) -> Address {
-        let (pc, scope_id) = self
-            .scope_stack
-            .pop()
-            .ok_or(ProgramError::PopEmptyScope)
-            .unwrap();
-        let (current, prev) = self
-            .scopes
-            .get_mut(scope_id.0)
-            .ok_or(ProgramError::PopUnknownScope)
-            .unwrap();
-        assert!(current.is_some(), "Pop unknown scope");
-        *current = prev.pop();
-        pc
+    fn pop_frame(&mut self) -> Address {
+        loop {
+            let (return_address, scope_id, chain) = self
+                .frame_stack
+                .pop()
+                .ok_or(ProgramError::PopEmptyFrame)
+                .unwrap();
+            let (current, prev) = self
+                .frames
+                .get_mut(scope_id.0)
+                .ok_or(ProgramError::PopUnknownFrame)
+                .unwrap();
+            assert!(current.is_some(), "Pop unknown frame");
+            *current = prev.pop();
+            if !chain {
+                break return_address;
+            }
+        }
+    }
+
+    fn current_return_address(&self) -> Address {
+        let frame = self
+            .frame_stack
+            .top()
+            .expect("Tried to obtain return address but the frame stack was empty");
+        frame.0
     }
 }
 
@@ -336,8 +349,8 @@ struct StateToken {
     pc: Address,
     stack: UStackToken,
 
-    scopes: PVector<(Option<Scope>, PStack<Scope>)>,
-    scope_stack: UStackToken,
+    frames: PVector<(Option<Frame>, PStack<Frame>)>,
+    frame_stack: UStackToken,
     closure_stack: UStackToken,
 
     paths: UStackToken,
@@ -349,12 +362,11 @@ impl Undo for State {
     type UndoToken = StateToken;
 
     fn save(&mut self) -> Self::UndoToken {
-        log::debug!("Save with scope stack {:?}", self.scope_stack);
         StateToken {
             pc: self.pc,
             stack: self.stack.save(),
-            scopes: self.scopes.clone(),
-            scope_stack: self.scope_stack.save(),
+            frames: self.frames.clone(),
+            frame_stack: self.frame_stack.save(),
             closure_stack: self.closure_stack.save(),
             paths: self.paths.save(),
             iterators: self.iterators.save(),
@@ -364,13 +376,11 @@ impl Undo for State {
     fn undo(&mut self, token: Self::UndoToken) {
         self.pc = token.pc;
         self.stack.undo(token.stack);
-        self.scopes = token.scopes;
-        self.scope_stack.undo(token.scope_stack);
+        self.frames = token.frames;
+        self.frame_stack.undo(token.frame_stack);
         self.closure_stack.undo(token.closure_stack);
         self.paths.undo(token.paths);
         self.iterators.undo(token.iterators);
-
-        log::debug!("Undo to scope stack {:?}", self.scope_stack);
     }
 }
 
@@ -497,6 +507,8 @@ fn run_code(program: &Program, state: &mut State, env: &mut Environment) -> Opti
         };
         state.undo(token);
         let mut call_pc: Option<Address> = None;
+        let mut chain_ret = false;
+
         log::trace!("Start fork with state {:?}", state);
         'cycle: loop {
             if err.is_some() {
@@ -507,7 +519,7 @@ fn run_code(program: &Program, state: &mut State, env: &mut Environment) -> Opti
                 "Execute code {:?} on stack = {:?}, slots = {:?}",
                 code,
                 state.stack,
-                state.scopes.iter().enumerate().collect_vec()
+                state.frames.iter().enumerate().collect_vec()
             );
             use ByteCode::*;
             match code {
@@ -714,38 +726,56 @@ fn run_code(program: &Program, state: &mut State, env: &mut Environment) -> Opti
                         continue 'cycle;
                     }
                 }
-                CallClosure {
-                    slot,
-                    return_address,
-                } => {
+                CallClosure(slot) => {
                     let closure = state
                         .closure_slot(slot)
                         .ok_or(ProgramError::UninitializedSlot)
                         .unwrap();
-                    assert_eq!(call_pc.replace(*return_address), None);
+                    assert_eq!(call_pc.replace(state.pc.get_next()), None);
                     state.pc = closure.0;
                     continue 'cycle;
                 }
-                Call {
-                    function,
-                    return_address,
-                } => {
-                    assert_eq!(call_pc.replace(*return_address), None);
+                Call(function) => {
+                    assert_eq!(call_pc.replace(state.pc.get_next()), None);
                     state.pc = *function;
                     continue 'cycle;
                 }
-                NewScope {
+                TailCallClosure(slot) => {
+                    let closure = state
+                        .closure_slot(slot)
+                        .ok_or(ProgramError::UninitializedSlot)
+                        .unwrap();
+                    let return_address = state.pop_frame();
+                    assert_eq!(call_pc.replace(return_address), None);
+                    state.pc = closure.0;
+                    continue 'cycle;
+                }
+                TailCall(function) => {
+                    let return_address = state.pop_frame();
+                    assert_eq!(call_pc.replace(return_address), None);
+                    state.pc = *function;
+                    continue 'cycle;
+                }
+                CallChainRet(function) => {
+                    let return_address = state.current_return_address();
+                    assert_eq!(call_pc.replace(return_address), None);
+                    chain_ret = true;
+                    state.pc = *function;
+                    continue 'cycle;
+                }
+                NewFrame {
                     id,
                     variable_cnt,
                     closure_cnt,
                 } => {
                     let return_address = call_pc
                         .take()
-                        .expect("NewScope should be called after Call");
-                    state.push_scope(*id, *variable_cnt, *closure_cnt, return_address);
+                        .expect("NewFrame should be called after Call");
+                    state.push_frame(*id, *variable_cnt, *closure_cnt, chain_ret, return_address);
+                    chain_ret = false;
                 }
                 Ret => {
-                    let return_address = state.pop_scope();
+                    let return_address = state.pop_frame();
                     state.pc = return_address;
                     continue 'cycle;
                 }
