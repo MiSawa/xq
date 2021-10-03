@@ -589,36 +589,46 @@ impl Compiler {
         mut next: Address,
     ) -> Result<Address> {
         assert_eq!(args.len(), types.len());
+        // Compile closures first to reduce number of jumps
+        let mut closure_addresses = vec![];
+        for (arg, ty) in args.iter().zip(types.iter()) {
+            if ty == &ArgType::Closure {
+                closure_addresses.push(Some(self.compile_closure(arg)?));
+            } else {
+                closure_addresses.push(None);
+            }
+        }
         // We need to evaluate all value-typed arguments on the same current context (stack top).
-        // In order to do so, we store the stack top to a slot temporarily if there's a value-typed arg.
-        let context_slot = if types.iter().any(|s| s == &ArgType::Value) {
-            Some(self.allocate_variable())
-        } else {
-            None
-        };
-        for (arg, ty) in args.iter().zip(types.iter()).rev() {
-            next = match ty {
+        // To do so, we dup, calc and swap to shift a copy of the context up
+        let mut require_context = false;
+        for ((arg, ty), closure) in args.iter().zip(types.iter()).zip(closure_addresses).rev() {
+            match ty {
                 ArgType::Closure => {
-                    let closure_address = self.compile_closure(arg)?;
-                    self.emitter
-                        .emit_normal_op(ByteCode::PushClosure(Closure(closure_address)), next)
+                    let closure = Closure(closure.expect("closures should be compiled already"));
+                    if require_context {
+                        next = self.emitter.emit_normal_op(ByteCode::Swap, next);
+                    }
+                    next = self
+                        .emitter
+                        .emit_normal_op(ByteCode::PushClosure(closure), next);
                 }
                 ArgType::Value => {
-                    let next = self.compile_query(arg, next)?;
-                    if let Some(slot) = context_slot {
-                        self.emitter.emit_normal_op(ByteCode::Load(slot), next)
+                    if require_context {
+                        next = self.emitter.emit_normal_op(ByteCode::Swap, next);
+                    }
+                    next = self.compile_query(arg, next)?;
+                    if require_context {
+                        next = self.emitter.emit_normal_op(ByteCode::Dup, next);
                     } else {
-                        next
+                        require_context = true;
                     }
                 }
             }
         }
-        Ok(if let Some(slot) = context_slot {
-            next = self.emitter.emit_normal_op(ByteCode::Store(slot), next);
-            self.emitter.emit_normal_op(ByteCode::Dup, next)
-        } else {
-            next
-        })
+        if require_context {
+            next = self.emitter.emit_normal_op(ByteCode::Dup, next);
+        }
+        Ok(next)
     }
 
     /// Consumes a value from the stack, and produces a single value onto the stack.
@@ -673,7 +683,7 @@ impl Compiler {
                 if matches!(self.emitter.get_next_op(next), ByteCode::Ret)
                     && !self.current_scope().has_slot_leaked_scope()
                 {
-                    log::info!("Tail call closure for slot {:?}", slot);
+                    // log::info!("Tail call closure for slot {:?}", slot);
                     self.emitter
                         .emit_terminal_op(ByteCode::TailCallClosure(slot))
                 } else {

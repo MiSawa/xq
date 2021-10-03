@@ -40,12 +40,16 @@ where
     I: Iterator<Item = Value>,
     M: ModuleLoader,
 {
+    // let now = std::time::Instant::now();
     let parsed = parser::parse_query(query)?;
     log::info!("Parsed query = {:?}", parsed);
+    // eprintln!("Parse: {:?}", now.elapsed());
+    // let now = std::time::Instant::now();
 
     let mut compiler = Compiler::new();
     let program = compiler.compile(&parsed, module_loader)?;
     log::info!("Compiled program = {:?}", program);
+    // eprintln!("Compile: {:?}", now.elapsed());
 
     let vm = Machine::new(program);
     Ok(OutputIterator::new(vm, input))
