@@ -1,3 +1,4 @@
+use cast::i32;
 use derive_more::{DebugCustom, Display};
 use ordered_float::OrderedFloat;
 use serde::{serde_if_integer128, Deserialize, Deserializer, Serialize, Serializer};
@@ -49,6 +50,14 @@ impl Serialize for Number {
     where
         S: Serializer,
     {
+        // There's no `is_integral()`.
+        // `.fract().is_zero()` also works but `.fract()` is implemented by `self - self.trunc()`.
+        #[allow(clippy::float_cmp)]
+        if self.0 .0.trunc() == self.0 .0 {
+            if let Ok(v) = i32(self.0 .0) {
+                return serializer.serialize_i32(v);
+            }
+        }
         serializer.serialize_f64(self.0 .0)
     }
 }
