@@ -73,6 +73,7 @@ impl<'a> Ord for ComparableValue<'a> {
             (Null, Null) | (Boolean(true), Boolean(true)) | (Boolean(false), Boolean(false)) => {
                 Equal
             }
+            (Boolean(lhs), Boolean(rhs)) => Ord::cmp(lhs, rhs),
             (Number(lhs), Number(rhs)) => Ord::cmp(&lhs, &rhs),
             (String(lhs), String(rhs)) => Ord::cmp(&lhs, &rhs),
             (Array(lhs), Array(rhs)) => Iterator::cmp(
