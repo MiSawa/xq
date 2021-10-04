@@ -47,12 +47,29 @@ Need more unit tests. Most of the CLI options are missing.
   I mean, it's not something that one should really use. It's just something possible and interesting... isn't it?
 
 
-## Usage
-Do you really want to use it???
-Currently, you need to clone this repository and do
+## Install and run
+Are you sure you want to use this??? It's not a daily-usable stage. Though if you want to try, you can install it via
 ```shell
-cat whatever.json | cargo run -- 'query goes here'
+$ cargo install xq
+$ cat whatever.json | xq 'query goes here'
 ```
+. Or to get the latet version, please clone this repository to your local, and run
+```shell
+$ cargo install --path path-to-cloned-dir
+$ cat whatever.json | xq 'query goes here'
+```
+.  Alternatively,
+```shell
+$ cat whatever.json | cargo run -- 'query goes here'
+```
+in the cloned directory to try out them without installing.
+
+
+## Uninstall
+```shell
+$ cargo uninstall xq
+```
+if you've installed via `cargo install`. Also remove the cloned directory if you've cloned the repository.
 
 
 ## Acknowledgements
