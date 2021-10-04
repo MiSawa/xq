@@ -1,3 +1,5 @@
+![Test](https://github.com/MiSawa/xq/workflows/test/badge.svg)
+
 # XQ
 
 [JQ](https://stedolan.github.io/jq/) reimplemented purely in Rust.
