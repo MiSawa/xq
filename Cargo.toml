@@ -7,6 +7,9 @@ description = "A reimplementation of jq."
 license = "MIT"
 repository = "https://github.com/MiSawa/xq"
 readme = "README.md"
+exclude = [
+    ".github",
+]
 
 [[bin]]
 name = "xq"
