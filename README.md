@@ -1,4 +1,4 @@
-![Test](https://github.com/MiSawa/xq/workflows/test/badge.svg)
+[![test](https://github.com/MiSawa/xq/actions/workflows/test.yml/badge.svg)](https://github.com/MiSawa/xq/actions/workflows/test.yml)
 
 # XQ
 
