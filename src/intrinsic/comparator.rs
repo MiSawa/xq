@@ -1,5 +1,6 @@
 use crate::{lang::ast::Comparator, vm::bytecode::NamedFn1, Value};
 use itertools::Itertools;
+use num::Float;
 use std::cmp::Ordering;
 
 pub(crate) fn comparator(comparator: &Comparator) -> NamedFn1 {
@@ -7,53 +8,73 @@ pub(crate) fn comparator(comparator: &Comparator) -> NamedFn1 {
     match comparator {
         Comparator::Eq => NamedFn1 {
             name: "Equal",
-            func: |rhs, lhs| Ok((compare(lhs, rhs).is_eq()).into()),
+            func: |rhs, lhs| Ok((PartialValue(&lhs) == PartialValue(&rhs)).into()),
         },
         Comparator::Neq => NamedFn1 {
             name: "NotEqual",
-            func: |rhs, lhs| Ok((compare(lhs, rhs).is_ne()).into()),
+            func: |rhs, lhs| Ok((PartialValue(&lhs) != PartialValue(&rhs)).into()),
         },
         Comparator::Gt => NamedFn1 {
             name: "GreaterThan",
-            func: |rhs, lhs| Ok((compare(lhs, rhs).is_gt()).into()),
+            func: |rhs, lhs| Ok((compare(lhs, rhs).map(Ordering::is_gt).unwrap_or(false)).into()),
         },
         Comparator::Ge => NamedFn1 {
             name: "GreaterOrEqual",
-            func: |rhs, lhs| Ok((compare(lhs, rhs).is_ge()).into()),
+            func: |rhs, lhs| Ok((compare(lhs, rhs).map(Ordering::is_ge).unwrap_or(false)).into()),
         },
         Comparator::Lt => NamedFn1 {
             name: "LessThan",
-            func: |rhs, lhs| Ok((compare(lhs, rhs).is_lt()).into()),
+            func: |rhs, lhs| Ok((compare(lhs, rhs).map(Ordering::is_lt).unwrap_or(false)).into()),
         },
         Comparator::Le => NamedFn1 {
             name: "LessOrEqual",
-            func: |rhs, lhs| Ok((compare(lhs, rhs).is_le()).into()),
+            func: |rhs, lhs| Ok((compare(lhs, rhs).map(Ordering::is_le).unwrap_or(false)).into()),
         },
     }
 }
 
-fn compare(lhs: Value, rhs: Value) -> Ordering {
-    Ord::cmp(&ComparableValue(&lhs), &ComparableValue(&rhs))
+fn compare(lhs: Value, rhs: Value) -> Option<Ordering> {
+    PartialOrd::partial_cmp(&PartialValue(&lhs), &PartialValue(&rhs))
 }
 
-struct ComparableValue<'a>(&'a Value);
+/// A wrapper of [Value] to treat it as a [PartialEq] and a [PartialOrd].
+struct PartialValue<'a>(&'a Value);
 
-impl<'a> Eq for ComparableValue<'a> {}
-
-impl<'a> PartialEq<Self> for ComparableValue<'a> {
+impl<'a> PartialEq<Self> for PartialValue<'a> {
     fn eq(&self, other: &Self) -> bool {
-        Ord::cmp(self, other).is_eq()
+        use Value::*;
+        match (self.0, other.0) {
+            (Null, Null) => true,
+            (Boolean(lhs), Boolean(rhs)) => lhs == rhs,
+            (Number(lhs), Number(rhs)) => lhs == rhs && !lhs.is_nan(),
+            (String(lhs), String(rhs)) => lhs == rhs,
+            (Array(lhs), Array(rhs)) => lhs
+                .iter()
+                .map(PartialValue)
+                .eq(rhs.iter().map(PartialValue)),
+            (Object(lhs), Object(rhs)) => {
+                if lhs.len() != rhs.len() {
+                    return false;
+                }
+                let lhs_keys = lhs.keys().sorted().collect_vec();
+                let rhs_keys = rhs.keys().sorted().collect_vec();
+                if lhs_keys != rhs_keys {
+                    return false;
+                }
+                for key in lhs_keys {
+                    if lhs.get(key) != rhs.get(key) {
+                        return false;
+                    }
+                }
+                true
+            }
+            _ => false,
+        }
     }
 }
 
-impl<'a> PartialOrd<Self> for ComparableValue<'a> {
+impl<'a> PartialOrd<Self> for PartialValue<'a> {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(Ord::cmp(self, other))
-    }
-}
-
-impl<'a> Ord for ComparableValue<'a> {
-    fn cmp(&self, other: &Self) -> Ordering {
         use Ordering::*;
         use Value::*;
         fn type_ord(value: &Value) -> u8 {
@@ -67,29 +88,34 @@ impl<'a> Ord for ComparableValue<'a> {
             }
         }
         if let res @ (Less | Greater) = type_ord(self.0).cmp(&type_ord(other.0)) {
-            return res;
+            return Some(res);
         }
-        match (&self.0, &other.0) {
-            (Null, Null) | (Boolean(true), Boolean(true)) | (Boolean(false), Boolean(false)) => {
-                Equal
-            }
+        let ret = match (&self.0, &other.0) {
+            (Null, Null) => Equal,
             (Boolean(lhs), Boolean(rhs)) => Ord::cmp(lhs, rhs),
-            (Number(lhs), Number(rhs)) => Ord::cmp(&lhs, &rhs),
+            (Number(lhs), Number(rhs)) => {
+                if lhs.is_nan() || rhs.is_nan() {
+                    return None;
+                }
+                Ord::cmp(&lhs, &rhs)
+            }
             (String(lhs), String(rhs)) => Ord::cmp(&lhs, &rhs),
-            (Array(lhs), Array(rhs)) => Iterator::cmp(
-                lhs.as_ref().into_iter().map(ComparableValue),
-                rhs.as_ref().into_iter().map(ComparableValue),
-            ),
+            (Array(lhs), Array(rhs)) => {
+                return Iterator::partial_cmp(
+                    lhs.iter().map(PartialValue),
+                    rhs.iter().map(PartialValue),
+                )
+            }
             (Object(lhs), Object(rhs)) => {
                 let lhs_keys = lhs.keys().sorted().collect_vec();
                 let rhs_keys = rhs.keys().sorted().collect_vec();
                 if let res @ (Less | Greater) = Iterator::cmp(lhs_keys.iter(), rhs_keys.iter()) {
-                    return res;
+                    return Some(res);
                 }
                 for key in lhs_keys {
-                    if let res @ (Less | Greater) = Ord::cmp(
-                        &lhs.get(key).map(ComparableValue),
-                        &rhs.get(key).map(ComparableValue),
+                    if let res @ Some(Less | Greater) = PartialOrd::partial_cmp(
+                        &lhs.get(key).map(PartialValue),
+                        &rhs.get(key).map(PartialValue),
                     ) {
                         return res;
                     }
@@ -99,6 +125,7 @@ impl<'a> Ord for ComparableValue<'a> {
             (Null | Boolean(_) | Number(_) | String(_) | Array(_) | Object(_), _) => {
                 unreachable!()
             }
-        }
+        };
+        Some(ret)
     }
 }
