@@ -605,9 +605,12 @@ impl Compiler {
             match ty {
                 ArgType::Closure => {
                     let closure = Closure(closure.expect("closures should be compiled already"));
+                    /*
+                    TODO: Uncomment on #14
                     if require_context {
                         next = self.emitter.emit_normal_op(ByteCode::Swap, next);
                     }
+                     */
                     next = self
                         .emitter
                         .emit_normal_op(ByteCode::PushClosure(closure), next);

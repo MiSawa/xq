@@ -71,3 +71,16 @@ test!(
     ]
     "#
 );
+
+test!(
+    a_lot_of_args,
+    r#"
+    def f($a; b; $c; d; $e): {$a, b: b, $c, d: d, $e}; f("a"; "b"; "c"; "d"; "e")
+    "#,
+    r#"
+    null
+    "#,
+    r#"
+    {"a": "a", "b": "b", "c": "c", "d": "d", "e": "e"}
+    "#
+);
