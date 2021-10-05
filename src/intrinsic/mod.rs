@@ -15,6 +15,7 @@ pub(crate) use self::{
     comparator::comparator,
     index::{index, slice},
     path::{del_path, set_path},
+    string::{stringifier, text},
     unary::unary,
 };
 
@@ -22,6 +23,7 @@ mod binary;
 mod comparator;
 mod index;
 mod path;
+mod string;
 mod unary;
 
 static INTRINSICS0: phf::Map<&'static str, NamedFn0> = phf_map! {
@@ -60,13 +62,6 @@ pub(crate) fn lookup_intrinsic_fn(
 
 pub(crate) fn truthy(value: Value) -> bool {
     !matches!(value, Value::Null | Value::Boolean(false))
-}
-
-pub(crate) fn stringify(value: Value) -> Result<Value, QueryExecutionError> {
-    match value {
-        Value::String(s) => Ok(Value::string(s.to_string())),
-        _ => Ok(Value::string(serde_json::to_string(&value).unwrap())),
-    }
 }
 
 fn error(value: Value) -> Result<Value, QueryExecutionError> {

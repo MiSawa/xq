@@ -54,6 +54,8 @@ pub enum CompileError {
     UnknownLabel(Identifier),
     #[error(transparent)]
     ModuleLoadError(#[from] ModuleLoadError),
+    #[error("Unknown string formatter `{0:?}`")]
+    UnknownStringFormatter(Identifier),
 }
 
 type Result<T, E = CompileError> = std::result::Result<T, E>;
@@ -1106,8 +1108,8 @@ impl Compiler {
                 |compiler: &mut Compiler, next| {
                     Ok(compiler.emitter.emit_normal_op(
                         ByteCode::Intrinsic0(NamedFn0 {
-                            name: "stringify",
-                            func: intrinsic::stringify,
+                            name: "text",
+                            func: intrinsic::text,
                         }),
                         next,
                     ))
@@ -1127,7 +1129,24 @@ impl Compiler {
             Term::FunctionCall { name, args } => {
                 self.lookup_and_compile_func_call(name.clone(), args, next)?
             }
-            Term::Format(_, _) => todo!(),
+            Term::Format(format, str) => {
+                let stringifier = intrinsic::stringifier(format)
+                    .ok_or_else(|| CompileError::UnknownStringFormatter(format.clone()))?;
+                match str {
+                    Some(s) => self.compile_string(
+                        s,
+                        &|compiler: &mut Compiler, next| {
+                            Ok(compiler
+                                .emitter
+                                .emit_normal_op(ByteCode::Intrinsic0(stringifier.clone()), next))
+                        },
+                        next,
+                    )?,
+                    None => self
+                        .emitter
+                        .emit_normal_op(ByteCode::Intrinsic0(stringifier), next),
+                }
+            }
             Term::Query(query) => self.compile_query(query, next)?,
             Term::Unary(operator, term) => {
                 let operator = intrinsic::unary(operator);
