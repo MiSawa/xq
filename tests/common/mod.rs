@@ -20,7 +20,9 @@ pub(crate) fn run_test(query: &str, input: &str, output: &str) -> Result<(), Box
         .collect::<Result<_, serde_json::Error>>()?;
     let output = run_query(query, input.into_iter(), &PreludeLoader())?
         .collect::<Result<Vec<Value>, _>>()?;
-    println!("{:?} {:?}", expected, output);
+    if expected != output {
+        eprintln!("{:?} {:?}", expected, output);
+    }
     assert_eq!(expected, output);
     Ok(())
 }
