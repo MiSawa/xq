@@ -1357,22 +1357,29 @@ impl Compiler {
                 ) -> Result<Address> {
                     let slot = compiler.allocate_variable();
                     let tmp_slot = compiler.allocate_variable();
+                    let del_slot = compiler.allocate_variable();
                     let label = compiler.current_scope_mut().allocate_label();
 
-                    let after = compiler.emitter.emit_normal_op(ByteCode::Load(slot), next);
+                    let after = compiler.emitter.emit_normal_op(
+                        ByteCode::Intrinsic1(NamedFn1 {
+                            name: "delpaths",
+                            func: intrinsic::del_paths,
+                        }),
+                        next,
+                    );
+                    let after = compiler
+                        .emitter
+                        .emit_normal_op(ByteCode::Load(del_slot), after);
+                    let after = compiler.emitter.emit_normal_op(ByteCode::Load(slot), after);
                     let after = compiler.emitter.emit_normal_op(ByteCode::Pop, after);
 
                     let on_empty = compiler.emitter.emit_terminal_op(ByteCode::Break(label));
                     let on_empty = compiler
                         .emitter
                         .emit_normal_op(ByteCode::Store(slot), on_empty);
-                    let on_empty = compiler.emitter.emit_normal_op(
-                        ByteCode::Intrinsic1(NamedFn1 {
-                            name: "delpath",
-                            func: intrinsic::del_path,
-                        }),
-                        on_empty,
-                    );
+                    let on_empty = compiler
+                        .emitter
+                        .emit_normal_op(ByteCode::Append(del_slot), on_empty);
                     let on_empty = compiler.emitter.emit_normal_op(ByteCode::Pop, on_empty);
 
                     // for each path(lhs), call set_path(., path, . | getpath(path) | rhs) for the first value produced
@@ -1410,6 +1417,12 @@ impl Compiler {
                     let next = compiler.emitter.emit_normal_op(ByteCode::Store(slot), next);
                     let next = compiler.emitter.emit_normal_op(ByteCode::Dup, next);
                     let next = compiler.emitter.emit_fork(after, next);
+                    let next = compiler
+                        .emitter
+                        .emit_normal_op(ByteCode::Store(del_slot), next);
+                    let next = compiler
+                        .emitter
+                        .emit_normal_op(ByteCode::Push(Array::new().into()), next);
                     Ok(next)
                 }
 

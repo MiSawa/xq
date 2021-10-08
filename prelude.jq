@@ -41,9 +41,8 @@ def nth($n): .[$n];
 def keys_unsorted: [path(.[])[]];
 def keys: keys_unsorted | sort;
 
-def del(f): getpath(path(f)) |= empty;
+def del(f): delpaths([path(f)]);
 def setpath(paths; $v): getpath(paths) |= $v;
-def delpaths($paths): reduce $paths[] as $path (.; del($path));
 
 def to_entries: [keys[] as $key | {$key, value: .[$key]}];
 def from_entries: reduce .[] as $entry ({}; setpath([$entry.key]; $entry.value));

@@ -17,7 +17,7 @@ pub(crate) use self::{
     binary::binary,
     comparator::comparator,
     index::{index, slice},
-    path::{del_path, get_path, set_path},
+    path::{del_paths, get_path, set_path},
     string::{stringifier, text},
     unary::unary,
 };
@@ -41,6 +41,7 @@ static INTRINSICS1: phf::Map<&'static str, (NamedFn1, ArgType)> = phf_map! {
     "error" => (NamedFn1 { name: "error", func: error1 }, ArgType::Value),
     "has" => (NamedFn1 { name: "has", func: has }, ArgType::Value),
     "in" => (NamedFn1 { name: "in", func: |c, i| has(i, c) }, ArgType::Value),
+    "delpaths" => (NamedFn1 { name: "delpaths", func: path::del_paths }, ArgType::Value),
 };
 static INTRINSICS2: phf::Map<&'static str, (NamedFn2, ArgType, ArgType)> = phf_map! {
     "setpath" => (NamedFn2 { name: "setpath", func: path::set_path }, ArgType::Value, ArgType::Value),
