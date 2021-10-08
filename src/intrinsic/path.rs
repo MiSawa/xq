@@ -286,7 +286,6 @@ fn del_tombstone_rec(
                 Value::Array(tomb_stoned)
             } else {
                 let tomb_stoned = make_owned(tomb_stoned);
-                println!("{:?}, {:?}", original, tomb_stoned);
                 let arr = original
                     .iter()
                     .zip_eq(tomb_stoned.into_iter())
