@@ -1,6 +1,3 @@
-def isnormal: error("todo");
-def isfinite: error("todo");
-
 def not: if . then false else true end;
 def select(f): if f then . else empty end;
 def map(f): [.[] | f];
@@ -17,6 +14,7 @@ def normals: select(isnormal);
 def finites: select(isfinite);
 def values: select(type != "null");
 def scalars: select(type != "array" and type != "object");
+def isinfinite: isfinite | not;
 
 def recurse(f; cond): def r: ., (f | select(cond) | r); r;
 def recurse(f): recurse(f; . != null);

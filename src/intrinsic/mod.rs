@@ -39,8 +39,13 @@ static INTRINSICS0: phf::Map<&'static str, NamedFn0> = phf_map! {
     "sort" => NamedFn0 { name: "sort", func: sort },
     "tostring" => NamedFn0 { name: "tostring", func: text },
     "tonumber" => NamedFn0 { name: "to_number", func: string::to_number },
+    "nan" => NamedFn0 { name: "nan", func: math::nan },
+    "infinite" => NamedFn0 { name: "infinite", func: math::infinite },
     "floor" => as_math_fn!(floor),
     "sqrt" => as_math_fn!(sqrt),
+    "isnan" => as_math_fn!(is_nan),
+    "isfinite" => as_math_fn!(is_finite),
+    "isnormal" => as_math_fn!(is_normal),
 };
 static INTRINSICS1: phf::Map<&'static str, (NamedFn1, ArgType)> = phf_map! {
     "error" => (NamedFn1 { name: "error", func: error1 }, ArgType::Value),
