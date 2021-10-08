@@ -25,6 +25,8 @@ pub(crate) use self::{
 mod binary;
 mod comparator;
 mod index;
+#[macro_use]
+mod math;
 mod path;
 mod string;
 mod unary;
@@ -36,6 +38,8 @@ static INTRINSICS0: phf::Map<&'static str, NamedFn0> = phf_map! {
     "utf8bytelength" => NamedFn0 { name: "utf8bytelength", func: utf8_byte_length },
     "sort" => NamedFn0 { name: "sort", func: sort },
     "tostring" => NamedFn0 { name: "tostring", func: text },
+    "floor" => as_math_fn!(floor),
+    "sqrt" => as_math_fn!(sqrt),
 };
 static INTRINSICS1: phf::Map<&'static str, (NamedFn1, ArgType)> = phf_map! {
     "error" => (NamedFn1 { name: "error", func: error1 }, ArgType::Value),
