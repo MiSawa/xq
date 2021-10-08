@@ -42,10 +42,10 @@ def keys_unsorted: [path(.[])[]];
 def keys: keys_unsorted | sort;
 
 def del(f): delpaths([path(f)]);
-def setpath(paths; $v): getpath(paths) |= $v;
+def setpath($paths; $v): getpath($paths) |= $v;
 
 def to_entries: [keys[] as $key | {$key, value: .[$key]}];
-def from_entries: reduce .[] as $entry ({}; setpath([$entry.key]; $entry.value));
+def from_entries: reduce .[] as $entry ({}; .[$entry.key]=$entry.value);
 def with_entries(f): to_entries | map(f) | from_entries;
 
 def paths: path(..) | select(length > 0);

@@ -757,13 +757,7 @@ impl Compiler {
         let next = self
             .emitter
             .emit_normal_op(ByteCode::JumpUnless(negative_address), positive_address);
-        let next = self
-            .emitter
-            .emit_normal_op(ByteCode::ExitNonPathTracking, next);
-        let next = cond.compile(self, next)?;
-        let next = self
-            .emitter
-            .emit_normal_op(ByteCode::EnterNonPathTracking, next);
+        let next = self.compile_without_path_tracking(cond, next)?;
         let next = self.emitter.emit_normal_op(ByteCode::Dup, next);
         Ok(next)
     }
@@ -776,8 +770,8 @@ impl Compiler {
         next: Address,
     ) -> Result<Address> {
         let indexing = self.emitter.emit_normal_op(ByteCode::Index, next);
-        let index = index.compile(self, indexing)?;
-        let swap = self.emitter.emit_normal_op(ByteCode::Swap, index);
+        let indexing = self.compile_without_path_tracking(index, indexing)?;
+        let swap = self.emitter.emit_normal_op(ByteCode::Swap, indexing);
         let body = body.compile(self, swap)?;
         Ok(self.emitter.emit_normal_op(ByteCode::Dup, body))
     }
@@ -798,6 +792,9 @@ impl Compiler {
             },
             next,
         );
+        let next = self
+            .emitter
+            .emit_normal_op(ByteCode::ExitNonPathTracking, next);
         let mut need_val = false;
         let next = if let Some(end) = end {
             need_val = true;
@@ -819,6 +816,9 @@ impl Compiler {
         } else {
             next
         };
+        let next = self
+            .emitter
+            .emit_normal_op(ByteCode::EnterNonPathTracking, next);
         // Same as the above.... although need_val = true.
         let next = if need_val {
             let next = self.emitter.emit_normal_op(ByteCode::Swap, next);
@@ -1551,6 +1551,21 @@ impl Compiler {
             }
         };
         Ok(ret)
+    }
+
+    fn compile_without_path_tracking<T: Compile>(
+        &mut self,
+        body: &T,
+        next: Address,
+    ) -> Result<Address> {
+        let next = self
+            .emitter
+            .emit_normal_op(ByteCode::ExitNonPathTracking, next);
+        let next = body.compile(self, next)?;
+        let next = self
+            .emitter
+            .emit_normal_op(ByteCode::EnterNonPathTracking, next);
+        Ok(next)
     }
 
     fn compile_prelude(&mut self, ast: &ast::Program) -> Result<()> {
