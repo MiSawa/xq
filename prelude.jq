@@ -49,7 +49,7 @@ def from_entries: reduce .[] as $entry ({}; .[$entry.key]=$entry.value);
 def with_entries(f): to_entries | map(f) | from_entries;
 
 def paths: path(..) | select(length > 0);
-def paths(f): paths as $v | select(getpath($v) | f | $v);
+def paths(f): paths as $v | select(getpath($v) | f) | $v;
 def leaf_paths: paths(scalars);
 
 def add: reduce .[] as $v (null; . + $v);
