@@ -62,3 +62,6 @@ def all(f): all(.[]; f);
 def all: all(.);
 
 def sort_by(f): map([f, .]) | sort | map(.[1]);
+
+def flatten: if type | . == "array" or . == "object" then [.[] | flatten] | reduce .[] as $v ([]; . + $v) else [.] end;
+def flatten($d): if ($d >= 0) and (type | . == "array" or . == "object") then [.[] | flatten($d-1)] | add else [.] end;
