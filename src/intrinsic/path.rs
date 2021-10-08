@@ -42,7 +42,7 @@ pub(crate) fn del_paths(context: Value, paths: Value) -> Result<Value> {
             value = del_tombstone_rec(&context, value, &placeholder)?.unwrap_or(Value::Null);
             Ok(value)
         }
-        v => return Err(QueryExecutionError::PathNotArray(v)),
+        v => Err(QueryExecutionError::PathNotArray(v)),
     }
 }
 
@@ -282,7 +282,7 @@ fn del_tombstone_rec(
     let ret = match (original, tomb_stoned) {
         (_, Value::String(s)) if Rc::ptr_eq(&s, placeholder) => return Ok(None),
         (Value::Array(original), Value::Array(tomb_stoned)) => {
-            if Rc::ptr_eq(&original, &tomb_stoned) {
+            if Rc::ptr_eq(original, &tomb_stoned) {
                 Value::Array(tomb_stoned)
             } else {
                 let tomb_stoned = make_owned(tomb_stoned);
@@ -296,7 +296,7 @@ fn del_tombstone_rec(
             }
         }
         (Value::Object(original), Value::Object(tomb_stoned)) => {
-            if Rc::ptr_eq(&original, &tomb_stoned) {
+            if Rc::ptr_eq(original, &tomb_stoned) {
                 Value::Object(tomb_stoned)
             } else {
                 assert_eq!(original.len(), tomb_stoned.len());
