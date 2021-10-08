@@ -2,7 +2,7 @@ use cast::i32;
 use derive_more::{DebugCustom, Display};
 use ordered_float::OrderedFloat;
 use serde::{serde_if_integer128, Deserialize, Deserializer, Serialize, Serializer};
-use std::{fmt::Formatter, ops::Neg};
+use std::{fmt::Formatter, ops::Neg, str::FromStr};
 
 type PrimitiveReal = f64;
 #[derive(
@@ -27,6 +27,14 @@ type PrimitiveReal = f64;
 #[debug(fmt = "{}", _0)]
 #[display(fmt = "{}", _0)]
 pub struct Number(OrderedFloat<PrimitiveReal>);
+
+impl FromStr for Number {
+    type Err = <PrimitiveReal as FromStr>::Err;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        PrimitiveReal::from_str(s).map(|n| Number(OrderedFloat(n)))
+    }
+}
 
 impl Neg for Number {
     type Output = Self;

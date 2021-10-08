@@ -38,6 +38,7 @@ static INTRINSICS0: phf::Map<&'static str, NamedFn0> = phf_map! {
     "utf8bytelength" => NamedFn0 { name: "utf8bytelength", func: utf8_byte_length },
     "sort" => NamedFn0 { name: "sort", func: sort },
     "tostring" => NamedFn0 { name: "tostring", func: text },
+    "tonumber" => NamedFn0 { name: "to_number", func: string::to_number },
     "floor" => as_math_fn!(floor),
     "sqrt" => as_math_fn!(sqrt),
 };

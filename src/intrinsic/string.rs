@@ -1,10 +1,21 @@
 use crate::{
     lang::ast::Identifier,
     util::make_owned,
-    vm::{bytecode::NamedFn0, QueryExecutionError},
+    vm::{bytecode::NamedFn0, QueryExecutionError, Result},
     Value,
 };
 use std::{borrow::Cow, rc::Rc};
+
+pub(crate) fn to_number(value: Value) -> Result<Value> {
+    match value {
+        Value::Number(_) => Ok(value),
+        Value::String(s) => match s.parse() {
+            Ok(n) => Ok(Value::Number(n)),
+            Err(_) => Err(QueryExecutionError::InvalidStringToNumber(s)),
+        },
+        _ => Err(QueryExecutionError::InvalidArgType("to_number", value)),
+    }
+}
 
 pub(crate) fn stringifier(id: &Identifier) -> Option<NamedFn0> {
     match id.0.as_str() {
@@ -58,30 +69,30 @@ fn stringify_inner(value: Value) -> Rc<String> {
     }
 }
 
-pub(crate) fn text(value: Value) -> Result<Value, QueryExecutionError> {
+pub(crate) fn text(value: Value) -> Result<Value> {
     Ok(stringify_inner(value).into())
 }
 
-fn json(value: Value) -> Result<Value, QueryExecutionError> {
+fn json(value: Value) -> Result<Value> {
     Ok(serde_json::to_string(&value)
         .expect("Unable to encode a value to json")
         .into())
 }
 
-fn html(value: Value) -> Result<Value, QueryExecutionError> {
+fn html(value: Value) -> Result<Value> {
     let s = stringify_inner(value);
     let mut ret = String::new();
     html_escape::encode_quoted_attribute_to_string(&*s, &mut ret);
     Ok(ret.into())
 }
 
-fn uri(value: Value) -> Result<Value, QueryExecutionError> {
+fn uri(value: Value) -> Result<Value> {
     let s = stringify_inner(value);
     let ret = urlencoding::encode(&s);
     Ok(ret.to_string().into())
 }
 
-fn xsv<F>(value: Value, delim: char, add_string: F) -> Result<Value, QueryExecutionError>
+fn xsv<F>(value: Value, delim: char, add_string: F) -> Result<Value>
 where
     F: Fn(&mut String, &str),
 {
@@ -105,7 +116,7 @@ where
     Ok(ret.into())
 }
 
-fn csv(value: Value) -> Result<Value, QueryExecutionError> {
+fn csv(value: Value) -> Result<Value> {
     fn append_quoted_string(s: &mut String, v: &str) {
         for c in v.chars() {
             if c == '"' {
@@ -118,7 +129,7 @@ fn csv(value: Value) -> Result<Value, QueryExecutionError> {
     xsv(value, ',', append_quoted_string)
 }
 
-fn tsv(value: Value) -> Result<Value, QueryExecutionError> {
+fn tsv(value: Value) -> Result<Value> {
     fn append_quoted_string(s: &mut String, v: &str) {
         for c in v.chars() {
             if c == '\n' {
@@ -137,19 +148,19 @@ fn tsv(value: Value) -> Result<Value, QueryExecutionError> {
     xsv(value, '\t', append_quoted_string)
 }
 
-fn sh(value: Value) -> Result<Value, QueryExecutionError> {
+fn sh(value: Value) -> Result<Value> {
     let s = stringify_inner(value);
     let ret = shell_escape::escape(Cow::from(make_owned(s))).to_string();
     Ok(ret.into())
 }
 
-fn base64(value: Value) -> Result<Value, QueryExecutionError> {
+fn base64(value: Value) -> Result<Value> {
     let s = stringify_inner(value);
     let ret = base64::encode(&*s);
     Ok(ret.into())
 }
 
-fn base64d(value: Value) -> Result<Value, QueryExecutionError> {
+fn base64d(value: Value) -> Result<Value> {
     let s = stringify_inner(value);
     let ret = base64::decode(&*s)?;
     let ret = String::from_utf8(ret)?;

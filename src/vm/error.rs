@@ -1,4 +1,4 @@
-use crate::{vm::bytecode::Label, Number, Value};
+use crate::{value::RcString, vm::bytecode::Label, Number, Value};
 use thiserror::Error;
 
 pub type Result<T, E = QueryExecutionError> = std::result::Result<T, E>;
@@ -53,8 +53,10 @@ pub enum QueryExecutionError {
     InvalidUTF8Bytes(#[from] std::string::FromUtf8Error),
     #[error("utf8bytelength is applied to non-string value`{0:?}`")]
     InvalidUTF8ByteLength(Value),
-    #[error("{0:?} was called invalidly with arg {1:?}")]
+    #[error("{0:?} was called invalidly with arg `{1:?}`")]
     InvalidArgType(&'static str, Value),
+    #[error("`{0:?}` can't be parsed as a number")]
+    InvalidStringToNumber(RcString),
     #[error("{0:?}")]
     UserDefinedError(String),
 }
