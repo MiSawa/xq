@@ -481,6 +481,15 @@ impl Compiler {
                         .emit_normal_op(ByteCode::EnterPathTracking, next);
                     Ok(next)
                 }),
+                "getpath" => {
+                    FunctionLike::ManuallyImplemented("getpath", |compiler, args, next| {
+                        assert_eq!(1, args.len());
+                        let next = compiler.emitter.emit_normal_op(ByteCode::Access, next);
+                        let next = compiler.compile_query(&args[0], next)?;
+                        let next = compiler.emitter.emit_normal_op(ByteCode::Dup, next);
+                        Ok(next)
+                    })
+                }
                 _ => return None,
             },
             _ => return None,

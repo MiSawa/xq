@@ -51,8 +51,10 @@ pub enum QueryExecutionError {
     InvalidAsBase64(#[from] base64::DecodeError),
     #[error("Invalid as a UTF-8-encoded byte array")]
     InvalidUTF8Bytes(#[from] std::string::FromUtf8Error),
-    #[error("Invalid as a (c|t)sv entry: `{0:?}`")]
-    InvalidAsXSVEntry(Value),
+    #[error("utf8bytelength is applied to non-string value`{0:?}`")]
+    InvalidUTF8ByteLength(Value),
+    #[error("{0:?} was called invalidly with arg {1:?}")]
+    InvalidArgType(&'static str, Value),
     #[error("{0:?}")]
     UserDefinedError(String),
 }

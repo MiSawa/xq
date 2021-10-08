@@ -94,6 +94,11 @@ pub(crate) enum ByteCode {
     /// # Panics
     /// Panics if the stack was empty.
     Each,
+    /// Pops an element `path` from the stack, another element `value` from the stack, and pushes an element
+    /// at the `path` of `value`.
+    /// # Panics
+    /// Panics if the stack had less than 2 elements.
+    Access,
 
     EnterPathTracking,
     ExitPathTracking,

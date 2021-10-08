@@ -7,5 +7,6 @@ mod arithmetic;
 mod assignment;
 mod basic_filters;
 mod condition_and_comparison;
+mod functions;
 mod string_format;
 mod types_and_values;

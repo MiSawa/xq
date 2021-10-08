@@ -96,7 +96,7 @@ where
             Value::Boolean(v) => ret.push_str(if *v { "true" } else { "false" }),
             Value::Number(v) => ret.push_str(&format!("{}", v)),
             Value::String(s) => add_string(&mut ret, s),
-            v => return Err(QueryExecutionError::InvalidAsXSVEntry(v.clone())),
+            v => return Err(QueryExecutionError::InvalidArgType("(c|t)sv", v.clone())),
         }
     }
     if !ret.is_empty() {

@@ -203,11 +203,21 @@ impl State {
         }
     }
 
-    fn push_with_path(&mut self, item: Value, path_elem: PathElement) {
+    fn push_with_path_element(&mut self, item: Value, path_elem: PathElement) {
         self.push(item.clone());
         if let Some(Some((_, current, path))) = self.paths.top_mut() {
             *current = item;
             path.push(path_elem);
+        }
+    }
+
+    fn push_with_path(&mut self, item: Value, path_elements: Vec<PathElement>) {
+        self.push(item.clone());
+        if let Some(Some((_, current, path))) = self.paths.top_mut() {
+            *current = item;
+            for path_element in path_elements {
+                path.push(path_element);
+            }
         }
     }
 
@@ -496,7 +506,7 @@ fn run_code(program: &Program, state: &mut State, env: &mut Environment) -> Opti
                         None => continue 'select_fork,
                         Some((path_elem, value)) => {
                             env.push_fork(state, OnFork::Iterate, state.pc);
-                            state.push_with_path(value, path_elem);
+                            state.push_with_path_element(value, path_elem);
                             break 'select_fork state.save();
                         }
                     }
@@ -606,7 +616,7 @@ fn run_code(program: &Program, state: &mut State, env: &mut Environment) -> Opti
                     }
                     match intrinsic::index(value, index) {
                         Ok((value, path_elem)) => {
-                            state.push_with_path(value, path_elem);
+                            state.push_with_path_element(value, path_elem);
                         }
                         Err(e) => {
                             err.replace(e);
@@ -623,7 +633,7 @@ fn run_code(program: &Program, state: &mut State, env: &mut Environment) -> Opti
                     }
                     match intrinsic::slice(value, start, end) {
                         Ok((value, path_elem)) => {
-                            state.push_with_path(value, path_elem);
+                            state.push_with_path_element(value, path_elem);
                         }
                         Err(e) => {
                             err.replace(e);
@@ -662,6 +672,24 @@ fn run_code(program: &Program, state: &mut State, env: &mut Environment) -> Opti
                     state.push_iterator(iter);
                     env.push_fork(state, OnFork::Iterate, state.pc.get_next());
                     continue 'backtrack;
+                }
+                Access => {
+                    let path = state.pop();
+                    let value = state.pop();
+                    match intrinsic::get_path(value, path.clone()) {
+                        Ok(value) => match path {
+                            Value::Array(arr) => {
+                                let path = arr.iter().cloned().map(PathElement::Any).collect_vec();
+                                state.push_with_path(value, path);
+                            }
+                            _ => {
+                                err.replace(QueryExecutionError::PathNotArray(path));
+                            }
+                        },
+                        Err(e) => {
+                            err.replace(e);
+                        }
+                    }
                 }
                 EnterPathTracking => {
                     state.dup(); // TODO: Push some kind of token and swap instead?

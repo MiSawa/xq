@@ -3,9 +3,16 @@ use crate::{
     vm::{error::Result, QueryExecutionError},
     Array, Object, Value,
 };
-use itertools::repeat_n;
+use itertools::{repeat_n, Itertools};
 use num::ToPrimitive;
 use std::ops::Range;
+
+pub(crate) fn get_path(context: Value, path: Value) -> Result<Value> {
+    match path {
+        Value::Array(path_entries) => get_path_rec(context, &path_entries[..]),
+        v => Err(QueryExecutionError::PathNotArray(v)),
+    }
+}
 
 pub(crate) fn set_path(context: Value, path: Value, value: Value) -> Result<Value> {
     match path {
@@ -25,6 +32,56 @@ fn map_to_slice_range(length: usize, index: &Object) -> Result<Range<usize>> {
     let start = index.get(&"start".to_string());
     let end = index.get(&"end".to_string());
     super::index::calculate_slice_index(length, start, end)
+}
+
+fn get_path_rec(context: Value, path: &[Value]) -> Result<Value> {
+    match path.split_first() {
+        None => Ok(context),
+        Some((index, path)) => match (context, index) {
+            (context @ (Value::Boolean(_) | Value::Number(_) | Value::String(_)), _) => {
+                Err(QueryExecutionError::IndexOnNonIndexable(context))
+            }
+            (Value::Null, Value::Number(_)) => get_path_rec(Value::Null, path),
+            (Value::Null, Value::String(_)) => get_path_rec(Value::Null, path),
+            (Value::Null, Value::Object(map)) => {
+                map_to_slice_range(0, map.as_ref())?; // verify the slicing
+                get_path_rec(Value::Null, path)
+            }
+            (Value::Array(arr), Value::Number(n)) => {
+                let i = n
+                    .to_isize()
+                    .ok_or_else(|| QueryExecutionError::InvalidIndex(index.clone()))?;
+                if i + (arr.len() as isize) < 0 {
+                    Err(QueryExecutionError::InvalidIndex(index.clone()))
+                } else {
+                    let i = if i < 0 {
+                        (i + arr.len() as isize) as usize
+                    } else {
+                        i as usize
+                    };
+                    if i >= arr.len() {
+                        get_path_rec(Value::Null, path)
+                    } else {
+                        get_path_rec(arr[i].clone(), path)
+                    }
+                }
+            }
+            (Value::Array(arr), Value::Object(map)) => {
+                let range = map_to_slice_range(arr.len(), map)?;
+                if range.is_empty() {
+                    get_path_rec(Array::new().into(), path)
+                } else {
+                    let temp = arr[range].iter().cloned().collect_vec();
+                    get_path_rec(Array::from_vec(temp).into(), path)
+                }
+            }
+            (Value::Object(map), Value::String(key)) => {
+                let value = map.get(key).cloned().unwrap_or(Value::Null);
+                get_path_rec(value, path)
+            }
+            (value, index) => Err(QueryExecutionError::InvalidIndexing(value, index.clone())),
+        },
+    }
 }
 
 fn set_path_rec(context: Value, path: &[Value], replacement: Value) -> Result<Value> {

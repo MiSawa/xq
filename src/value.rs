@@ -8,6 +8,7 @@ use serde::{
 };
 use std::{
     borrow::Borrow,
+    cmp::Ordering,
     collections::HashMap,
     fmt::{Debug, Display, Formatter},
     hash::{Hash, Hasher},
@@ -407,5 +408,54 @@ impl<'de> Deserialize<'de> for Value {
             }
         }
         deserializer.deserialize_any(V)
+    }
+}
+
+impl PartialOrd for Value {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(Self::cmp(self, other))
+    }
+}
+
+impl Ord for Value {
+    fn cmp(&self, other: &Self) -> Ordering {
+        use Ordering::*;
+        use Value::*;
+        fn type_ord(value: &Value) -> u8 {
+            match value {
+                Null => 0,
+                Boolean(_) => 1,
+                Number(_) => 2,
+                String(_) => 3,
+                Array(_) => 4,
+                Object(_) => 5,
+            }
+        }
+        if let res @ (Less | Greater) = type_ord(self).cmp(&type_ord(other)) {
+            return res;
+        }
+        return match (&self, &other) {
+            (Null, Null) => Equal,
+            (Boolean(lhs), Boolean(rhs)) => Ord::cmp(lhs, rhs),
+            (Number(lhs), Number(rhs)) => Ord::cmp(&lhs, &rhs),
+            (String(lhs), String(rhs)) => Ord::cmp(&lhs, &rhs),
+            (Array(lhs), Array(rhs)) => return Iterator::cmp(lhs.iter(), rhs.iter()),
+            (Object(lhs), Object(rhs)) => {
+                let lhs_keys = lhs.keys().sorted().collect_vec();
+                let rhs_keys = rhs.keys().sorted().collect_vec();
+                if let res @ (Less | Greater) = Iterator::cmp(lhs_keys.iter(), rhs_keys.iter()) {
+                    return res;
+                }
+                for key in lhs_keys {
+                    if let res @ (Less | Greater) = Ord::cmp(&lhs.get(key), &rhs.get(key)) {
+                        return res;
+                    }
+                }
+                Equal
+            }
+            (Null | Boolean(_) | Number(_) | String(_) | Array(_) | Object(_), _) => {
+                unreachable!()
+            }
+        };
     }
 }
