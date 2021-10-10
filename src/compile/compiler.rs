@@ -490,6 +490,36 @@ impl Compiler {
                         Ok(next)
                     })
                 }
+                "group_by" => {
+                    FunctionLike::ManuallyImplemented("group_by", |compiler, args, next| {
+                        assert_eq!(1, args.len());
+                        let grouping = &args[0];
+                        // [.[] | [ [grouping], . ]] | group_by_impl
+                        let arg = Term::Array(Some(Box::new(Query::Pipe {
+                            lhs: Box::new(
+                                Term::Suffix(Term::Identity.into(), Suffix::Iterate).into(),
+                            ),
+                            rhs: Box::new(
+                                Term::Array(Some(Box::new(Query::Concat {
+                                    lhs: Box::new(
+                                        Term::Array(Some(Box::new(grouping.clone()))).into(),
+                                    ),
+                                    rhs: Box::new(Term::Identity.into()),
+                                })))
+                                .into(),
+                            ),
+                        })));
+                        let next = compiler.emitter.emit_normal_op(
+                            ByteCode::Intrinsic0(NamedFn0 {
+                                name: "group_by",
+                                func: intrinsic::group_by,
+                            }),
+                            next,
+                        );
+                        let next = compiler.compile_term(&arg, next)?;
+                        Ok(next)
+                    })
+                }
                 _ => return None,
             },
             _ => return None,

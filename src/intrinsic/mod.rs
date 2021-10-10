@@ -152,3 +152,46 @@ fn sort(context: Value) -> Result<Value> {
     arr.sort();
     Ok(Array::from_vec(arr).into())
 }
+
+/// Receives `[ [ group key, original value ] ]`.
+pub(crate) fn group_by(context: Value) -> Result<Value> {
+    let arr = match context {
+        Value::Array(arr) => make_owned(arr),
+        _ => return Err(QueryExecutionError::InvalidArgType("group_by", context)),
+    };
+    let mut arr: Vec<(Value, Value)> = arr
+        .into_iter()
+        .map(|v| match v {
+            Value::Array(v) => {
+                let mut v = make_owned(v).to_vec();
+                assert_eq!(v.len(), 2);
+                let original = v.pop().unwrap();
+                let group = v.pop().unwrap();
+                Ok((group, original))
+            }
+            _ => Err(QueryExecutionError::InvalidArgType("group_by", v)),
+        })
+        .collect::<Result<Vec<_>>>()?;
+    arr.sort_by(|(lhs, _), (rhs, _)| lhs.cmp(rhs));
+    let arr = arr
+        .into_iter()
+        .fold::<(Option<Value>, Vec<Vec<Value>>), _>(
+            (None, Vec::new()),
+            |(current_group, mut groups), (grp, value)| {
+                if let Some(current_group) = current_group {
+                    if current_group == grp {
+                        groups.last_mut().expect("Shouldn't be empty").push(value);
+                        return (Some(current_group), groups);
+                    }
+                }
+                groups.push(vec![value]);
+                (Some(grp), groups)
+            },
+        )
+        .1
+        .into_iter()
+        .map(Array::from_vec)
+        .map(Into::into)
+        .collect_vec();
+    Ok(Array::from_vec(arr).into())
+}
