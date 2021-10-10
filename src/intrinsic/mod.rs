@@ -37,8 +37,10 @@ static INTRINSICS0: phf::Map<&'static str, NamedFn0> = phf_map! {
     "length" => NamedFn0 { name: "length", func: length },
     "utf8bytelength" => NamedFn0 { name: "utf8bytelength", func: utf8_byte_length },
     "sort" => NamedFn0 { name: "sort", func: sort },
+    "reverse" => NamedFn0 { name: "reverse", func: reverse },
     "tostring" => NamedFn0 { name: "tostring", func: text },
     "tonumber" => NamedFn0 { name: "to_number", func: string::to_number },
+
     "nan" => NamedFn0 { name: "nan", func: math::nan },
     "infinite" => NamedFn0 { name: "infinite", func: math::infinite },
     "floor" => as_math_fn!(floor),
@@ -51,6 +53,7 @@ static INTRINSICS1: phf::Map<&'static str, (NamedFn1, ArgType)> = phf_map! {
     "error" => (NamedFn1 { name: "error", func: error1 }, ArgType::Value),
     "has" => (NamedFn1 { name: "has", func: has }, ArgType::Value),
     "in" => (NamedFn1 { name: "in", func: |c, i| has(i, c) }, ArgType::Value),
+    "contains" => (NamedFn1 { name: "contains", func: contains }, ArgType::Value),
     "delpaths" => (NamedFn1 { name: "delpaths", func: path::del_paths }, ArgType::Value),
 };
 static INTRINSICS2: phf::Map<&'static str, (NamedFn2, ArgType, ArgType)> = phf_map! {
@@ -143,6 +146,32 @@ fn has(context: Value, index: Value) -> Result<Value> {
     .into())
 }
 
+fn contains(context: Value, element: Value) -> Result<Value> {
+    fn contains_rec(lhs: &Value, rhs: &Value) -> Result<bool> {
+        Ok(match (lhs, rhs) {
+            (Value::Null, Value::Null) => true,
+            (Value::Boolean(lhs), Value::Boolean(rhs)) => lhs == rhs,
+            (Value::Number(lhs), Value::Number(rhs)) => lhs == rhs, // TODO: nan handling in JQ semantics...
+            (Value::String(lhs), Value::String(rhs)) => lhs.contains(rhs.as_ref()),
+            (Value::Array(lhs), Value::Array(rhs)) => rhs
+                .iter()
+                .all(|r| lhs.iter().any(|l| contains_rec(l, r).unwrap_or(false))),
+            (Value::Object(lhs), Value::Object(rhs)) => rhs.iter().all(|(k, r)| {
+                lhs.get(k)
+                    .map(|l| contains_rec(l, r).unwrap_or(false))
+                    .unwrap_or(false)
+            }),
+            (_, _) => {
+                return Err(QueryExecutionError::InvalidArgType(
+                    "contains",
+                    Array::from_vec(vec![lhs.clone(), rhs.clone()]).into(),
+                ))
+            }
+        })
+    }
+    contains_rec(&context, &element).map(Into::into)
+}
+
 fn sort(context: Value) -> Result<Value> {
     let arr = match context {
         Value::Array(arr) => make_owned(arr),
@@ -150,6 +179,16 @@ fn sort(context: Value) -> Result<Value> {
     };
     let mut arr = arr.into_iter().collect_vec();
     arr.sort();
+    Ok(Array::from_vec(arr).into())
+}
+
+fn reverse(context: Value) -> Result<Value> {
+    let arr = match context {
+        Value::Array(arr) => make_owned(arr),
+        _ => return Err(QueryExecutionError::InvalidArgType("reverse", context)),
+    };
+    let mut arr = arr.into_iter().collect_vec();
+    arr.reverse();
     Ok(Array::from_vec(arr).into())
 }
 
