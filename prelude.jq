@@ -69,3 +69,6 @@ def unique: unique_by(.);
 
 def flatten: if type | . == "array" or . == "object" then [.[] | flatten] | reduce .[] as $v ([]; . + $v) else [.] end;
 def flatten($d): if ($d >= 0) and (type | . == "array" or . == "object") then [.[] | flatten($d-1)] | add else [.] end;
+
+def index($s): def __yes_i_know_this_is_bad:.; indices($s)[0];
+def rindex($s): def __yes_i_know_this_is_bad:.; indices($s)[-1];

@@ -924,4 +924,160 @@ test!(
     "#
 );
 
+test!(
+    indices1,
+    r#"
+    indices(", ")
+    "#,
+    r#"
+    "a,b, cd, efg, hijk"
+    "#,
+    r#"
+    [3,7,12]
+    "#
+);
+
+test!(
+    indices2,
+    r#"
+    indices(1)
+    "#,
+    r#"
+    [0,1,2,1,3,1,4]
+    "#,
+    r#"
+    [1,3,5]
+    "#
+);
+
+test!(
+    indices3,
+    r#"
+    indices([1,2])
+    "#,
+    r#"
+    [0,1,2,3,1,4,2,5,1,2,6,7]
+    "#,
+    r#"
+    [1,8]
+    "#
+);
+
+test!(
+    index1,
+    r#"
+    index(", ")
+    "#,
+    r#"
+    "a,b, cd, efg, hijk"
+    "#,
+    r#"
+    3
+    "#
+);
+
+test!(
+    index2,
+    r#"
+    rindex(", ")
+    "#,
+    r#"
+    "a,b, cd, efg, hijk"
+    "#,
+    r#"
+    12
+    "#
+);
+
+test!(
+    inside1,
+    r#"
+    inside("foobar")
+    "#,
+    r#"
+    "bar"
+    "#,
+    r#"
+    true
+    "#
+);
+
+test!(
+    inside2,
+    r#"
+    inside(["foobar", "foobaz", "blarp"])
+    "#,
+    r#"
+    ["baz", "bar"]
+    "#,
+    r#"
+    true
+    "#
+);
+
+test!(
+    inside3,
+    r#"
+    inside(["foobar", "foobaz", "blarp"])
+    "#,
+    r#"
+    ["bazzzzz", "bar"]
+    "#,
+    r#"
+    false
+    "#
+);
+
+test!(
+    inside4,
+    r#"
+    inside({"foo": 12, "bar":[1,2,{"barp":12, "blip":13}]})
+    "#,
+    r#"
+    {"foo": 12, "bar": [{"barp": 12}]}
+    "#,
+    r#"
+    true
+    "#
+);
+
+test!(
+    inside5,
+    r#"
+    inside({"foo": 12, "bar":[1,2,{"barp":12, "blip":13}]})
+    "#,
+    r#"
+    {"foo": 12, "bar": [{"barp": 15}]}
+    "#,
+    r#"
+    false
+    "#
+);
+
+test!(
+    startswith1,
+    r#"
+    [.[]|startswith("foo")]
+    "#,
+    r#"
+    ["fo", "foo", "barfoo", "foobar", "barfoob"]
+    "#,
+    r#"
+    [false, true, false, true, false]
+    "#
+);
+
+test!(
+    endswith1,
+    r#"
+    [.[]|endswith("foo")]
+    "#,
+    r#"
+    ["foobar", "barfoo"]
+    "#,
+    r#"
+    [false, true]
+    "#
+);
+
 // TODO: Add more
