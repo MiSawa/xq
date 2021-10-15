@@ -84,3 +84,16 @@ test!(
     {"a": "a", "b": "b", "c": "c", "d": "d", "e": "e"}
     "#
 );
+
+test!(
+    length_on_number_yields_abs_value,
+    r#"
+    map(length)
+    "#,
+    r#"
+    [0, 128, -128, -1.5]
+    "#,
+    r#"
+    [0, 128, 128, 1.5]
+    "#
+);

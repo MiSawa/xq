@@ -9,7 +9,7 @@ use crate::{
     Array, Value,
 };
 use itertools::Itertools;
-use num::ToPrimitive;
+use num::{Float, ToPrimitive};
 use phf::phf_map;
 use std::rc::Rc;
 
@@ -121,7 +121,7 @@ fn length(context: Value) -> Result<Value> {
     Ok(Value::number(match context {
         Value::Null => 0,
         Value::Boolean(_) => return Err(QueryExecutionError::InvalidArgType("length", context)),
-        Value::Number(_) => return Ok(context),
+        Value::Number(n) => return Ok(n.abs().into()),
         Value::String(s) => s.chars().count(),
         Value::Array(a) => a.len(),
         Value::Object(o) => o.len(),
