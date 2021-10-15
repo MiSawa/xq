@@ -97,3 +97,16 @@ test!(
     [0, 128, 128, 1.5]
     "#
 );
+
+test!(
+    indices_with_empty_array,
+    r#"
+    indices([])
+    "#,
+    r#"
+    [0]
+    "#,
+    r#"
+    []
+    "#
+);
