@@ -27,8 +27,8 @@ def range($from; $upto; $by): $from | while(($by > 0 and . < $upto) or ($by < 0 
 def range($from; $upto): $from | while(. < $upto; . + 1);
 def range($upto): range(0; $upto);
 
-def isempty(f): reduce f as $_ (true; false);
-def limit($n; f): foreach f as $item (0; . + 1; if . <= $n then $item else empty end);
+def isempty(f): label $outer | ((f | (false, break $outer)), (true, break $outer));
+def limit($n; f): label $outer | foreach f as $item (0; . + 1; if . <= $n then $item else break $outer end);
 def first(f): label $out | f | ., break $out;
 def last(f): reduce f as $item (null; $item);
 def nth($n; expr): last(limit($n + 1; expr));
@@ -51,11 +51,11 @@ def paths(f): paths as $v | select(getpath($v) | f) | $v;
 def leaf_paths: paths(scalars);
 
 def add: reduce .[] as $v (null; . + $v);
-def any(g; f): reduce (g | f) as $v (false; . or $v);
+def any(g; f): isempty(g | select(f)) | not;
 def any(f): any(.[]; f);
 def any: any(.);
 
-def all(g; f): reduce (g | f) as $v (true; . and $v);
+def all(g; f): isempty(g | select(f | not));
 def all(f): all(.[]; f);
 def all: all(.);
 

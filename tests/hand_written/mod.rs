@@ -110,3 +110,57 @@ test!(
     []
     "#
 );
+
+test!(
+    limit_infinite_stream,
+    r#"
+    limit(3; repeat(0))
+    "#,
+    r#"
+    null
+    "#,
+    r#"
+    0
+    0
+    0
+    "#
+);
+
+test!(
+    isempty_infinite_stream,
+    r#"
+    isempty(repeat(0))
+    "#,
+    r#"
+    null
+    "#,
+    r#"
+    false
+    "#
+);
+
+test!(
+    any_infinite_stream,
+    r#"
+    any(repeat(true); .)
+    "#,
+    r#"
+    null
+    "#,
+    r#"
+    true
+    "#
+);
+
+test!(
+    all_infinite_stream,
+    r#"
+    all(repeat(false); .)
+    "#,
+    r#"
+    null
+    "#,
+    r#"
+    false
+    "#
+);
