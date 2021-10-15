@@ -28,7 +28,7 @@ def range($from; $upto): $from | while(. < $upto; . + 1);
 def range($upto): range(0; $upto);
 
 def isempty(f): reduce f as $_ (true; false);
-def limit($n; f): foreach f as $item (0; . + 1; if . <= $n then $item else empty end);
+def limit($n; f): label $outer | foreach f as $item (0; . + 1; if . <= $n then $item else break $outer end);
 def first(f): label $out | f | ., break $out;
 def last(f): reduce f as $item (null; $item);
 def nth($n; expr): last(limit($n + 1; expr));

@@ -110,3 +110,18 @@ test!(
     []
     "#
 );
+
+test!(
+    limit_infinite_stream,
+    r#"
+    limit(3; repeat(0))
+    "#,
+    r#"
+    null
+    "#,
+    r#"
+    0
+    0
+    0
+    "#
+);
