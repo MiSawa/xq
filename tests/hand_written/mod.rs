@@ -164,3 +164,29 @@ test!(
     false
     "#
 );
+
+test!(
+    ascii_downcase,
+    r#"
+    ascii_downcase
+    "#,
+    r#"
+    "abCdEF123"
+    "#,
+    r#"
+    "abcdef123"
+    "#
+);
+
+test!(
+    ascii_upcase,
+    r#"
+    ascii_upcase
+    "#,
+    r#"
+    "abCdEF123"
+    "#,
+    r#"
+    "ABCDEF123"
+    "#
+);
