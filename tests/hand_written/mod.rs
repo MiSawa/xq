@@ -190,3 +190,16 @@ test!(
     "ABCDEF123"
     "#
 );
+
+test!(
+    tailrec_opt,
+    r#"
+    def walk2(f): if type | . == "array" or . == "object" then map_values(walk2(f)) | f else f end; walk2(.)
+    "#,
+    r#"
+    [1,[2,3]]
+    "#,
+    r#"
+    [1,[2,3]]
+    "#
+);
