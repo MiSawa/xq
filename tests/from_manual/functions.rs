@@ -1138,4 +1138,30 @@ test!(
     "#
 );
 
+test!(
+    explode1,
+    r#"
+    explode
+    "#,
+    r#"
+    "foobar"
+    "#,
+    r#"
+    [102,111,111,98,97,114]
+    "#
+);
+
+test!(
+    implode1,
+    r#"
+    implode
+    "#,
+    r#"
+    [65, 66, 67]
+    "#,
+    r#"
+    "ABC"
+    "#
+);
+
 // TODO: Add more

@@ -2,9 +2,11 @@ use crate::{
     lang::ast::Identifier,
     util::make_owned,
     vm::{bytecode::NamedFn0, QueryExecutionError, Result},
-    Value,
+    Array, Number, Value,
 };
-use std::{borrow::Cow, rc::Rc};
+use itertools::Itertools;
+use num::ToPrimitive;
+use std::{borrow::Cow, convert::TryFrom, rc::Rc};
 
 pub(crate) fn to_number(value: Value) -> Result<Value> {
     match value {
@@ -58,6 +60,41 @@ pub(crate) fn stringifier(id: &Identifier) -> Option<NamedFn0> {
         _ => return None,
     }
     .into()
+}
+
+pub(crate) fn explode(value: Value) -> Result<Value> {
+    match value {
+        Value::String(s) => Ok(Array::from_vec(
+            s.chars()
+                .map(|c| Number::from(c as u32).into())
+                .collect_vec(),
+        )
+        .into()),
+        _ => Err(QueryExecutionError::InvalidArgType("explode", value)),
+    }
+}
+
+pub(crate) fn implode(value: Value) -> Result<Value> {
+    match value {
+        Value::Array(s) => {
+            let s = s
+                .iter()
+                .map(|c| match c {
+                    Value::Number(c) => {
+                        let c = c
+                            .to_u32()
+                            .ok_or_else(|| QueryExecutionError::InvalidNumberAsChar(*c))?;
+                        let c = char::try_from(c)
+                            .map_err(|_| QueryExecutionError::InvalidNumberAsChar(c.into()))?;
+                        Ok(c)
+                    }
+                    _ => Err(QueryExecutionError::InvalidArgType("implode", c.clone())),
+                })
+                .collect::<Result<String>>()?;
+            Ok(Value::String(Rc::new(s)))
+        }
+        _ => Err(QueryExecutionError::InvalidArgType("implode", value)),
+    }
 }
 
 fn stringify_inner(value: Value) -> Rc<String> {
