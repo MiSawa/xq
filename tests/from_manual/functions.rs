@@ -1276,4 +1276,33 @@ test!(
     "#
 );
 
+test!(
+    walk1,
+    r#"
+    walk(if type == "array" then sort else . end)
+    "#,
+    r#"
+    [[4, 1, 7], [8, 5, 2], [3, 6, 9]]
+    "#,
+    r#"
+    [[1,4,7],[2,5,8],[3,6,9]]
+    "#
+);
+
+/*
+ TODO: Implement `sub`
+test!(
+    walk2,
+    r#"
+    walk( if type == "object" then with_entries( .key |= sub( "^_+"; "") ) else . end )
+    "#,
+    r#"
+    [ { "_a": { "__b": 2 } } ]
+    "#,
+    r#"
+    [{"a":{"b":2}}]
+    "#
+);
+ */
+
 // TODO: Add more

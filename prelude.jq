@@ -1,3 +1,5 @@
+def sub($a; $b): def __unimplemented:.; "sub(\(.), \($a), \($b))";
+
 def not: if . then false else true end;
 def select(f): if f then . else empty end;
 def map(f): [.[] | f];
@@ -19,6 +21,8 @@ def isinfinite: isfinite | not;
 def recurse(f; cond): def r: ., (f | select(cond) | r); r;
 def recurse(f): recurse(f; . != null);
 def recurse: recurse(.[]?);
+def walk(f): def _walk: if type | . == "array" or . == "object" then map_values(_walk) | f else f end; _walk;
+def walk2(f): if type | . == "array" or . == "object" then map_values(walk2(f)) | f else f end;
 
 def while(cond; update): def _while: if cond then ., (update | _while) else empty end; _while;
 def until(cond; update): def _until: if cond then . else (update | _until) end; _until;
