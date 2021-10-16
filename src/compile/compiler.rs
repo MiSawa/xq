@@ -193,11 +193,6 @@ impl CodeEmitter {
         self.emit_normal_op(ByteCode::Fork { fork_pc }, next)
     }
 
-    fn emit_normal_placeholder(&mut self, next: Address) -> (Address, PlaceHolder) {
-        let address = self.emit_normal_op(ByteCode::PlaceHolder, next);
-        (address, PlaceHolder(address))
-    }
-
     fn emit_terminal_placeholder(&mut self) -> (Address, PlaceHolder) {
         let address = self.emit_terminal_op(ByteCode::PlaceHolder);
         (address, PlaceHolder(address))
@@ -653,6 +648,7 @@ impl Compiler {
                         next = self.emitter.emit_normal_op(ByteCode::Swap, next);
                     }
                      */
+                    // TODO: Optimize closures that doesn't require frames saved.
                     next = self
                         .emitter
                         .emit_normal_op(ByteCode::PushClosure(closure), next);
@@ -690,38 +686,30 @@ impl Compiler {
                 tail_call_preserve_frame,
                 arg_types,
             }) => {
-                let (func_call_address, call_placeholder) =
-                    self.emitter.emit_normal_placeholder(next);
-                // Compile the args (especially closures) first, so that we can decide whether we need to keep the
-                // current frame on the function call.
-                let ret = self.compile_func_call_args(args, &arg_types, func_call_address)?;
-                if matches!(self.emitter.get_next_op(next), ByteCode::Ret) {
-                    // The destination `tail_call_address` will be (or is already) replaced with either
+                let call = if matches!(self.emitter.get_next_op(next), ByteCode::Ret) {
+                    // The destination `tail_call_*_frame` will be (or is already) replaced with either
                     // a `ByteCode::TailCall(new_frame_address)` or a `ByteCode::Jump(after_new_frame_address)`
                     // depending on whether the function requires a slot.
                     // To use `ByteCode::TailCall`, we can't have any slot that are referenced from the function we're calling,
                     // since we'll discard the current frame.
                     // As an estimation, we care if there's any slot on the current scope already referenced from another scope.
-                    // The function we call, and functions that the function can be invoked from there
+                    // The function we call, and functions that can be invoked from there
                     // are either a function that we've already compiled, or a function currently in the scope stack.
                     // Either way, this heuristic should catch the usage of a slot by them.
                     let can_discard_frame = !self.current_scope().has_slot_leaked_scope();
                     if can_discard_frame {
-                        self.emitter.replace_placeholder(
-                            call_placeholder,
-                            ByteCode::Jump(tail_call_discard_frame),
-                        );
+                        self.emitter
+                            .emit_terminal_op(ByteCode::Jump(tail_call_discard_frame))
                     } else {
-                        self.emitter.replace_placeholder(
-                            call_placeholder,
-                            ByteCode::Jump(tail_call_preserve_frame),
-                        );
+                        self.emitter
+                            .emit_terminal_op(ByteCode::Jump(tail_call_preserve_frame))
                     }
                 } else {
-                    self.emitter
-                        .replace_placeholder(call_placeholder, ByteCode::Call(address));
+                    self.emitter.emit_normal_op(ByteCode::Call(address), next)
                 };
-                ret
+                // Since value-args doesn't have to be preserved and closure-args save their frames,
+                // we don't need these args to be tracked for the above condition.
+                self.compile_func_call_args(args, &arg_types, call)?
             }
             FunctionLike::Closure(slot) => {
                 assert!(args.is_empty());
