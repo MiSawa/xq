@@ -46,8 +46,8 @@ use crate::{
 pub enum CompileError {
     #[error("Use of unknown variable `{0:}`")]
     UnknownVariable(Identifier),
-    #[error("Use of unknown function `{0:}`")]
-    UnknownFunction(Identifier),
+    #[error("Use of unknown function `{0:}` that takes {1:} arguments")]
+    UnknownFunction(Identifier, usize),
     #[error("Bind pattern has the same variable `{0:}`")]
     SameVariableInPattern(Identifier),
     #[error("Unknown label `{0:}`")]
@@ -530,7 +530,7 @@ impl Compiler {
                 intrinsic::lookup_intrinsic_fn(function)
                     .map(|(code, args)| FunctionLike::Intrinsic(code, args))
             })
-            .ok_or_else(|| CompileError::UnknownFunction(function.0.clone()))
+            .ok_or_else(|| CompileError::UnknownFunction(function.0.clone(), function.1))
     }
 
     /// Consumes nothing, produces nothing. Just places the code.
