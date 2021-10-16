@@ -247,17 +247,15 @@ fn indices(context: Value, s: Value) -> Result<Value> {
                 .collect(),
         )
         .into(),
-        (Value::Array(lhs), Value::Array(rhs)) => Array::from_vec(
-            if rhs.is_empty() {
-                vec![]
-            } else {
-                lhs.windows(rhs.len())
-                    .enumerate()
-                    .filter(|(_, lhs)| lhs.iter().eq(rhs.iter())) // TODO: NaN
-                    .map(|(pos, _)| Value::Number(pos.into()))
-                    .collect()
-            }
-        )
+        (Value::Array(lhs), Value::Array(rhs)) => Array::from_vec(if rhs.is_empty() {
+            vec![]
+        } else {
+            lhs.windows(rhs.len())
+                .enumerate()
+                .filter(|(_, lhs)| lhs.iter().eq(rhs.iter())) // TODO: NaN
+                .map(|(pos, _)| Value::Number(pos.into()))
+                .collect()
+        })
         .into(),
         (Value::Array(lhs), rhs) => Array::from_vec(
             lhs.iter()

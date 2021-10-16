@@ -72,3 +72,5 @@ def flatten($d): if ($d >= 0) and (type | . == "array" or . == "object") then [.
 
 def index($s): def __yes_i_know_this_is_bad:.; indices($s)[0];
 def rindex($s): def __yes_i_know_this_is_bad:.; indices($s)[-1];
+
+def combinations: if length == 0 then [] else (.[0].[] as $car | [$car] + (.[1:] | combinations)) end;

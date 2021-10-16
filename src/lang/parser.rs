@@ -822,21 +822,30 @@ fn program(input: &str) -> ParseResult<Program> {
                 terminated(char(';'), multispace0),
             )),
             many0(terminated(import, multispace0)),
-            alt((
-                pair(success(vec![]), query),
-                pair(
-                    // This eats the following spaces... It's fine but all the other places are not made in that way.
-                    // This is because `separated_list0` doesn't behave well with `multispace0`.
-                    many0(terminated(funcdef, multispace0)),
-                    success(Term::Identity.into()),
-                ),
-            )),
+            many0(terminated(funcdef, multispace0)),
+            alt((map(query, Some), success(None))),
         )),
-        |(module_header, imports, (functions, query))| Program {
-            module_header,
-            imports,
-            functions,
-            query,
+        |(module_header, imports, functions, query)| match query {
+            Some(mut query) => {
+                for f in functions.into_iter().rev() {
+                    query = Query::WithFunc {
+                        function: f,
+                        query: Box::new(query),
+                    };
+                }
+                Program {
+                    module_header,
+                    imports,
+                    functions: vec![],
+                    query,
+                }
+            }
+            None => Program {
+                module_header,
+                imports,
+                functions,
+                query: Term::Identity.into(),
+            },
         },
     )(input)
 }
