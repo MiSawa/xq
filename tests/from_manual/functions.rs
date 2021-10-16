@@ -1164,4 +1164,43 @@ test!(
     "#
 );
 
+test!(
+    split1,
+    r#"
+    split(", ")
+    "#,
+    r#"
+    "a, b,c,d, e, "
+    "#,
+    r#"
+    ["a","b,c,d","e",""]
+    "#
+);
+
+test!(
+    join1,
+    r#"
+    join(", ")
+    "#,
+    r#"
+    ["a","b,c,d","e",""]
+    "#,
+    r#"
+    "a, b,c,d, e, "
+    "#
+);
+
+test!(
+    join2,
+    r#"
+    join(" ")
+    "#,
+    r#"
+    ["a",1,2.3,true,null,false]
+    "#,
+    r#"
+    "a 1 2.3 true  false"
+    "#
+);
+
 // TODO: Add more
