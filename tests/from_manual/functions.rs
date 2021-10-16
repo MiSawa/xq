@@ -1229,4 +1229,51 @@ test!(
     "#
 );
 
+test!(
+    recurse1,
+    r#"
+    recurse(.foo[])
+    "#,
+    r#"
+    {"foo":[{"foo": []}, {"foo":[{"foo":[]}]}]}
+    "#,
+    r#"
+    {"foo":[{"foo":[]},{"foo":[{"foo":[]}]}]}
+    {"foo":[]}
+    {"foo":[{"foo":[]}]}
+    {"foo":[]}
+    "#
+);
+
+test!(
+    recurse2,
+    r#"
+    recurse
+    "#,
+    r#"
+    {"a":0,"b":[1]}
+    "#,
+    r#"
+    {"a":0,"b":[1]}
+    0
+    [1]
+    1
+    "#
+);
+
+test!(
+    recurse3,
+    r#"
+    recurse(. * .; . < 20)
+    "#,
+    r#"
+    2
+    "#,
+    r#"
+    2
+    4
+    16
+    "#
+);
+
 // TODO: Add more
