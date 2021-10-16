@@ -1112,4 +1112,30 @@ test!(
     "#
 );
 
+test!(
+    ltrimstr1,
+    r#"
+    [.[]|ltrimstr("foo")]
+    "#,
+    r#"
+    ["fo", "foo", "barfoo", "foobar", "afoo"]
+    "#,
+    r#"
+    ["fo","","barfoo","bar","afoo"]
+    "#
+);
+
+test!(
+    rtrimstr1,
+    r#"
+    [.[]|rtrimstr("foo")]
+    "#,
+    r#"
+    ["fo", "foo", "barfoo", "foobar", "foob"]
+    "#,
+    r#"
+    ["fo","","bar","foobar","foob"]
+    "#
+);
+
 // TODO: Add more
