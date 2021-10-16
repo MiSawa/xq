@@ -21,6 +21,7 @@ def recurse(f): recurse(f; . != null);
 def recurse: recurse(.[]?);
 
 def while(cond; update): def _while: if cond then ., (update | _while) else empty end; _while;
+def until(cond; update): def _until: if cond then . else (update | _until) end; _until;
 def repeat(exp): def _repeat: exp, _repeat; _repeat;
 
 def range($from; $upto; $by): $from | while(($by > 0 and . < $upto) or ($by < 0 and . > $upto); . + $by);
