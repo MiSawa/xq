@@ -1096,4 +1096,20 @@ test!(
     "#
 );
 
+test!(
+    combinations2,
+    r#"
+    combinations(2)
+    "#,
+    r#"
+    [0,1]
+    "#,
+    r#"
+    [0, 0]
+    [0, 1]
+    [1, 0]
+    [1, 1]
+    "#
+);
+
 // TODO: Add more
