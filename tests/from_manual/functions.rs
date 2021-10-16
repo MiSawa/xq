@@ -1305,4 +1305,85 @@ test!(
 );
  */
 
+/*
+ TODO: Implement `env`
+test!(
+    env1,
+    r#"
+    $ENV.PAGER
+    "#,
+    r#"
+    null
+    "#,
+    r#"
+    "less"
+    "#
+);
+
+test!(
+    env2,
+    r#"
+    env.PAGER
+    "#,
+    r#"
+    null
+    "#,
+    r#"
+    "less"
+    "#
+);
+ */
+
+test!(
+    transpose1,
+    r#"
+    transpose
+    "#,
+    r#"
+    [[1], [2,3]]
+    "#,
+    r#"
+    [[1,2],[null,3]]
+    "#
+);
+
+test!(
+    bsearch1,
+    r#"
+    bsearch(0)
+    "#,
+    r#"
+    [0, 1]
+    "#,
+    r#"
+    0
+    "#
+);
+
+test!(
+    bsearch2,
+    r#"
+    bsearch(0)
+    "#,
+    r#"
+    [1,2,3]
+    "#,
+    r#"
+    -1
+    "#
+);
+
+test!(
+    bsearch3,
+    r#"
+    bsearch(4) as $ix | if $ix < 0 then .[-(1+$ix)] = 4 else . end
+    "#,
+    r#"
+    [1,2,3]
+    "#,
+    r#"
+    [1,2,3,4]
+    "#
+);
+
 // TODO: Add more

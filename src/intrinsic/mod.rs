@@ -51,19 +51,20 @@ static INTRINSICS0: phf::Map<&'static str, NamedFn0> = phf_map! {
     "isfinite" => as_math_fn!(is_finite),
     "isnormal" => as_math_fn!(is_normal),
 };
-static INTRINSICS1: phf::Map<&'static str, (NamedFn1, ArgType)> = phf_map! {
-    "error" => (NamedFn1 { name: "error", func: error1 }, ArgType::Value),
-    "has" => (NamedFn1 { name: "has", func: has }, ArgType::Value),
-    "in" => (NamedFn1 { name: "in", func: |i, c| has(c, i) }, ArgType::Value),
-    "contains" => (NamedFn1 { name: "contains", func: contains }, ArgType::Value),
-    "inside" => (NamedFn1 { name: "inside", func: |i, c| contains(c, i) }, ArgType::Value),
-    "indices" => (NamedFn1 { name: "indices", func: indices }, ArgType::Value),
-    "startswith" => (NamedFn1 { name: "startswith", func: starts_with }, ArgType::Value),
-    "endswith" => (NamedFn1 { name: "endswith", func: ends_with }, ArgType::Value),
-    "delpaths" => (NamedFn1 { name: "delpaths", func: path::del_paths }, ArgType::Value),
+static INTRINSICS1: phf::Map<&'static str, NamedFn1> = phf_map! {
+    "error" => NamedFn1 { name: "error", func: error1 },
+    "has" => NamedFn1 { name: "has", func: has },
+    "in" => NamedFn1 { name: "in", func: |i, c| has(c, i) },
+    "contains" => NamedFn1 { name: "contains", func: contains },
+    "inside" => NamedFn1 { name: "inside", func: |i, c| contains(c, i) },
+    "indices" => NamedFn1 { name: "indices", func: indices },
+    "startswith" => NamedFn1 { name: "startswith", func: starts_with },
+    "endswith" => NamedFn1 { name: "endswith", func: ends_with },
+    "delpaths" => NamedFn1 { name: "delpaths", func: path::del_paths },
+    "bsearch" => NamedFn1 { name: "bsearch", func: binary_search },
 };
-static INTRINSICS2: phf::Map<&'static str, (NamedFn2, ArgType, ArgType)> = phf_map! {
-    "setpath" => (NamedFn2 { name: "setpath", func: path::set_path }, ArgType::Value, ArgType::Value),
+static INTRINSICS2: phf::Map<&'static str, NamedFn2> = phf_map! {
+    "setpath" => NamedFn2 { name: "setpath", func: path::set_path },
 };
 
 pub(crate) fn lookup_intrinsic_fn(
@@ -78,12 +79,14 @@ pub(crate) fn lookup_intrinsic_fn(
         INTRINSICS1
             .get(&ident.0)
             .cloned()
-            .map(|(f, t)| (ByteCode::Intrinsic1(f), vec![t]))
+            .map(|f| (ByteCode::Intrinsic1(f), vec![ArgType::Value]))
     } else if *n_args == 2 {
-        INTRINSICS2
-            .get(&ident.0)
-            .cloned()
-            .map(|(f, t1, t2)| (ByteCode::Intrinsic2(f), vec![t1, t2]))
+        INTRINSICS2.get(&ident.0).cloned().map(|f| {
+            (
+                ByteCode::Intrinsic2(f),
+                vec![ArgType::Value, ArgType::Value],
+            )
+        })
     } else {
         None
     }
@@ -282,5 +285,15 @@ fn ends_with(context: Value, s: Value) -> Result<Value> {
     match (context, s) {
         (Value::String(lhs), Value::String(rhs)) => Ok(lhs.ends_with(rhs.as_ref()).into()),
         (context, _) => Err(QueryExecutionError::InvalidArgType("endswith", context)),
+    }
+}
+
+fn binary_search(context: Value, x: Value) -> Result<Value> {
+    match context {
+        Value::Array(arr) => Ok(match arr.binary_search(&x) {
+            Ok(i) => Value::number(i),
+            Err(i) => Value::number(-1 - (i as isize)),
+        }),
+        _ => Err(QueryExecutionError::InvalidArgType("bsearch", context)),
     }
 }

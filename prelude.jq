@@ -89,3 +89,4 @@ def join($sep): def stringify: label $out | ((nulls | ("", break $out)), ((boole
 def ascii_downcase: explode | map(if . >= 65 and . <= 90 then .+32 end) | implode;
 def ascii_upcase: explode | map(if . >= 97 and . <= 122 then .-32 end) | implode;
 
+def transpose: . as $dot | [range(max_by(length) | length) as $i | $dot | map(.[$i])];
