@@ -1386,4 +1386,56 @@ test!(
     "#
 );
 
+test!(
+    string_interpolation1,
+    r#"
+    "The input was \(.), which is one less than \(.+1)"
+    "#,
+    r#"
+    42
+    "#,
+    r#"
+    "The input was 42, which is one less than 43"
+    "#
+);
+
+test!(
+    to_from_json1,
+    r#"
+    [.[]|tostring]
+    "#,
+    r#"
+    [1, "foo", ["foo"]]
+    "#,
+    r#"
+    ["1","foo","[\"foo\"]"]
+    "#
+);
+
+test!(
+    to_from_json2,
+    r#"
+    [.[]|tojson]
+    "#,
+    r#"
+    [1, "foo", ["foo"]]
+    "#,
+    r#"
+    ["1","\"foo\"","[\"foo\"]"]
+    "#
+);
+
+test!(
+    to_from_json3,
+    r#"
+    [.[]|tojson|fromjson]
+    "#,
+    r#"
+    [1, "foo", ["foo"]]
+    "#,
+    r#"
+    [1,"foo",["foo"]]
+    "#
+);
+
 // TODO: Add more

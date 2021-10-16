@@ -18,7 +18,7 @@ pub(crate) use self::{
     comparator::comparator,
     index::{index, slice},
     path::{del_paths, get_path, set_path},
-    string::{explode, implode, stringifier, text},
+    string::{explode, from_json, implode, stringifier, text, to_json},
     unary::unary,
 };
 
@@ -40,6 +40,8 @@ static INTRINSICS0: phf::Map<&'static str, NamedFn0> = phf_map! {
     "reverse" => NamedFn0 { name: "reverse", func: reverse },
     "tostring" => NamedFn0 { name: "tostring", func: text },
     "tonumber" => NamedFn0 { name: "to_number", func: string::to_number },
+    "fromjson" => NamedFn0 { name: "fromjson", func: from_json },
+    "tojson" => NamedFn0 { name: "tojson", func: to_json },
     "explode" => NamedFn0 { name: "explode", func: explode },
     "implode" => NamedFn0 { name: "implode", func: implode },
 

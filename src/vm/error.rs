@@ -59,6 +59,8 @@ pub enum QueryExecutionError {
     InvalidArgType(&'static str, Value),
     #[error("`{0:?}` can't be parsed as a number")]
     InvalidStringToNumber(RcString),
+    #[error("Given string was invalid as a json `{0:}`")]
+    InvalidJson(RcString),
     #[error("{0:?}")]
     UserDefinedError(String),
 }

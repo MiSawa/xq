@@ -27,7 +27,7 @@ pub(crate) fn stringifier(id: &Identifier) -> Option<NamedFn0> {
         },
         "json" => NamedFn0 {
             name: "json",
-            func: json,
+            func: to_json,
         },
         "html" => NamedFn0 {
             name: "html",
@@ -110,7 +110,16 @@ pub(crate) fn text(value: Value) -> Result<Value> {
     Ok(stringify_inner(value).into())
 }
 
-fn json(value: Value) -> Result<Value> {
+pub(crate) fn from_json(value: Value) -> Result<Value> {
+    match value {
+        Value::String(s) => {
+            serde_json::from_str(&*s).map_err(|_| QueryExecutionError::InvalidJson(s.clone()))
+        }
+        _ => Err(QueryExecutionError::InvalidArgType("fromjson", value)),
+    }
+}
+
+pub(crate) fn to_json(value: Value) -> Result<Value> {
     Ok(serde_json::to_string(&value)
         .expect("Unable to encode a value to json")
         .into())
