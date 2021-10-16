@@ -9,7 +9,7 @@ use crate::{
     intrinsic,
     util::make_owned,
     vm::{
-        bytecode::{Closure, Label, NamedFunction},
+        bytecode::{ClosureAddress, Label, NamedFunction},
         error::QueryExecutionError,
         Address, ByteCode, Program, Result, ScopeId, ScopedSlot, Value,
     },
@@ -34,8 +34,6 @@ pub(crate) enum ProgramError {
     UninitializedSlot,
     #[error("tried to pop a frame but there was no frame to pop")]
     PopEmptyFrame,
-    #[error("tried to restore an unknown frame")]
-    PopUnknownFrame,
 }
 
 #[derive(Debug, Clone)]
@@ -97,6 +95,9 @@ impl Iterator for PathValueIterator {
     }
 }
 
+type Frames = PVector<Option<Frame>>;
+type Closure = (ClosureAddress, Frames);
+
 #[derive(Debug, Clone)]
 struct Frame {
     slots: Rc<RefCell<Vec<Option<Value>>>>,
@@ -131,8 +132,8 @@ struct State {
     pc: Address,
     stack: UStack<Value>,
 
-    frames: PVector<(Option<Frame>, PStack<Frame>)>,
-    frame_stack: UStack<(Address, ScopeId, bool)>, // (pc, pushed_scope, chain pop)
+    frames: Frames,
+    frame_stack: UStack<(Address, Frames, bool)>, // (return pc, saved frames, chain pop)
     closure_stack: UStack<Closure>,
 
     paths: UStack<Option<(Value, Value, PStack<PathElement>)>>, // origin, current, path stack
@@ -255,8 +256,8 @@ impl State {
         assert!(matches!(self.paths.pop(), Some(None)));
     }
 
-    fn push_closure(&mut self, closure: Closure) {
-        self.closure_stack.push(closure)
+    fn push_closure(&mut self, closure: ClosureAddress) {
+        self.closure_stack.push((closure, self.frames.clone()));
     }
 
     fn pop_closure(&mut self) -> Closure {
@@ -278,7 +279,7 @@ impl State {
         let frame = self
             .frames
             .get_mut(scoped_slot.0 .0)
-            .and_then(|(x, _)| x.as_mut())
+            .and_then(Option::as_mut)
             .ok_or(ProgramError::UninitializedFrame)
             .unwrap();
         let slots = frame.slots.borrow_mut();
@@ -293,7 +294,7 @@ impl State {
         let frame = self
             .frames
             .get_mut(scoped_slot.0 .0)
-            .and_then(|(x, _)| x.as_mut())
+            .and_then(Option::as_mut)
             .ok_or(ProgramError::UninitializedFrame)
             .unwrap();
         let slots = frame.closure_slots.borrow_mut();
@@ -306,39 +307,34 @@ impl State {
 
     fn push_frame(
         &mut self,
+        context_frames: Option<Frames>,
         scope_id: ScopeId,
         variable_cnt: usize,
         closure_cnt: usize,
         chain_ret: bool,
         return_address: Address,
     ) {
+        let saved = if let Some(frames) = context_frames {
+            std::mem::replace(&mut self.frames, frames)
+        } else {
+            self.frames.clone()
+        };
         if self.frames.len() <= scope_id.0 {
-            self.frames.extend(
-                std::iter::repeat_with(|| (None, PStack::new()))
-                    .take(scope_id.0 - self.frames.len() + 1),
-            )
+            self.frames
+                .extend(std::iter::repeat(None).take(scope_id.0 - self.frames.len() + 1))
         }
-        let (frame, stack) = &mut self.frames[scope_id.0];
-        if let Some(prev_frame) = frame.replace(Frame::new(variable_cnt, closure_cnt)) {
-            stack.push(prev_frame);
-        }
-        self.frame_stack.push((return_address, scope_id, chain_ret));
+        self.frames[scope_id.0] = Some(Frame::new(variable_cnt, closure_cnt));
+        self.frame_stack.push((return_address, saved, chain_ret));
     }
 
     fn pop_frame(&mut self) -> Address {
         loop {
-            let (return_address, scope_id, chain) = self
+            let (return_address, frames, chain) = self
                 .frame_stack
                 .pop()
                 .ok_or(ProgramError::PopEmptyFrame)
                 .unwrap();
-            let (current, prev) = self
-                .frames
-                .get_mut(scope_id.0)
-                .ok_or(ProgramError::PopUnknownFrame)
-                .unwrap();
-            assert!(current.is_some(), "Pop unknown frame");
-            *current = prev.pop();
+            self.frames = frames;
             if !chain {
                 break return_address;
             }
@@ -359,7 +355,7 @@ struct StateToken {
     pc: Address,
     stack: UStackToken,
 
-    frames: PVector<(Option<Frame>, PStack<Frame>)>,
+    frames: Frames,
     frame_stack: UStackToken,
     closure_stack: UStackToken,
 
@@ -517,6 +513,7 @@ fn run_code(program: &Program, state: &mut State, env: &mut Environment) -> Opti
         };
         state.undo(token);
         let mut call_pc: Option<Address> = None;
+        let mut context_frame: Option<Frames> = None;
         let mut chain_ret = false;
 
         log::trace!("Start fork with state {:?}", state);
@@ -757,36 +754,45 @@ fn run_code(program: &Program, state: &mut State, env: &mut Environment) -> Opti
                 CallClosure(slot) => {
                     let closure = state
                         .closure_slot(slot)
+                        .as_ref()
                         .ok_or(ProgramError::UninitializedSlot)
-                        .unwrap();
-                    assert_eq!(call_pc.replace(state.pc.get_next()), None);
-                    state.pc = closure.0;
+                        .unwrap()
+                        .clone();
+                    assert!(call_pc.replace(state.pc.get_next()).is_none());
+                    assert!(context_frame.replace(closure.1).is_none());
+                    state.pc = closure.0 .0;
                     continue 'cycle;
                 }
                 Call(function) => {
-                    assert_eq!(call_pc.replace(state.pc.get_next()), None);
+                    assert!(call_pc.replace(state.pc.get_next()).is_none());
+                    assert!(context_frame.is_none());
                     state.pc = *function;
                     continue 'cycle;
                 }
                 TailCallClosure(slot) => {
                     let closure = state
                         .closure_slot(slot)
+                        .as_ref()
                         .ok_or(ProgramError::UninitializedSlot)
-                        .unwrap();
+                        .unwrap()
+                        .clone();
                     let return_address = state.pop_frame();
-                    assert_eq!(call_pc.replace(return_address), None);
-                    state.pc = closure.0;
+                    assert!(call_pc.replace(return_address).is_none());
+                    assert!(context_frame.replace(closure.1).is_none());
+                    state.pc = closure.0 .0;
                     continue 'cycle;
                 }
                 TailCall(function) => {
                     let return_address = state.pop_frame();
-                    assert_eq!(call_pc.replace(return_address), None);
+                    assert!(call_pc.replace(return_address).is_none());
+                    assert!(context_frame.is_none());
                     state.pc = *function;
                     continue 'cycle;
                 }
                 CallChainRet(function) => {
                     let return_address = state.current_return_address();
-                    assert_eq!(call_pc.replace(return_address), None);
+                    assert!(call_pc.replace(return_address).is_none());
+                    assert!(context_frame.is_none());
                     chain_ret = true;
                     state.pc = *function;
                     continue 'cycle;
@@ -799,7 +805,15 @@ fn run_code(program: &Program, state: &mut State, env: &mut Environment) -> Opti
                     let return_address = call_pc
                         .take()
                         .expect("NewFrame should be called after Call");
-                    state.push_frame(*id, *variable_cnt, *closure_cnt, chain_ret, return_address);
+                    let context_frame = context_frame.take();
+                    state.push_frame(
+                        context_frame,
+                        *id,
+                        *variable_cnt,
+                        *closure_cnt,
+                        chain_ret,
+                        return_address,
+                    );
                     chain_ret = false;
                 }
                 Ret => {

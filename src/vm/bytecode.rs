@@ -14,7 +14,7 @@ pub struct NamedFunction<F: Clone + ?Sized> {
 }
 
 #[derive(Debug, Copy, Clone, Hash, Ord, PartialOrd, Eq, PartialEq)]
-pub(crate) struct Closure(pub(crate) Address);
+pub(crate) struct ClosureAddress(pub(crate) Address);
 
 pub type NamedFn0 = NamedFunction<fn(Value) -> Result<Value>>;
 pub type NamedFn1 = NamedFunction<fn(Value, Value) -> Result<Value>>;
@@ -63,7 +63,7 @@ pub(crate) enum ByteCode {
     /// Panics if the stack was empty.
     Store(ScopedSlot),
     /// Pushes the closure (= program address) to the closure stack.
-    PushClosure(Closure),
+    PushClosure(ClosureAddress),
     /// Pops a closure (= program address) from the closure stack the closure, and stores to a closure slot.
     /// # Panics
     /// Panics if the closure stack was empty.

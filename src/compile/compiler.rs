@@ -18,7 +18,7 @@ use crate::{
     module_loader::{ModuleLoadError, ModuleLoader},
     value::Array,
     vm::{
-        bytecode::{Closure, Label, NamedFn0, NamedFn1, NamedFn2},
+        bytecode::{ClosureAddress, Label, NamedFn0, NamedFn1, NamedFn2},
         Address, ByteCode, Program, ScopeId, ScopedSlot,
     },
     Value,
@@ -645,7 +645,8 @@ impl Compiler {
         for ((arg, ty), closure) in args.iter().zip(types.iter()).zip(closure_addresses).rev() {
             match ty {
                 ArgType::Closure => {
-                    let closure = Closure(closure.expect("closures should be compiled already"));
+                    let closure =
+                        ClosureAddress(closure.expect("closures should be compiled already"));
                     /*
                     TODO: Uncomment on #14
                     if require_context {
