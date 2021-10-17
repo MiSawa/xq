@@ -38,6 +38,7 @@ html-escape = "0.2.9"
 shell-escape = "0.1.5"
 urlencoding = "2.1.0"
 base64 = "0.13.0"
+chrono = "0.4.19"
 
 clap = { version = "3.0.0-beta.4", optional = true }
 anyhow = { version = "1.0", optional = true }

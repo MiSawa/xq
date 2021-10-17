@@ -61,6 +61,8 @@ pub enum QueryExecutionError {
     InvalidStringToNumber(RcString),
     #[error("Given string was invalid as a json `{0:}`")]
     InvalidJson(RcString),
+    #[error("Unable to parse date time")]
+    InvalidDateTimeString(#[from] chrono::format::ParseError),
     #[error("{0:?}")]
     UserDefinedError(String),
 }

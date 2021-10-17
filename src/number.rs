@@ -4,7 +4,8 @@ use ordered_float::OrderedFloat;
 use serde::{serde_if_integer128, Deserialize, Deserializer, Serialize, Serializer};
 use std::{fmt::Formatter, ops::Neg, str::FromStr};
 
-type PrimitiveReal = f64;
+pub(crate) type PrimitiveReal = f64;
+
 #[derive(
     Copy,
     Clone,
@@ -27,6 +28,12 @@ type PrimitiveReal = f64;
 #[debug(fmt = "{}", _0)]
 #[display(fmt = "{}", _0)]
 pub struct Number(OrderedFloat<PrimitiveReal>);
+
+impl Number {
+    pub(crate) fn to_primitive_real(self) -> PrimitiveReal {
+        self.0 .0
+    }
+}
 
 impl FromStr for Number {
     type Err = <PrimitiveReal as FromStr>::Err;

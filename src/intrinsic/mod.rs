@@ -18,7 +18,7 @@ pub(crate) use self::{
     comparator::comparator,
     index::{index, slice},
     path::{del_paths, get_path, set_path},
-    string::{explode, from_json, implode, stringifier, text, to_json},
+    string::{stringifier, text},
     unary::unary,
 };
 
@@ -29,6 +29,7 @@ mod index;
 mod math;
 mod path;
 mod string;
+mod time;
 mod unary;
 
 static INTRINSICS0: phf::Map<&'static str, NamedFn0> = phf_map! {
@@ -40,10 +41,15 @@ static INTRINSICS0: phf::Map<&'static str, NamedFn0> = phf_map! {
     "reverse" => NamedFn0 { name: "reverse", func: reverse },
     "tostring" => NamedFn0 { name: "tostring", func: text },
     "tonumber" => NamedFn0 { name: "to_number", func: string::to_number },
-    "fromjson" => NamedFn0 { name: "fromjson", func: from_json },
-    "tojson" => NamedFn0 { name: "tojson", func: to_json },
-    "explode" => NamedFn0 { name: "explode", func: explode },
-    "implode" => NamedFn0 { name: "implode", func: implode },
+    "fromjson" => NamedFn0 { name: "fromjson", func: string::from_json },
+    "tojson" => NamedFn0 { name: "tojson", func: string::to_json },
+    "explode" => NamedFn0 { name: "explode", func: string::explode },
+    "implode" => NamedFn0 { name: "implode", func: string::implode },
+
+    "gmtime" => NamedFn0 { name: "gmtime", func: time::gm_time },
+    "localtime" => NamedFn0 { name: "localtime", func: time::gm_time_local },
+    "mktime" => NamedFn0 { name: "mktime", func: time::mk_time },
+    "now" => NamedFn0 { name: "now", func: time::now },
 
     "nan" => NamedFn0 { name: "nan", func: math::nan },
     "infinite" => NamedFn0 { name: "infinite", func: math::infinite },
@@ -64,6 +70,10 @@ static INTRINSICS1: phf::Map<&'static str, NamedFn1> = phf_map! {
     "endswith" => NamedFn1 { name: "endswith", func: ends_with },
     "delpaths" => NamedFn1 { name: "delpaths", func: path::del_paths },
     "bsearch" => NamedFn1 { name: "bsearch", func: binary_search },
+
+    "strftime" => NamedFn1 { name: "strftime", func: time::format_time },
+    "strptime" => NamedFn1 { name: "strptime", func: time::parse_time },
+    "strflocaltime" => NamedFn1 { name: "strflocaltime", func: time::format_time_local },
 };
 static INTRINSICS2: phf::Map<&'static str, NamedFn2> = phf_map! {
     "setpath" => NamedFn2 { name: "setpath", func: path::set_path },
