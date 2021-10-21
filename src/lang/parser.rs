@@ -17,7 +17,6 @@ use nom::{
     sequence::{delimited, pair, preceded, separated_pair, terminated, tuple},
     Finish, IResult, Parser,
 };
-use std::convert::TryFrom;
 
 pub type ParseResult<'a, T> = IResult<&'a str, T>;
 

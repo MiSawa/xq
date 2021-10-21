@@ -6,7 +6,7 @@ use crate::{
 };
 use itertools::Itertools;
 use num::ToPrimitive;
-use std::{borrow::Cow, convert::TryFrom, rc::Rc};
+use std::{borrow::Cow, rc::Rc};
 
 pub(crate) fn to_number(value: Value) -> Result<Value> {
     match value {
