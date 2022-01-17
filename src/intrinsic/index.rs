@@ -133,7 +133,7 @@ pub(crate) fn calculate_slice_index(
         Bound::Excluded(i) => i,
         Bound::Unbounded => length,
     };
-    Ok(start..end)
+    Ok(if start <= end { start..end } else { 0..0 })
 }
 
 pub(crate) fn slice(
