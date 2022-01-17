@@ -258,11 +258,13 @@ pub(crate) fn group_by(context: Value) -> Result<Value> {
 
 fn indices(context: Value, s: Value) -> Result<Value> {
     let ret = match (context, s) {
-        (Value::String(lhs), Value::String(rhs)) => Array::from_vec(
+        (Value::String(lhs), Value::String(rhs)) => Array::from_vec(if rhs.is_empty() {
+            vec![]
+        } else {
             lhs.match_indices(rhs.as_ref())
                 .map(|(pos, _)| Value::Number(pos.into()))
-                .collect(),
-        )
+                .collect()
+        })
         .into(),
         (Value::Array(lhs), Value::Array(rhs)) => Array::from_vec(if rhs.is_empty() {
             vec![]
