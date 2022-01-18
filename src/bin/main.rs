@@ -26,6 +26,10 @@ struct Args {
     )]
     query_file: Option<PathBuf>,
 
+    /// Compact output
+    #[clap(short, long)]
+    compact_output: bool,
+
     /// Use null as an input value
     #[clap(short, long)]
     null_input: bool,
@@ -66,9 +70,13 @@ fn main() -> Result<()> {
     };
     let output = |value| -> Result<()> {
         match value {
-            Ok(value) => serde_json::ser::to_writer_pretty::<_, Value>(stdout(), &value)
-                .with_context(|| "Write to output")
-                .and_then(|()| writeln!(stdout()).with_context(|| "Write ln"))?,
+            Ok(value) => if args.compact_output {
+                serde_json::ser::to_writer::<_, Value>(stdout(), &value)
+            } else {
+                serde_json::ser::to_writer_pretty::<_, Value>(stdout(), &value)
+            }
+            .with_context(|| "Write to output")
+            .and_then(|()| writeln!(stdout()).with_context(|| "Write ln"))?,
             Err(e) => {
                 eprintln!("Error: {:?}", e);
             }
