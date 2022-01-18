@@ -644,9 +644,7 @@ fn run_code(program: &Program, state: &mut State, env: &mut Environment) -> Opti
                         continue 'backtrack;
                     }
                     let iter = match value {
-                        value
-                        @
-                        (Value::Null
+                        value @ (Value::Null
                         | Value::Boolean(_)
                         | Value::Number(_)
                         | Value::String(_)) => {

@@ -1,15 +1,15 @@
 use anyhow::{anyhow, Context, Result};
-use clap::{AppSettings, Clap, ValueHint};
+use clap::{Parser, ValueHint};
+use clap_verbosity_flag::Verbosity;
 use std::{
     io::{stdin, stdout, Write},
     path::PathBuf,
 };
 use xq::{module_loader::PreludeLoader, run_query, Value};
 
-#[derive(Clap, Debug)]
+#[derive(Parser, Debug)]
 #[clap(author, about, version)]
 #[clap(long_version(option_env!("LONG_VERSION").unwrap_or(env!("CARGO_PKG_VERSION"))))]
-#[clap(setting(AppSettings::ColoredHelp))]
 struct Args {
     /// The query to run
     #[clap(default_value("."))]
@@ -34,19 +34,18 @@ struct Args {
     #[clap(short, long)]
     null_input: bool,
 
-    /// Verbose mode (-v, -vv, -vvv, etc.)
-    #[clap(short('v'), long("verbose"), parse(from_occurrences))]
-    verbosity: u8,
+    #[clap(flatten)]
+    verbosity: Verbosity,
 }
 
-fn init_log(verbosity: u8) -> Result<()> {
-    // TODO: Use https://github.com/rust-cli/clap-verbosity-flag if it supports clap_derive at some day, or find an alternative.
-    use log::LevelFilter::*;
+fn init_log(verbosity: &Verbosity) -> Result<()> {
     use simplelog::{ColorChoice, CombinedLogger, Config, TermLogger, TerminalMode};
-    let levels = [Off, Error, Warn, Info, Debug, Trace];
-    let level = levels[(verbosity as usize).clamp(0, levels.len() - 1)];
+    let filter = match verbosity.log_level() {
+        Some(l) => l.to_level_filter(),
+        None => log::LevelFilter::Off,
+    };
     CombinedLogger::init(vec![TermLogger::new(
-        level,
+        filter,
         Config::default(),
         TerminalMode::Mixed,
         ColorChoice::Auto,
@@ -56,7 +55,7 @@ fn init_log(verbosity: u8) -> Result<()> {
 
 fn main() -> Result<()> {
     let args: Args = Args::parse();
-    init_log(args.verbosity)?;
+    init_log(&args.verbosity)?;
     log::debug!("Parsed argument: {:?}", args);
     let query = if let Some(path) = args.query_file {
         log::trace!("Read query from file {:?}", path);

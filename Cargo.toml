@@ -16,7 +16,7 @@ required-features = ["build-binary"]
 
 [features]
 default = ["build-binary"]
-build-binary = ["anyhow", "clap", "simplelog"]
+build-binary = ["anyhow", "clap", "clap-verbosity-flag", "simplelog"]
 
 [dependencies]
 thiserror = "1.0.29"
@@ -40,6 +40,7 @@ urlencoding = "2.1.0"
 base64 = "0.13.0"
 chrono = "0.4.19"
 
-clap = { version = "3.0.0-beta.4", optional = true }
+clap = { version = "3.0.9", features = ["derive"], optional = true }
+clap-verbosity-flag = { version = "0.4.0", optional = true }
 anyhow = { version = "1.0", optional = true }
 simplelog = { version = "0.10.0", optional = true }
