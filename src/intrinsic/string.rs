@@ -83,7 +83,7 @@ pub(crate) fn implode(value: Value) -> Result<Value> {
                     Value::Number(c) => {
                         let c = c
                             .to_u32()
-                            .ok_or_else(|| QueryExecutionError::InvalidNumberAsChar(*c))?;
+                            .ok_or(QueryExecutionError::InvalidNumberAsChar(*c))?;
                         let c = char::try_from(c)
                             .map_err(|_| QueryExecutionError::InvalidNumberAsChar(c.into()))?;
                         Ok(c)
