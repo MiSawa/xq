@@ -1,15 +1,14 @@
 use anyhow::{anyhow, Context, Result};
-use clap::{AppSettings, Clap, ValueHint};
+use clap::{Parser, ValueHint};
 use std::{
     io::{stdin, stdout, Write},
     path::PathBuf,
 };
 use xq::{module_loader::PreludeLoader, run_query, Value};
 
-#[derive(Clap, Debug)]
+#[derive(Parser, Debug)]
 #[clap(author, about, version)]
 #[clap(long_version(option_env!("LONG_VERSION").unwrap_or(env!("CARGO_PKG_VERSION"))))]
-#[clap(setting(AppSettings::ColoredHelp))]
 struct Args {
     /// The query to run
     #[clap(default_value("."))]
