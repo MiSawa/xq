@@ -940,6 +940,19 @@ test!(
 test!(
     indices2,
     r#"
+    indices("")
+    "#,
+    r#"
+    "abcde"
+    "#,
+    r#"
+    []
+    "#
+);
+
+test!(
+    indices3,
+    r#"
     indices(1)
     "#,
     r#"
@@ -951,7 +964,7 @@ test!(
 );
 
 test!(
-    indices3,
+    indices4,
     r#"
     indices([1,2])
     "#,
@@ -960,6 +973,19 @@ test!(
     "#,
     r#"
     [1,8]
+    "#
+);
+
+test!(
+    indices5,
+    r#"
+    indices([])
+    "#,
+    r#"
+    [0,1,2,3]
+    "#,
+    r#"
+    []
     "#
 );
 
