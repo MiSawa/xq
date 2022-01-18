@@ -183,6 +183,32 @@ test!(
 );
 
 test!(
+    array_string_slice5,
+    r#"
+    .[2:2]
+    "#,
+    r#"
+    ["a","b","c","d","e"]
+    "#,
+    r#"
+    []
+    "#
+);
+
+test!(
+    array_string_slice6,
+    r#"
+    .[3:2]
+    "#,
+    r#"
+    ["a","b","c","d","e"]
+    "#,
+    r#"
+    []
+    "#
+);
+
+test!(
     array_object_value_iterator1,
     r#"
     .[]
