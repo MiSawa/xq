@@ -68,6 +68,19 @@ test!(
 );
 
 test!(
+    object4,
+    r#"
+    {foo,bar,}
+    "#,
+    r#"
+    {"foo":1,"bar":2,"baz":3}
+    "#,
+    r#"
+    {"foo":1,"bar":2}
+    "#
+);
+
+test!(
     recursive_descent,
     r#"
     ..|.a?
