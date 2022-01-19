@@ -282,7 +282,10 @@ fn constant_object(input: &str) -> ParseResult<ConstantObject> {
     delimited(
         terminated(char('{'), multispace0),
         map(separated_list0(ws(char(',')), entry), ConstantObject),
-        preceded(multispace0, char('}')),
+        preceded(
+            multispace0,
+            preceded(opt(terminated(char(','), multispace0)), char('}')),
+        ),
     )(input)
 }
 
@@ -402,7 +405,10 @@ fn term(input: &str) -> ParseResult<Term> {
                 delimited(
                     terminated(char('{'), multispace0),
                     separated_list0(char(','), ws(object_term_entry)),
-                    preceded(multispace0, char('}')),
+                    preceded(
+                        multispace0,
+                        preceded(opt(terminated(char(','), multispace0)), char('}')),
+                    ),
                 ),
                 Term::Object,
             ),

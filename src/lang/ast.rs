@@ -133,7 +133,7 @@ pub enum Term {
     Query(Box<Query>),
     /// `('+' | '-') <term>`
     Unary(UnaryOp, Box<Term>),
-    /// `'{' (<ident> | <variable> | <keyword> | <string> | '(' <query> ')') (':' <term> ('|' <term>)*)? (',' ....)* '}'`
+    /// `'{' (<ident> | <variable> | <keyword> | <string> | '(' <query> ')') (':' <term> ('|' <term>)*)? (',' ....)* ','? '}'`
     Object(Vec<(Query, Option<Query>)>),
     /// `'[' (<query>)? ']'`
     Array(Option<Box<Query>>),
