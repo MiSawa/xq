@@ -143,3 +143,23 @@ test!(
     -1
     "#
 );
+
+test!(
+    multiply_string,
+    r#"
+    (0,3,-3,nan) * "abc", "abc" * (0,3,-3,nan)
+    "#,
+    r#"
+    "abc"
+    "#,
+    r#"
+    null
+    "abcabcabc"
+    null
+    null
+    null
+    "abcabcabc"
+    null
+    null
+    "#
+);
