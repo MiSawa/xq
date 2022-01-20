@@ -3,7 +3,7 @@ use crate::{
     vm::{bytecode::NamedFn1, QueryExecutionError},
     Value,
 };
-use num::{ToPrimitive, Zero};
+use num::{Float, ToPrimitive, Zero};
 use std::collections::HashSet;
 
 pub(crate) fn binary(operator: &BinaryArithmeticOp) -> NamedFn1 {
@@ -98,15 +98,16 @@ fn multiply(lhs: Value, rhs: Value) -> Result<Value, QueryExecutionError> {
     Ok(match (lhs, rhs) {
         (Number(lhs), Number(rhs)) => Value::number(lhs * rhs),
         (String(lhs), Number(rhs)) => {
-            let repeat = rhs
-                .to_usize()
-                .ok_or(QueryExecutionError::StringRepeatByNonUSize(rhs))?;
-            if repeat == 0 {
-                Value::Null // Why not ""....
+            if rhs <= Zero::zero() || rhs.is_nan() {
+                Value::Null
             } else {
+                let repeat = rhs
+                    .to_usize()
+                    .ok_or(QueryExecutionError::StringRepeatByNonUSize(rhs))?;
                 Value::string((*lhs).clone().repeat(repeat))
             }
         }
+        (lhs @ Number(_), rhs @ String(_)) => multiply(rhs, lhs)?,
         (lhs @ Object(_), rhs @ Object(_)) => merge(lhs, rhs),
         (lhs @ (Null | Boolean(_) | Number(_) | String(_) | Array(_) | Object(_)), rhs) => {
             return Err(QueryExecutionError::IncompatibleBinaryOperator(
