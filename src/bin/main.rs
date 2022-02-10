@@ -1,5 +1,5 @@
 use anyhow::{anyhow, Context, Result};
-use clap::{Parser, ValueHint};
+use clap::{ArgEnum, Args, Parser, ValueHint};
 use clap_verbosity_flag::Verbosity;
 use std::{
     io::{stdin, stdout, Write},
@@ -10,32 +10,102 @@ use xq::{module_loader::PreludeLoader, run_query, Value};
 #[derive(Parser, Debug)]
 #[clap(author, about, version)]
 #[clap(long_version(option_env!("LONG_VERSION").unwrap_or(env!("CARGO_PKG_VERSION"))))]
-struct Args {
+struct MainArgs {
     /// The query to run
-    #[clap(default_value("."))]
+    #[clap(default_value = ".")]
     query: String,
 
     /// Read query from a file instead of arg
     #[clap(
-        name("file"),
-        short('f'),
-        long("from-file"),
+        name = "file",
+        short = 'f',
+        long = "from-file",
         parse(from_os_str),
-        conflicts_with("query"),
-        value_hint(ValueHint::FilePath)
+        conflicts_with = "query",
+        value_hint = ValueHint::FilePath
     )]
     query_file: Option<PathBuf>,
 
-    /// Compact output
-    #[clap(short, long)]
-    compact_output: bool,
+    #[clap(flatten)]
+    input_format: InputFormatArg,
 
-    /// Use null as an input value
-    #[clap(short, long)]
-    null_input: bool,
+    #[clap(flatten)]
+    output_format: OutputFormatArg,
 
     #[clap(flatten)]
     verbosity: Verbosity,
+}
+
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Debug, ArgEnum)]
+enum InputFormat {
+    NULL,
+    JSON,
+    YAML,
+}
+
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Debug, Args)]
+struct InputFormatArg {
+    /// Specify input format
+    #[clap(group = "input", long, arg_enum, default_value_t = InputFormat::JSON)]
+    input_format: InputFormat,
+    /// Use null as an input value
+    #[clap(group = "input", short = 'n', long)]
+    null_input: bool,
+    /// Read input as json values
+    #[clap(group = "input", long)]
+    json_input: bool,
+    /// Read input as yaml values
+    #[clap(group = "input", long)]
+    yaml_input: bool,
+}
+
+impl InputFormatArg {
+    fn get(&self) -> InputFormat {
+        if self.null_input {
+            InputFormat::NULL
+        } else if self.json_input {
+            InputFormat::JSON
+        } else if self.yaml_input {
+            InputFormat::YAML
+        } else {
+            self.input_format
+        }
+    }
+}
+
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Debug, ArgEnum)]
+enum OutputFormat {
+    JSON,
+    YAML,
+}
+
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Debug, Args)]
+struct OutputFormatArg {
+    /// Specify output format
+    #[clap(group = "output", long, arg_enum, default_value_t = OutputFormat::JSON)]
+    output_format: OutputFormat,
+    /// Read output as json values
+    #[clap(group = "output", long)]
+    json_output: bool,
+    /// Read output as yaml values
+    #[clap(group = "output", long)]
+    yaml_output: bool,
+
+    /// Compact output
+    #[clap(short, long, conflicts_with = "yaml-output")]
+    compact_output: bool,
+}
+
+impl OutputFormatArg {
+    fn get(&self) -> OutputFormat {
+        if self.json_output {
+            OutputFormat::JSON
+        } else if self.yaml_output {
+            OutputFormat::YAML
+        } else {
+            self.output_format
+        }
+    }
 }
 
 fn init_log(verbosity: &Verbosity) -> Result<()> {
@@ -54,7 +124,7 @@ fn init_log(verbosity: &Verbosity) -> Result<()> {
 }
 
 fn main() -> Result<()> {
-    let args: Args = Args::parse();
+    let args: MainArgs = MainArgs::parse();
     init_log(&args.verbosity)?;
     log::debug!("Parsed argument: {:?}", args);
     let query = if let Some(path) = args.query_file {
@@ -67,14 +137,19 @@ fn main() -> Result<()> {
         );
         args.query
     };
+    let output_format = args.output_format.get();
     let output = |value| -> Result<()> {
         match value {
-            Ok(value) => if args.compact_output {
-                serde_json::ser::to_writer::<_, Value>(stdout(), &value)
-            } else {
-                serde_json::ser::to_writer_pretty::<_, Value>(stdout(), &value)
+            Ok(value) => match output_format {
+                OutputFormat::JSON => if args.output_format.compact_output {
+                    serde_json::ser::to_writer::<_, Value>(stdout(), &value)
+                } else {
+                    serde_json::ser::to_writer_pretty::<_, Value>(stdout(), &value)
+                }
+                .with_context(|| "Write to output"),
+                OutputFormat::YAML => serde_yaml::to_writer::<_, Value>(stdout(), &value)
+                    .with_context(|| "Write to output"),
             }
-            .with_context(|| "Write to output")
             .and_then(|()| writeln!(stdout()).with_context(|| "Write ln"))?,
             Err(e) => {
                 eprintln!("Error: {:?}", e);
@@ -84,24 +159,42 @@ fn main() -> Result<()> {
     };
 
     let module_loader = PreludeLoader();
-    if args.null_input {
-        let results = run_query(&query, vec![Value::Null].into_iter(), &module_loader)
-            .map_err(|e| anyhow!("{:?}", e))
-            .with_context(|| "compile query")?;
-        for value in results {
-            output(value)?;
+    match args.input_format.get() {
+        InputFormat::NULL => {
+            let results = run_query(&query, vec![Value::Null].into_iter(), &module_loader)
+                .map_err(|e| anyhow!("{:?}", e))
+                .with_context(|| "compile query")?;
+            for value in results {
+                output(value)?;
+            }
         }
-    } else {
-        let stdin = stdin();
-        let locked = stdin.lock();
-        let input: Vec<_> = serde_json::de::Deserializer::from_reader(locked)
-            .into_iter::<Value>()
-            .collect::<Result<_, serde_json::Error>>()?;
-        let results = run_query(&query, input.into_iter(), &module_loader)
-            .map_err(|e| anyhow!("{:?}", e))
-            .with_context(|| "compile query")?;
-        for value in results {
-            output(value)?;
+        InputFormat::JSON => {
+            let stdin = stdin();
+            let locked = stdin.lock();
+            let input: Vec<_> = serde_json::de::Deserializer::from_reader(locked)
+                .into_iter::<Value>()
+                .collect::<Result<_, serde_json::Error>>()?;
+            let results = run_query(&query, input.into_iter(), &module_loader)
+                .map_err(|e| anyhow!("{:?}", e))
+                .with_context(|| "compile query")?;
+            for value in results {
+                output(value)?;
+            }
+        }
+        InputFormat::YAML => {
+            use serde::Deserialize;
+            let stdin = stdin();
+            let locked = stdin.lock();
+            let input: Vec<_> = serde_yaml::Deserializer::from_reader(locked)
+                .into_iter()
+                .map(|d: serde_yaml::Deserializer| Value::deserialize(d))
+                .collect::<Result<_, serde_yaml::Error>>()?;
+            let results = run_query(&query, input.into_iter(), &module_loader)
+                .map_err(|e| anyhow!("{:?}", e))
+                .with_context(|| "compile query")?;
+            for value in results {
+                output(value)?;
+            }
         }
     }
     Ok(())
