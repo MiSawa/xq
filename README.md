@@ -73,6 +73,17 @@ $ cargo uninstall xq
 if you've installed via `cargo install`. Also remove the cloned directory if you've cloned the repository.
 
 
+## Pubilsh new version
+Note for myself. TL;DR: Bump the version, reflect it to the lock file, commit changes and `cargo publish`.
+```shell
+$ vi Cargo.toml                     # and bump the version
+$ cargo build                       # to generate Cargo.lock
+$ git commit -am "Bump version"     # so that there's no uncommited changes
+$ git push                          # and it's synced with the remote repo
+$ cargo publish
+```
+
+
 ## Acknowledgements
 - Although this isn't a direct translation at all, I referred to [jq](https://stedolan.github.io/jq/manual/) built by [ Stephen Dolan](https://github.com/stedolan) and [gojq](https://github.com/itchyny/gojq/) built by [itchyny](https://github.com/itchyny). Thank you for the interesting product!
 
