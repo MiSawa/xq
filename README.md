@@ -10,10 +10,11 @@ This program is under development. You probably want to use the original impleme
 
 
 ## Current state
-Most of the jq components that require syntactical support are, hmm, implemented and tested against queries taken from the [jq user manual](https://stedolan.github.io/jq/manual/).
-Exceptions are imports and module headers.
-Many builtin functions are missing, include those require intrinsic implementation.
-Need more unit tests. Most of the CLI options are missing.
+- Most of the jq components that require syntactical support are, hmm, implemented and tested against queries taken from the [jq user manual](https://stedolan.github.io/jq/manual/).
+  Exceptions are imports and module headers.
+- Many builtin functions are missing, include those require intrinsic implementation.
+- Need more unit tests. Most of the CLI options are missing.
+- JSON and YAML formats are supported.
 
 
 ## Goals
@@ -22,8 +23,8 @@ Need more unit tests. Most of the CLI options are missing.
 
 ## Ideas
 - Since we use [serde](https://github.com/serde-rs/serde) to deserialize input / serialize output,
-  we should be able to support any format which has serde implementation without too much effort, except those require scheme (protobuf, thrift, etc.).
-  
+  we should be able to support any format which has serde implementation (and has multi-document support) without too much effort, except those require scheme (protobuf, thrift, etc.).
+
 - As a library, we should be able to make anything that implements `Serialize` as the input type, and anything implements `Deserialize` as the output type.
   So in theory, we should be able to write a library that can handle following;
   ```rust
