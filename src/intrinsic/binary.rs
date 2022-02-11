@@ -126,6 +126,11 @@ fn divide(lhs: Value, rhs: Value) -> Result<Value, QueryExecutionError> {
             }
             Value::number(lhs / rhs)
         }
+        (String(lhs), String(rhs)) if rhs.is_empty() => lhs
+            .chars()
+            .map(|c| c.to_string().into())
+            .collect::<crate::Array>()
+            .into(),
         (String(lhs), String(rhs)) => lhs
             .split(&*rhs)
             .into_iter()
