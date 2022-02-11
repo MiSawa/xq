@@ -7,6 +7,7 @@ mod number;
 mod util;
 mod value;
 pub mod vm;
+pub mod lang2;
 
 pub use crate::{
     number::Number,
