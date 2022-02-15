@@ -1,6 +1,9 @@
 use lexgen::lexer;
 use thiserror::Error;
 
+pub type Loc = lexgen_util::Loc;
+pub type LexerError = lexgen_util::LexerError<LexicalError>;
+
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
 pub enum Keyword {
     Or,
@@ -13,8 +16,8 @@ pub enum Keyword {
     Label,
     Break,
     Null,
-    True,
     False,
+    True,
     If,
     Then,
     Elif,
@@ -44,10 +47,12 @@ pub enum Token<'input> {
     MinusEq,
     StarEq,
     SlashEq,
+    PercentEq,
     SlashSlashEq,
     PipeEq,
 
     EqEq,
+    NotEq,
     LtEq,
     GtEq,
     Lt,
@@ -76,14 +81,17 @@ pub enum Token<'input> {
     InterpolationEnd,
     StringEnd,
 
-    Number(&'input str),
-    Keyword(Keyword),
+    Keyword(&'input str, Keyword),
+    Field(&'input str),
     Identifier(&'input str),
+    ModuleIdentifier(&'input str),
     Variable(&'input str),
+    ModuleVariable(&'input str),
     Format(&'input str),
+    Number(crate::Number),
 }
 
-struct LexerState {
+pub struct LexerState {
     paren_nest: Vec<usize>,
 }
 impl Default for LexerState {
@@ -100,12 +108,14 @@ pub enum LexicalError {
     TooManyCloseParen,
     #[error("Invalid unicode scalar value: `{0}`")]
     InvalidUnicodeScalar(u32),
+    #[error("Unable to parse number: `{0}`")]
+    InvalidNumber(String),
     #[error("Something went wrong")]
     InvalidState,
 }
 
 lexer! {
-    Lexer(LexerState) -> Token<'input>;
+    pub Lexer(LexerState) -> Token<'input>;
     type Error = LexicalError;
 
     let ws = [' ' '\t' '\n'] | "\r\n";
@@ -116,13 +126,13 @@ lexer! {
 
     rule Init {
         $ws,
-        "+" = Token::Plus,
-        "-" = Token::Minus,
-        "*" = Token::Star,
-        "/" = Token::Slash,
-        "%" = Token::Percent,
+        '+' = Token::Plus,
+        '-' = Token::Minus,
+        '*' = Token::Star,
+        '/' = Token::Slash,
+        '%' = Token::Percent,
 
-        "=" = Token::Eq,
+        '=' = Token::Eq,
         "+=" = Token::PlusEq,
         "-=" = Token::MinusEq,
         "*=" = Token::StarEq,
@@ -131,22 +141,23 @@ lexer! {
         "|=" = Token::PipeEq,
 
         "==" = Token::EqEq,
+        "!=" = Token::NotEq,
         "<=" = Token::LtEq,
         ">=" = Token::GtEq,
-        "<" = Token::Lt,
-        ">" = Token::Gt,
+        '<' = Token::Lt,
+        '>' = Token::Gt,
 
-        "," = Token::Comma,
-        "." = Token::Dot,
-        ";" = Token::Semicolon,
-        ":" = Token::Colon,
+        ',' = Token::Comma,
+        '.' = Token::Dot,
+        ';' = Token::Semicolon,
+        ':' = Token::Colon,
         ".." = Token::DotDot,
 
-        "|" = Token::Pipe,
-        "?" = Token::Question,
+        '|' = Token::Pipe,
+        '?' = Token::Question,
         "?//" = Token::QuestionSlashSlash,
 
-        "(" =? |lexer| {
+        '(' =? |lexer| {
             match lexer.state().paren_nest.last_mut() {
                 Some(x) => {
                     *x += 1;
@@ -157,7 +168,7 @@ lexer! {
                 }
             }
         },
-        ")" =? |lexer| {
+        ')' =? |lexer| {
             match lexer.state().paren_nest.last_mut() {
                 Some(0) => {
                     lexer.state().paren_nest.pop();
@@ -176,43 +187,56 @@ lexer! {
                 }
             }
         },
-        "{" = Token::LBrace,
-        "}" = Token::RBrace,
-        "[" = Token::LBracket,
-        "]" = Token::RBracket,
+        '{' = Token::LBrace,
+        '}' = Token::RBrace,
+        '[' = Token::LBracket,
+        ']' = Token::RBracket,
 
-        "or" = Token::Keyword(Keyword::Or),
-        "and" = Token::Keyword(Keyword::And),
-        "module" = Token::Keyword(Keyword::Module),
-        "import" = Token::Keyword(Keyword::Import),
-        "include" = Token::Keyword(Keyword::Include),
-        "def" = Token::Keyword(Keyword::Def),
-        "as" = Token::Keyword(Keyword::As),
-        "label" = Token::Keyword(Keyword::Label),
-        "break" = Token::Keyword(Keyword::Break),
-        "null" = Token::Keyword(Keyword::Null),
-        "true" = Token::Keyword(Keyword::True),
-        "false" = Token::Keyword(Keyword::False),
-        "if" = Token::Keyword(Keyword::If),
-        "then" = Token::Keyword(Keyword::Then),
-        "elif" = Token::Keyword(Keyword::Elif),
-        "else" = Token::Keyword(Keyword::Else),
-        "end" = Token::Keyword(Keyword::End),
-        "try" = Token::Keyword(Keyword::Try),
-        "catch" = Token::Keyword(Keyword::Catch),
-        "reduce" = Token::Keyword(Keyword::Reduce),
-        "foreach" = Token::Keyword(Keyword::Foreach),
+        "or"      => |lexer| lexer.return_(Token::Keyword(lexer.match_(), Keyword::Or)),
+        "and"     => |lexer| lexer.return_(Token::Keyword(lexer.match_(), Keyword::And)),
+        "module"  => |lexer| lexer.return_(Token::Keyword(lexer.match_(), Keyword::Module)),
+        "import"  => |lexer| lexer.return_(Token::Keyword(lexer.match_(), Keyword::Import)),
+        "include" => |lexer| lexer.return_(Token::Keyword(lexer.match_(), Keyword::Include)),
+        "def"     => |lexer| lexer.return_(Token::Keyword(lexer.match_(), Keyword::Def)),
+        "as"      => |lexer| lexer.return_(Token::Keyword(lexer.match_(), Keyword::As)),
+        "label"   => |lexer| lexer.return_(Token::Keyword(lexer.match_(), Keyword::Label)),
+        "break"   => |lexer| lexer.return_(Token::Keyword(lexer.match_(), Keyword::Break)),
+        "null"    => |lexer| lexer.return_(Token::Keyword(lexer.match_(), Keyword::Null)),
+        "false"   => |lexer| lexer.return_(Token::Keyword(lexer.match_(), Keyword::False)),
+        "true"    => |lexer| lexer.return_(Token::Keyword(lexer.match_(), Keyword::True)),
+        "if"      => |lexer| lexer.return_(Token::Keyword(lexer.match_(), Keyword::If)),
+        "then"    => |lexer| lexer.return_(Token::Keyword(lexer.match_(), Keyword::Then)),
+        "elif"    => |lexer| lexer.return_(Token::Keyword(lexer.match_(), Keyword::Elif)),
+        "else"    => |lexer| lexer.return_(Token::Keyword(lexer.match_(), Keyword::Else)),
+        "end"     => |lexer| lexer.return_(Token::Keyword(lexer.match_(), Keyword::End)),
+        "try"     => |lexer| lexer.return_(Token::Keyword(lexer.match_(), Keyword::Try)),
+        "catch"   => |lexer| lexer.return_(Token::Keyword(lexer.match_(), Keyword::Catch)),
+        "reduce"  => |lexer| lexer.return_(Token::Keyword(lexer.match_(), Keyword::Reduce)),
+        "foreach" => |lexer| lexer.return_(Token::Keyword(lexer.match_(), Keyword::Foreach)),
 
-        $ident_start $ident_follow* ("::" $ident_start $ident_follow*)* => |lexer| {
+        $ident_start $ident_follow* => |lexer| {
             lexer.return_(Token::Identifier(lexer.match_()))
         },
-        "$" $ident_start $ident_follow* ("::" $ident_start $ident_follow*)* => |lexer| {
+        $ident_start $ident_follow* ("::" $ident_start $ident_follow*)+ => |lexer| {
+            lexer.return_(Token::ModuleIdentifier(lexer.match_()))
+        },
+        '$' $ident_start $ident_follow* => |lexer| {
             lexer.return_(Token::Variable(&lexer.match_()[1..]))
         },
-        "@" $ident_start $ident_follow* => |lexer| {
+        '$' $ident_start $ident_follow* ("::" $ident_start $ident_follow*)+ => |lexer| {
+            lexer.return_(Token::ModuleVariable(&lexer.match_()[1..]))
+        },
+        '@' $ident_start $ident_follow* => |lexer| {
             lexer.return_(Token::Format(&lexer.match_()[1..]))
         },
-        "\"" => |lexer| {
+        (['+' '-'] ?) ($digit+ | $digit+ '.' $digit* | $digit* '.' $digit+) (['e' 'E'] (['+' '-']? $digit+)) =? |lexer| {
+            use std::str::FromStr;
+            let parsed = crate::Number::from_str(lexer.match_())
+                .map_err(|_| LexicalError::InvalidNumber(lexer.match_().to_string()))
+                .map(Token::Number);
+            lexer.return_(parsed)
+        },
+        '"' => |lexer| {
             lexer.switch_and_return(LexerRule::InString, Token::StringStart)
         },
     }
@@ -238,8 +262,8 @@ lexer! {
             lexer.state().paren_nest.push(0);
             lexer.switch_and_return(LexerRule::Init, Token::InterpolationStart)
         },
-        "\"" =? |lexer| {
-            lexer.switch_and_return(LexerRule::Init, Ok(Token::StringEnd))
+        '"' => |lexer| {
+            lexer.switch_and_return(LexerRule::Init, Token::StringEnd)
         },
         (_ # ['\\' '"'])+ => |lexer| {
             lexer.return_(Token::StringFragment(StringFragment::String(lexer.match_())))

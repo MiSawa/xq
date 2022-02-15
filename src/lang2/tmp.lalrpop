@@ -1,0 +1,90 @@
+grammar;
+
+#[inline]
+Separated1<T, S>: Vec<T> = {
+    <mut v: (<T> S)*> <e: T> => {
+        v.push(e);
+        v
+    },
+}
+
+Term: String = {
+    "." => ".".to_string(),
+    "(" <Query> ")",
+}
+
+// QueryClosed0 = Term;
+// QueryClosed1: String = {
+//     QueryClosed0,
+//     "try" <QueryClosed> "catch" <QueryClosed1> => format!("(tryc {} catch {})", <>),
+// }
+// QueryClosed10: String = {
+//     Separated1<QueryClosed1, "|"> => <>.into_iter().rev().reduce(|b,a| format!("({a} | {b})")).unwrap(),
+// }
+// #[inline]
+// QueryClosed = QueryClosed10;
+// 
+// QueryOpen1: String = {
+//     "try" <QueryOpen> => format!("(tryo {})", <>),
+//     // "try" <QueryOpen> => format!("(tryo {})", <>),
+//     // "try" <QueryClosed> "catch" <QueryOpen> => format!("(tryo {} catch {})", <>),
+// }
+// QueryOpen10: String = {
+//     QueryOpen1,
+//     <QueryClosed10> "|" <QueryOpen1> => format!("({} |o {})", <>),
+// }
+// #[inline]
+// QueryOpen = QueryOpen10;
+
+
+// #[inline]
+// QueryClosed0 = Term;
+// QueryClosed1: String = {
+//     QueryClosed0
+// }
+// QueryClosed9: String = {
+//     QueryClosed1,
+//     "try" <QueryClosed> "catch" <QueryClosed9> => format!("(tryc {} catchc {})", <>),
+// }
+// QueryClosed10: String = {
+//     QueryClosed9,
+//     <QueryClosed10> "|" <QueryClosed9> => format!("({} |c {})", <>),
+// }
+// QueryOpen1: String = {
+//     <QueryClosed10> "|" <QueryOpen> => format!("({} |o {})", <>),
+// }
+// QueryOpen10: String = {
+//     "try" <Query> => format!("(tryo {})", <>) ,
+//     "try" <QueryClosed> "catch" <QueryOpen> => format!("(tryo {} catcho {})", <>),
+// }
+// #[inline]
+// QueryOpen = QueryOpen10;
+// #[inline]
+// QueryClosed = QueryClosed10;
+
+
+QueryTryOrTermClose: String = {
+    Term,
+    "try" <QueryTryOrTermClose> "catch" <QueryTryOrTermClose> => format!("(tryc {} catchc {})", <>),
+}
+QueryTryOrTermOpen: String = {
+    "try" <QueryTryOrTerm> => format!("(tryo {})", <>),
+    "try" <QueryTryOrTermClose> "catch" <QueryTryOrTermOpen> => format!("(tryo {} catcho {})", <>),
+}
+
+#[inline]
+QueryTryOrTerm = {
+    QueryTryOrTermClose,
+    QueryTryOrTermOpen,
+}
+QueryImpl: String = {
+    #[precedence(level="0")]
+    QueryTryOrTerm,
+    #[precedence(level="100")]
+    #[assoc(side="left")]
+    <QueryImpl> "|" <QueryImpl> => format!("({} | {})", <>),
+}
+
+pub Query = {
+    QueryImpl
+}
