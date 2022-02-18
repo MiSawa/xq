@@ -234,7 +234,7 @@ lexer! {
         '@' $ident_start $ident_follow* => |lexer| {
             lexer.return_(Token::Format(&lexer.match_()[1..]))
         },
-        (['+' '-'] ?) ($digit+ | $digit+ '.' $digit* | $digit* '.' $digit+) (['e' 'E'] (['+' '-']? $digit+)) =? |lexer| {
+        (['+' '-'] ?) ($digit+ | $digit+ '.' $digit* | $digit* '.' $digit+) (['e' 'E'] (['+' '-']? $digit+))? =? |lexer| {
             use std::str::FromStr;
             let parsed = crate::Number::from_str(lexer.match_())
                 .map_err(|_| LexicalError::InvalidNumber(lexer.match_().to_string()))
@@ -332,6 +332,21 @@ mod test {
                 string_fragment("))"),
                 Token::StringEnd,
                 Token::RParen,
+            ],
+        );
+    }
+
+    #[test]
+    fn test_number() {
+        assert_lex(
+            r#"2 12 1e3 1.5 .2 .3e-1"#,
+            &[
+                Token::Number(2.into()),
+                Token::Number(12.into()),
+                Token::Number(1000.into()),
+                Token::Number(1.5.into()),
+                Token::Number(0.2.into()),
+                Token::Number(0.03.into()),
             ],
         );
     }

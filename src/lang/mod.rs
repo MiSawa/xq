@@ -129,4 +129,10 @@ mod test {
         parse_query("foreach . as $a (.; .)??")?;
         Ok(())
     }
+
+    #[test]
+    fn test_num() -> ParseResult<()> {
+        assert!(parse_query("2").is_ok());
+        Ok(())
+    }
 }
