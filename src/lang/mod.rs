@@ -158,6 +158,10 @@ mod test {
         parse_query(".[]")?;
         parse_query("f(.; .)")?;
         parse_query("f(.; .)[]")?;
+        parse_query("{}")?;
+        parse_query("{a: 1}")?;
+        parse_query("{a: 1,}")?;
+        assert!(parse_query("{,}").is_err());
         Ok(())
     }
 }

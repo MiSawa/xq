@@ -191,7 +191,7 @@ TermInner: Term = {
     StringMayBeInterpolated => Term::String(<>),
     "(" <Query> ")" => <>.into(),
     "[" <Boxed<Query>?> "]" => Term::Array(<>),
-    "{" <Comma0<ObjectTermEntry>> "}" => Term::Object(<>),
+    "{" <Comma0t<ObjectTermEntry>> "}" => Term::Object(<>),
     "break" <Variable> => Term::Break(<>),
     <name: Alt2<IdentifierNonKeyword, ModuleIdentifier>> <args: ( "(" <Separated1<Query, ";">> ")" )?> => {
         Term::FunctionCall {
