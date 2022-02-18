@@ -203,22 +203,22 @@ TermInner: Term = {
     <name: Format> <arg: StringMayBeInterpolated?>  => Term::Format(Identifier::from(name), arg),
     FieldStr => Term::Suffix(Box::new(Term::Identity), Suffix::Index(Identifier::from(<>))),
     "." <StringMayBeInterpolated> => Term::Suffix(Box::new(Term::Identity), Suffix::Query(Box::new(Term::String(<>).into()))),
-    "." <TermSuffix> => Term::Suffix(Box::new(Term::Identity), <>),
     ".." => Term::Recurse,
     "." => Term::Identity,
 }
 
 Term: Term = {
-    #[precedence(level="0")]
+    #[precedence(level="1")]
     TermInner,
 
-    #[precedence(level="1")] #[assoc(side="all")]
+    #[precedence(level="2")] #[assoc(side="all")]
     <Boxed<Term>> "?" => Term::Suffix(<>, Suffix::Optional),
     <t: Boxed<Term>> <f: FieldStr> => Term::Suffix(t, Suffix::Index(Identifier::from(f))),
     <t: Boxed<Term>> "." <s: StringMayBeInterpolated> => Term::Suffix(t, Suffix::Query(Box::new(Term::String(s).into()))),
-    <t: Boxed<Term>> "." <s: TermSuffix> => Term::Suffix(t, s),
+    <Boxed<Term>> "." <TermSuffix> => Term::Suffix(<>),
+    <Boxed<Term>> <TermSuffix> => Term::Suffix(<>),
 
-    #[precedence(level="2")]
+    #[precedence(level="3")]
     <UnaryOp> <Boxed<Term>> => Term::Unary(<>),
 }
 
