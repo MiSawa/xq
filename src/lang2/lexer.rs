@@ -66,6 +66,7 @@ pub enum Token<'input> {
 
     Pipe,
     Question,
+    SlashSlash,
     QuestionSlashSlash,
 
     LParen,
@@ -155,6 +156,7 @@ lexer! {
 
         '|' = Token::Pipe,
         '?' = Token::Question,
+        "//" = Token::SlashSlash,
         "?//" = Token::QuestionSlashSlash,
 
         '(' =? |lexer| {
@@ -214,6 +216,9 @@ lexer! {
         "reduce"  => |lexer| lexer.return_(Token::Keyword(lexer.match_(), Keyword::Reduce)),
         "foreach" => |lexer| lexer.return_(Token::Keyword(lexer.match_(), Keyword::Foreach)),
 
+        '.' $ident_start $ident_follow* => |lexer| {
+            lexer.return_(Token::Field(&lexer.match_()[1..]))
+        },
         $ident_start $ident_follow* => |lexer| {
             lexer.return_(Token::Identifier(lexer.match_()))
         },

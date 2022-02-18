@@ -1,13 +1,12 @@
 use crate::Value;
 use super::{
     ast::{
-        BinaryArithmeticOp, BinaryOp, Comparator,
-        ConstantArray, ConstantObject, ConstantPrimitive, ConstantValue,
-        FuncArg, FuncDef, Identifier, Query, StringFragment, Suffix,
-        Term , UnaryOp, UpdateOp,
-        BindPattern, ObjectBindPatternEntry,
+        BinaryArithmeticOp, BinaryOp, BindPattern, Comparator, ConstantArray,
+        ConstantObject, ConstantPrimitive, ConstantValue, FuncArg, FuncDef, Identifier,
+        Import, ObjectBindPatternEntry, Program, Query, StringFragment, Suffix, Term,
+        UnaryOp, UpdateOp,
     },
-    lexer::{self, Keyword, LexerError, Loc, Token}
+    lexer::{self, Keyword, LexerError, Loc, Token},
 };
 
 #[LALR]
@@ -196,7 +195,7 @@ Term: Term = {
     #[precedence(level="0")]
     TermInner,
 
-    #[precedence(level="1")]
+    #[precedence(level="1")] #[assoc(side="all")]
     <Boxed<Term>> "?" => Term::Suffix(<>, Suffix::Optional),
     <t: Boxed<Term>> <f: FieldStr> => Term::Suffix(t, Suffix::Index(Identifier::from(f))),
     <t: Boxed<Term>> "." <s: StringMayBeInterpolated> => Term::Suffix(t, Suffix::Query(Box::new(Term::String(s).into()))),
@@ -244,9 +243,22 @@ BindPattern: BindPattern = {
 }
 
 QueryAtomicClose: Query = {
-    Term => <>.into(),
+    #[precedence(level="0")]
     "reduce" <source: Boxed<Term>> "as" <pattern: BindPattern> "(" <initial: Boxed<Query>> ";" <accumulator: Boxed<Query>> ")" => Query::Reduce { <> },
     "foreach" <source: Boxed<Term>> "as" <pattern: BindPattern> "(" <initial: Boxed<Query>> ";" <update: Boxed<Query>> <extract: (";" <Boxed<Query>>)?> ")" => Query::ForEach { <> },
+    "if" <cond: Boxed<Query>> "then" <positive: Boxed<Query>> <elifs: ("elif" <Boxed<Query>> "then" <Boxed<Query>>)*> <mut negative: ("else" <Boxed<Query>>)?> "end" => {
+        for (cond, positive) in elifs.into_iter().rev() {
+            negative = Some(Box::new(Query::If { cond, positive, negative, }));
+        }
+        return Query::If { cond, positive, negative };
+    },
+
+    #[precedence(level="1")]
+    <QueryAtomicClose> "?" => Term::Suffix(Box::new(<>.into()), Suffix::Optional).into(),
+
+    #[precedence(level="2")]
+    Term => <>.into(),
+    #[assoc(side="all")]
     "try" <body: Boxed<QueryAtomicClose>> "catch" <catch: Boxed<QueryAtomicClose>> => {
         Query::Try {
             body,
@@ -295,20 +307,22 @@ QueryImpl: Query = {
 
     #[precedence(level="6")] #[assoc(side="left")]
     <lhs: Boxed<QueryImpl>> "or" <rhs: Boxed<QueryImpl>> => Query::Operate { operator: BinaryOp::Or, <> },
-    // #[precedence(level="7")] #[assoc(side="no")]
-    // update op
-    // #[precedence(level="8")] #[assoc(side="right")]
-    // alt op
-    // #[precedence(level="9")] #[assoc(side="left")]
-    // ,
+
+    #[precedence(level="7")] #[assoc(side="none")]
+    <lhs: Boxed<QueryImpl>> <operator: UpdateOp> <rhs: Boxed<QueryImpl>> => Query::Update { <> },
+
+    #[precedence(level="8")] #[assoc(side="right")]
+    <lhs: Boxed<QueryImpl>> "//" <rhs: Boxed<QueryImpl>> => Query::Operate { operator: BinaryOp::Alt, <> },
+
+    #[precedence(level="9")] #[assoc(side="left")]
+    <lhs: Boxed<QueryImpl>> "," <rhs: Boxed<QueryImpl>> => Query::Concat { <> },
 
     #[precedence(level="11")] #[assoc(side="right")]
     <lhs: Boxed<QueryImpl>> "|" <rhs: Boxed<QueryImpl>> => Query::Pipe { <> },
     #[assoc(side="all")]
-    <function: FuncDef> <query: Boxed<Query>> => Query::WithFunc { <> },
-
-    #[precedence(level="11")] #[assoc(side="all")]
+    <function: FuncDef> <query: Boxed<QueryImpl>> => Query::WithFunc { <> },
     <source: Boxed<Term>> "as" <patterns: Separated1<BindPattern, "?//">> "|" <body: Boxed<QueryImpl>> => Query::Bind { <> },
+    "label" <label: Variable> "|" <body: Boxed<QueryImpl>> => Query::Label { <> },
 }
 pub Query = QueryImpl;
 
@@ -347,6 +361,7 @@ extern {
 
         "|" => Token::Pipe,
         "?" => Token::Question,
+        "//" => Token::SlashSlash,
         "?//" => Token::QuestionSlashSlash,
 
         "(" => Token::LParen,

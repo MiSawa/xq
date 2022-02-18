@@ -14,51 +14,6 @@ pub type ParseResult<'a, T> = Result<T, ParseError<'a>>;
 mod test {
     use super::{ast::Query, lexer::Lexer, parser::QueryParser, ParseResult};
 
-    // use lalrpop_util::lalrpop_mod;
-    // lalrpop_mod!(#[allow(unused_imports)] pub tmp, "/lang2/tmp.rs");
-    // #[test]
-    // fn test_tmp() {
-    //     fn try_parse_query(q: &str) -> Option<String> {
-    //         tmp::QueryParser::new().parse(q).ok()
-    //     }
-    //     fn parse_query(q: &str) -> String {
-    //         println!("{q}");
-    //         tmp::QueryParser::new()
-    //             .parse(q)
-    //             .unwrap()
-    //             .replace("tryo", "try")
-    //             .replace("tryc", "try")
-    //             .replace("catcho", "catch")
-    //             .replace("catchc", "catch")
-    //             .replace("|o", "|")
-    //             .replace("|c", "|")
-    //     }
-    //     assert_eq!(parse_query("try . | ."), parse_query("(try .) | ."));
-    //     assert_eq!(parse_query("try try ."), parse_query("try (try .)"));
-    //     assert_eq!(
-    //         parse_query("try . catch try ."),
-    //         parse_query("try . catch (try .)")
-    //     );
-    //     assert_eq!(
-    //         parse_query("try . catch try . catch ."),
-    //         parse_query("try . catch (try . catch .)")
-    //     );
-    //     assert_eq!(
-    //         parse_query("try try try . catch try . catch . catch ."),
-    //         parse_query("try (try (try . catch (try . catch .)) catch .)")
-    //     );
-    //     assert_eq!(
-    //         parse_query("try . catch . | ."),
-    //         parse_query("(try . catch .) | .")
-    //     );
-    //     assert!(try_parse_query("try try . | . catch .").is_none());
-    //     assert!(try_parse_query("try try . | . catch . | .").is_none());
-    //     assert_eq!(
-    //         parse_query("try . catch try . | ."),
-    //         parse_query("(try . catch (try .)) | .")
-    //     );
-    // }
-
     fn parse_query(q: &str) -> ParseResult<Query> {
         println!("{q}");
         let lexer = Lexer::new(q);
@@ -96,10 +51,7 @@ mod test {
 
     #[test]
     fn test_precedences() -> ParseResult<'static, ()> {
-        assert_eq!(
-            parse_query(". | . | .")?,
-            parse_query(". | (. | .)")?,
-        );
+        assert_eq!(parse_query(". | . | .")?, parse_query(". | (. | .)")?,);
         assert_eq!(parse_query("try . | .")?, parse_query("(try .) | .")?);
         assert_eq!(
             parse_query("def f: .; . | .")?,
@@ -121,14 +73,38 @@ mod test {
             parse_query(". + reduce . as $a (.; .) | . | .")?,
             parse_query("(. + (reduce . as $a (.; .))) | (. | .)")?,
         );
+
+        // Diff with the original jq and gojq: We don't allow using `def` in a RHS.
+        assert!(parse_query(". + def f:.; f + f").is_err());
+        assert!(parse_query(". + (def f:.; (f + f))").is_ok());
+        assert!(parse_query(". * def f:.; f + f").is_err());
+        assert!(parse_query(". * (def f:.; (f + f))").is_ok());
+        // except rhs of pipe
         assert_eq!(
-            parse_query(". + def f:.; f + f")?,
-            parse_query(". + (def f:.; (f + f))")?,
+            parse_query(". | def f:.; f + f")?,
+            parse_query(". | (def f:.; (f + f))")?,
         );
         assert_eq!(
-            parse_query(". * def f:.; f + f")?,
-            parse_query(". * (def f:.; (f + f))")?,
+            parse_query(". | def f:.; f | f | . + .")?,
+            parse_query(". | (def f:.; (f | (f | (.+.))))")?,
         );
+
+        assert!(parse_query(". * . as $a | .").is_err());
+        Ok(())
+    }
+
+    #[test]
+    fn test_query_opt() -> ParseResult<'static, ()> {
+        assert_eq!(
+            parse_query("foreach . as $a (.; .)?")?,
+            parse_query("(foreach . as $a (.; .))?")?
+        );
+        assert_eq!(
+            parse_query("try foreach . as $a (.; .)?")?,
+            parse_query("try ((foreach . as $a (.; .))?)")?
+        );
+        parse_query(".a??")?;
+        parse_query("foreach . as $a (.; .)??")?;
         Ok(())
     }
 }
