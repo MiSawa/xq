@@ -234,7 +234,7 @@ lexer! {
         '@' $ident_start $ident_follow* => |lexer| {
             lexer.return_(Token::Format(&lexer.match_()[1..]))
         },
-        (['+' '-'] ?) ($digit+ | $digit+ '.' $digit* | $digit* '.' $digit+) (['e' 'E'] (['+' '-']? $digit+))? =? |lexer| {
+        ($digit+ | $digit+ '.' $digit* | $digit* '.' $digit+) (['e' 'E'] (['+' '-']? $digit+))? =? |lexer| {
             use std::str::FromStr;
             let parsed = crate::Number::from_str(lexer.match_())
                 .map_err(|_| LexicalError::InvalidNumber(lexer.match_().to_string()))

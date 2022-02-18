@@ -208,17 +208,17 @@ TermInner: Term = {
 }
 
 Term: Term = {
-    #[precedence(level="1")]
+    #[precedence(level="0")]
     TermInner,
 
-    #[precedence(level="2")] #[assoc(side="all")]
+    #[precedence(level="1")] #[assoc(side="all")]
     <Boxed<Term>> "?" => Term::Suffix(<>, Suffix::Optional),
     <t: Boxed<Term>> <f: FieldStr> => Term::Suffix(t, Suffix::Index(Identifier::from(f))),
     <t: Boxed<Term>> "." <s: StringMayBeInterpolated> => Term::Suffix(t, Suffix::Query(Box::new(Term::String(s).into()))),
-    <Boxed<Term>> "." <TermSuffix> => Term::Suffix(<>),
-    <Boxed<Term>> <TermSuffix> => Term::Suffix(<>),
+    <t: Boxed<Term>> "." <s: TermSuffix> => Term::Suffix(t, s),
+    <t: Boxed<Term>> <s: TermSuffix> => Term::Suffix(t, s),
 
-    #[precedence(level="3")]
+    #[precedence(level="2")]
     <UnaryOp> <Boxed<Term>> => Term::Unary(<>),
 }
 
