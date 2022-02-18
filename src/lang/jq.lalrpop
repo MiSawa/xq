@@ -163,7 +163,7 @@ TermSuffix: Suffix = {
 }
 ObjectTermEntryKey: Query = {
     IdentifierAllowKeyword => Term::String(vec![StringFragment::String(<>.0)]).into(),
-    Variable => Term::String(vec![StringFragment::String(<>.0)]).into(),
+    Variable => Term::Variable(<>).into(),
     StringMayBeInterpolated => Term::String(<>).into(),
     "(" <Query> ")",
 }

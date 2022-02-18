@@ -154,8 +154,8 @@ mod test {
 
     #[test]
     fn test_other() -> ParseResult<()> {
-        // parse_query("2")?;
-        // parse_query(".[]")?;
+        parse_query("2")?;
+        parse_query(".[]")?;
         parse_query("f(.; .)")?;
         parse_query("f(.; .)[]")?;
         Ok(())
