@@ -60,10 +60,12 @@ ModuleVariable: Identifier = {
     ModuleVariableStr => Identifier::from(<>),
 }
 
+#[inline]
 UnaryOp: UnaryOp = {
     "+" => UnaryOp::Plus,
     "-" => UnaryOp::Minus,
 }
+#[inline]
 Comparator: Comparator = {
     "==" => Comparator::Eq,
     "!=" => Comparator::Neq,
@@ -72,6 +74,7 @@ Comparator: Comparator = {
     ">" => Comparator::Gt,
     "<" => Comparator::Lt,
 }
+#[inline]
 UpdateOp: UpdateOp = {
     "=" => UpdateOp::Assign,
     "|=" => UpdateOp::Modify,
@@ -95,9 +98,23 @@ ConstantStringInner: String = {
     },
 }
 
+#[inline]
+ConstantString: String = StringStart <ConstantStringInner> StringEnd;
+
+#[inline]
+ConstantArray: ConstantArray = {
+    "[" <Comma0<ConstantValue>> "]" => ConstantArray(<>),
+}
+
+#[inline]
 ConstantObjectEntry: (String, ConstantValue) = {
-    StringStart <ConstantStringInner> StringEnd ":" <ConstantValue>,
+    <ConstantString> ":" <ConstantValue>,
     <k: IdentifierAllowKeyword> ":" <v: ConstantValue> => (k.0, v),
+}
+
+#[inline]
+ConstantObject: ConstantObject = {
+    "{" <Comma0t<ConstantObjectEntry>> "}" => ConstantObject(<>),
 }
 
 ConstantValue: ConstantValue = {
@@ -105,9 +122,9 @@ ConstantValue: ConstantValue = {
     "false" => ConstantValue::Primitive(ConstantPrimitive::False),
     "true" => ConstantValue::Primitive(ConstantPrimitive::True),
     Number => ConstantValue::Primitive(ConstantPrimitive::Number(<>)),
-    StringStart <ConstantStringInner> StringEnd => ConstantValue::Primitive(ConstantPrimitive::String(<>)),
-    "[" <Comma0<ConstantValue>> "]" => ConstantValue::Array(ConstantArray(<>)),
-    "{" <Comma0t<ConstantObjectEntry>> "}" => ConstantValue::Object(ConstantObject(<>)),
+    ConstantString => ConstantValue::Primitive(ConstantPrimitive::String(<>)),
+    ConstantArray => ConstantValue::Array(<>),
+    ConstantObject => ConstantValue::Object(<>),
 }
 
 StringFragments: Vec<StringFragment> = {
@@ -174,7 +191,7 @@ TermInner: Term = {
     StringMayBeInterpolated => Term::String(<>),
     "(" <Query> ")" => <>.into(),
     "[" <Boxed<Query>?> "]" => Term::Array(<>),
-    "{" <Comma0<ObjectTermEntry>>"}" => Term::Object(<>),
+    "{" <Comma0<ObjectTermEntry>> "}" => Term::Object(<>),
     "break" <Variable> => Term::Break(<>),
     <name: Alt2<IdentifierNonKeyword, ModuleIdentifier>> <args: ( "(" <Separated1<Query, ";">> ")" )?> => {
         Term::FunctionCall {
@@ -206,7 +223,7 @@ Term: Term = {
 }
 
 FuncDefArg: FuncArg = {
-    IdentifierAllowKeyword => FuncArg::Closure(<>),
+    IdentifierNonKeyword => FuncArg::Closure(<>),
     Variable => FuncArg::Variable(<>),
 }
 FuncDefArgs: Vec<FuncArg> = {
@@ -215,7 +232,7 @@ FuncDefArgs: Vec<FuncArg> = {
 }
 #[inline]
 FuncDef: FuncDef = {
-    "def" <name: IdentifierAllowKeyword> <args: FuncDefArgs> ":" <body: Boxed<Query>> ";" => FuncDef { <> },
+    "def" <name: IdentifierNonKeyword> <args: FuncDefArgs> ":" <body: Boxed<Query>> ";" => FuncDef { <> },
 }
 
 #[inline]
@@ -286,45 +303,75 @@ QueryAtomic = {
     QueryAtomicOpen,
     QueryAtomicClose,
 }
-QueryImpl: Query = {
+QueryInner: Query = {
     #[precedence(level="0")]
     QueryAtomic,
 
     #[precedence(level="2")] #[assoc(side="left")]
-    <lhs: Boxed<QueryImpl>> "*" <rhs: Boxed<QueryImpl>> => Query::Operate { operator: BinaryOp::Arithmetic(BinaryArithmeticOp::Multiply), <> },
-    <lhs: Boxed<QueryImpl>> "/" <rhs: Boxed<QueryImpl>> => Query::Operate { operator: BinaryOp::Arithmetic(BinaryArithmeticOp::Divide), <> },
-    <lhs: Boxed<QueryImpl>> "%" <rhs: Boxed<QueryImpl>> => Query::Operate { operator: BinaryOp::Arithmetic(BinaryArithmeticOp::Modulo), <> },
+    <lhs: Boxed<QueryInner>> "*" <rhs: Boxed<QueryInner>> => Query::Operate { operator: BinaryOp::Arithmetic(BinaryArithmeticOp::Multiply), <> },
+    <lhs: Boxed<QueryInner>> "/" <rhs: Boxed<QueryInner>> => Query::Operate { operator: BinaryOp::Arithmetic(BinaryArithmeticOp::Divide), <> },
+    <lhs: Boxed<QueryInner>> "%" <rhs: Boxed<QueryInner>> => Query::Operate { operator: BinaryOp::Arithmetic(BinaryArithmeticOp::Modulo), <> },
 
     #[precedence(level="3")] #[assoc(side="left")]
-    <lhs: Boxed<QueryImpl>> "+" <rhs: Boxed<QueryImpl>> => Query::Operate { operator: BinaryOp::Arithmetic(BinaryArithmeticOp::Add), <> },
-    <lhs: Boxed<QueryImpl>> "-" <rhs: Boxed<QueryImpl>> => Query::Operate { operator: BinaryOp::Arithmetic(BinaryArithmeticOp::Subtract), <> },
+    <lhs: Boxed<QueryInner>> "+" <rhs: Boxed<QueryInner>> => Query::Operate { operator: BinaryOp::Arithmetic(BinaryArithmeticOp::Add), <> },
+    <lhs: Boxed<QueryInner>> "-" <rhs: Boxed<QueryInner>> => Query::Operate { operator: BinaryOp::Arithmetic(BinaryArithmeticOp::Subtract), <> },
 
     #[precedence(level="4")] #[assoc(side="none")]
-    <lhs: Boxed<QueryImpl>> <comparator: Comparator> <rhs: Boxed<QueryImpl>> => Query::Compare { <> },
+    <lhs: Boxed<QueryInner>> <comparator: Comparator> <rhs: Boxed<QueryInner>> => Query::Compare { <> },
 
     #[precedence(level="5")] #[assoc(side="left")]
-    <lhs: Boxed<QueryImpl>> "and" <rhs: Boxed<QueryImpl>> => Query::Operate { operator: BinaryOp::And, <> },
+    <lhs: Boxed<QueryInner>> "and" <rhs: Boxed<QueryInner>> => Query::Operate { operator: BinaryOp::And, <> },
 
     #[precedence(level="6")] #[assoc(side="left")]
-    <lhs: Boxed<QueryImpl>> "or" <rhs: Boxed<QueryImpl>> => Query::Operate { operator: BinaryOp::Or, <> },
+    <lhs: Boxed<QueryInner>> "or" <rhs: Boxed<QueryInner>> => Query::Operate { operator: BinaryOp::Or, <> },
 
     #[precedence(level="7")] #[assoc(side="none")]
-    <lhs: Boxed<QueryImpl>> <operator: UpdateOp> <rhs: Boxed<QueryImpl>> => Query::Update { <> },
+    <lhs: Boxed<QueryInner>> <operator: UpdateOp> <rhs: Boxed<QueryInner>> => Query::Update { <> },
 
     #[precedence(level="8")] #[assoc(side="right")]
-    <lhs: Boxed<QueryImpl>> "//" <rhs: Boxed<QueryImpl>> => Query::Operate { operator: BinaryOp::Alt, <> },
+    <lhs: Boxed<QueryInner>> "//" <rhs: Boxed<QueryInner>> => Query::Operate { operator: BinaryOp::Alt, <> },
 
     #[precedence(level="9")] #[assoc(side="left")]
-    <lhs: Boxed<QueryImpl>> "," <rhs: Boxed<QueryImpl>> => Query::Concat { <> },
-
-    #[precedence(level="11")] #[assoc(side="right")]
-    <lhs: Boxed<QueryImpl>> "|" <rhs: Boxed<QueryImpl>> => Query::Pipe { <> },
-    #[assoc(side="all")]
-    <function: FuncDef> <query: Boxed<QueryImpl>> => Query::WithFunc { <> },
+    <lhs: Boxed<QueryInner>> "," <rhs: Boxed<QueryInner>> => Query::Concat { <> },
+}
+#[inline]
+QueryStartFromNotFuncDef: Query = {
+    QueryInner,
+    <lhs: Boxed<QueryInner>> "|" <rhs: Boxed<QueryImpl>> => Query::Pipe { <> },
     <source: Boxed<Term>> "as" <patterns: Separated1<BindPattern, "?//">> "|" <body: Boxed<QueryImpl>> => Query::Bind { <> },
     "label" <label: Variable> "|" <body: Boxed<QueryImpl>> => Query::Label { <> },
 }
+QueryImpl: Query = {
+    QueryStartFromNotFuncDef,
+    <function: FuncDef> <query: Boxed<QueryImpl>> => Query::WithFunc { <> },
+}
 pub Query = QueryImpl;
+
+Import: Import = {
+    "import" <path: ConstantString> "as" <alias: IdentifierNonKeyword> <meta: (ConstantObject)?> ";" => {
+        Import { path, meta, alias: Some(alias) }
+    },
+    "import" <path: ConstantString> "as" <alias: Variable> <meta: (ConstantObject)?> ";" => {
+        // FIXME: Distinguish this.
+        Import { path, meta, alias: Some(alias) }
+    },
+    "include" <path: ConstantString>  <meta: (ConstantObject)?> ";" => {
+        Import { <>, alias: None }
+    },
+}
+
+pub Program: Program = {
+    <module_header: ("module" <ConstantObject> ";")?> <imports: Import*> <functions: FuncDef*> <query: QueryStartFromNotFuncDef?> => {
+        if let Some(mut query) = query {
+            for function in functions.into_iter().rev() {
+                query = Query::WithFunc { function, query: Box::new(query) };
+            }
+            Program { module_header, imports, functions: vec![], query }
+        } else {
+            Program { module_header, imports, functions, query: Term::Identity.into() }
+        }
+    },
+}
 
 extern {
     type Location = Loc;
