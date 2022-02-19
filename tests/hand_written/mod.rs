@@ -231,3 +231,18 @@ test!(
     "3"
     "#
 );
+
+test!(
+    index_with_keyword,
+    r#"
+    .true, .false, .def
+    "#,
+    r#"
+    {"true": 1, "false": 2, "def": 3}
+    "#,
+    r#"
+    1
+    2
+    3
+    "#
+);
