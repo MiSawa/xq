@@ -10,9 +10,9 @@ test!(
     "#,
     r#"
     true
-	true
-	false
-	false
+    true
+    false
+    false
     "#
 );
 

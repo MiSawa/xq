@@ -15,7 +15,7 @@ pub use crate::{
 
 use crate::{
     compile::compiler::{CompileError, Compiler},
-    lang::parser,
+    lang::ParseError,
     module_loader::ModuleLoader,
     vm::{machine::Machine, QueryExecutionError},
 };
@@ -24,7 +24,7 @@ use thiserror::Error;
 #[derive(Debug, Error)]
 pub enum XQError {
     #[error(transparent)]
-    ParseError(#[from] nom::error::Error<String>),
+    ParseError(#[from] ParseError),
     #[error(transparent)]
     CompileError(#[from] CompileError),
     #[error(transparent)]
@@ -41,7 +41,7 @@ where
     M: ModuleLoader,
 {
     // let now = std::time::Instant::now();
-    let parsed = parser::parse_query(query)?;
+    let parsed = lang::parse_program(query)?;
     log::info!("Parsed query = {:?}", parsed);
     // eprintln!("Parse: {:?}", now.elapsed());
     // let now = std::time::Instant::now();

@@ -1,5 +1,5 @@
 use crate::{
-    lang::{ast::Program, parser::parse_query},
+    lang::{ast::Program, parse_program, ParseError},
     module_loader::ModuleLoadError::NotFoundError,
     Value,
 };
@@ -10,7 +10,7 @@ pub enum ModuleLoadError {
     #[error("Module `{0:?}` not found")]
     NotFoundError(String),
     #[error(transparent)]
-    ParseError(#[from] nom::error::Error<String>),
+    ParseError(#[from] ParseError),
     #[error(transparent)]
     IOError(#[from] std::io::Error),
 }
@@ -27,7 +27,7 @@ pub struct PreludeLoader();
 impl ModuleLoader for PreludeLoader {
     fn prelude(&self) -> Result<Vec<Program>> {
         let prelude = include_str!("../prelude.jq");
-        let parsed = parse_query(prelude)?;
+        let parsed = parse_program(prelude)?;
         Ok(vec![parsed])
     }
 

@@ -1,0 +1,459 @@
+use crate::Value;
+use super::{
+    ast::{
+        BinaryArithmeticOp, BinaryOp, BindPattern, Comparator, ConstantArray,
+        ConstantObject, ConstantPrimitive, ConstantValue, FuncArg, FuncDef, Identifier,
+        Import, ObjectBindPatternEntry, Program, Query, StringFragment, Suffix, Term,
+        UnaryOp, UpdateOp,
+    },
+    lexer::{self, Keyword, LexerError, Loc, Token},
+};
+
+#[LALR]
+grammar<'input>(input: &'input str);
+
+#[inline]
+Alt2<A, B>: A = { A, B }
+#[inline]
+Boxed<T>: Box<T> = T => Box::new(<>);
+
+Separated1<T, S>: Vec<T> = {
+    <mut v: (<T> S)*> <e: T> => {
+        v.push(e);
+        v
+    },
+}
+Comma1<T>: Vec<T> = { Separated1<T, ",">, }
+Comma0<T>: Vec<T> = {
+    => vec![],
+    Comma1<T>,
+}
+Comma0t<T>: Vec<T> = {
+    <mut v: (<T> ",")*> <e: T?> => match e{
+        None => v,
+        Some(e) => {
+            v.push(e);
+            v
+        }
+    },
+}
+
+KeywordStr: &'input str = {
+    "or", "and", "module", "import", "include", "def", "as", "label", "break", "null", "true", "false",
+    "if", "then", "elif", "else", "end", "try", "catch", "reduce", "foreach",
+}
+
+IdentifierNonKeyword: Identifier = {
+    IdentifierNonKeywordStr => Identifier::from(<>),
+}
+ModuleIdentifier: Identifier = {
+    ModuleIdentifierStr => Identifier::from(<>),
+}
+IdentifierAllowKeyword: Identifier = {
+    IdentifierNonKeyword,
+    KeywordStr => Identifier::from(<>),
+}
+Variable: Identifier = {
+    VariableStr => Identifier::from(<>),
+}
+ModuleVariable: Identifier = {
+    ModuleVariableStr => Identifier::from(<>),
+}
+
+#[inline]
+UnaryOp: UnaryOp = {
+    "+" => UnaryOp::Plus,
+    "-" => UnaryOp::Minus,
+}
+#[inline]
+Comparator: Comparator = {
+    "==" => Comparator::Eq,
+    "!=" => Comparator::Neq,
+    ">=" => Comparator::Ge,
+    "<=" => Comparator::Le,
+    ">" => Comparator::Gt,
+    "<" => Comparator::Lt,
+}
+#[inline]
+UpdateOp: UpdateOp = {
+    "=" => UpdateOp::Assign,
+    "|=" => UpdateOp::Modify,
+    "//=" => UpdateOp::Alt,
+    "+=" => UpdateOp::Arithmetic(BinaryArithmeticOp::Add),
+    "-=" => UpdateOp::Arithmetic(BinaryArithmeticOp::Subtract),
+    "*=" => UpdateOp::Arithmetic(BinaryArithmeticOp::Multiply),
+    "/=" => UpdateOp::Arithmetic(BinaryArithmeticOp::Divide),
+    "%=" => UpdateOp::Arithmetic(BinaryArithmeticOp::Modulo),
+}
+
+ConstantStringInner: String = {
+    => String::new(),
+    <mut s: ConstantStringInner> <c: StringFragmentChar> => {
+        s.push(c);
+        s
+    },
+    <mut s: ConstantStringInner> <t: StringFragmentString> => {
+        s.push_str(t);
+        s
+    },
+}
+
+#[inline]
+ConstantString: String = StringStart <ConstantStringInner> StringEnd;
+
+#[inline]
+ConstantArray: ConstantArray = {
+    "[" <Comma0<ConstantValue>> "]" => ConstantArray(<>),
+}
+
+#[inline]
+ConstantObjectEntry: (String, ConstantValue) = {
+    <ConstantString> ":" <ConstantValue>,
+    <k: IdentifierAllowKeyword> ":" <v: ConstantValue> => (k.0, v),
+}
+
+#[inline]
+ConstantObject: ConstantObject = {
+    "{" <Comma0t<ConstantObjectEntry>> "}" => ConstantObject(<>),
+}
+
+ConstantValue: ConstantValue = {
+    "null" => ConstantValue::Primitive(ConstantPrimitive::Null),
+    "false" => ConstantValue::Primitive(ConstantPrimitive::False),
+    "true" => ConstantValue::Primitive(ConstantPrimitive::True),
+    Number => ConstantValue::Primitive(ConstantPrimitive::Number(<>)),
+    ConstantString => ConstantValue::Primitive(ConstantPrimitive::String(<>)),
+    ConstantArray => ConstantValue::Array(<>),
+    ConstantObject => ConstantValue::Object(<>),
+}
+
+StringFragments: Vec<StringFragment> = {
+    => vec![],
+    <mut v: StringFragments> <c: StringFragmentChar> => {
+        if let Some(StringFragment::String(s)) = v.last_mut() {
+            s.push(c);
+        } else {
+            v.push(StringFragment::String(c.to_string()));
+        }
+        v
+    },
+    <mut v: StringFragments> <t: StringFragmentString> => {
+        if let Some(StringFragment::String(s)) = v.last_mut() {
+            s.push_str(t);
+        } else {
+            v.push(StringFragment::String(t.to_string()));
+        }
+        v
+    },
+    <mut v: StringFragments> InterpolationStart <q: Query> InterpolationEnd => {
+        v.push(StringFragment::Query(q));
+        v
+    },
+}
+
+StringMayBeInterpolated: Vec<StringFragment> = {
+    StringStart <StringFragments> StringEnd,
+}
+
+TermSuffix: Suffix = {
+    "[" "]" => Suffix::Iterate,
+    "[" <Query> "]" => Suffix::Query(Box::new(<>)),
+    "[" ":" <Query> "]" => Suffix::Slice(None, Some(Box::new(<>))),
+    "[" <lower: Query> ":" <upper: Query?> "]" => Suffix::Slice(Some(Box::new(lower)), upper.map(Box::new)),
+}
+ObjectTermEntryKey: Query = {
+    IdentifierAllowKeyword => Term::String(vec![StringFragment::String(<>.0)]).into(),
+    Variable => Term::Variable(<>).into(),
+    StringMayBeInterpolated => Term::String(<>).into(),
+    "(" <Query> ")",
+}
+ObjectTermEntry: (Query, Option<Query>) = {
+    ObjectTermEntryKey => (<>, None),
+    <k: ObjectTermEntryKey> ":" <v: Separated1<Term, "|">> => {
+        (
+            k,
+            v
+                .into_iter()
+                .map(Term::into)
+                .reduce(|lhs, rhs| Query::Pipe {
+                    lhs: Box::new(lhs),
+                    rhs: Box::new(rhs),
+                })
+        )
+    }
+}
+
+TermInner: Term = {
+    "null" => Term::Constant(Value::Null),
+    "false" => Term::Constant(Value::Boolean(false)),
+    "true" => Term::Constant(Value::Boolean(true)),
+    Number => Term::Constant(Value::Number(<>)),
+    StringMayBeInterpolated => Term::String(<>),
+    "(" <Query> ")" => <>.into(),
+    "[" <Boxed<Query>?> "]" => Term::Array(<>),
+    "{" <Comma0t<ObjectTermEntry>> "}" => Term::Object(<>),
+    "break" <Variable> => Term::Break(<>),
+    <name: Alt2<IdentifierNonKeyword, ModuleIdentifier>> <args: ( "(" <Separated1<Query, ";">> ")" )?> => {
+        Term::FunctionCall {
+            name,
+            args: args.unwrap_or_default(),
+        }
+    },
+    Alt2<Variable, ModuleVariable> => Term::Variable(<>),
+    <name: Format> <arg: StringMayBeInterpolated?>  => Term::Format(Identifier::from(name), arg),
+    FieldStr => Term::Suffix(Box::new(Term::Identity), Suffix::Index(Identifier::from(<>))),
+    "." <StringMayBeInterpolated> => Term::Suffix(Box::new(Term::Identity), Suffix::Query(Box::new(Term::String(<>).into()))),
+    ".." => Term::Recurse,
+    "." => Term::Identity,
+}
+
+Term: Term = {
+    #[precedence(level="0")]
+    TermInner,
+
+    #[precedence(level="1")] #[assoc(side="all")]
+    <Boxed<Term>> "?" => Term::Suffix(<>, Suffix::Optional),
+    <t: Boxed<Term>> <f: FieldStr> => Term::Suffix(t, Suffix::Index(Identifier::from(f))),
+    <t: Boxed<Term>> "." <s: StringMayBeInterpolated> => Term::Suffix(t, Suffix::Query(Box::new(Term::String(s).into()))),
+    <t: Boxed<Term>> "." <s: TermSuffix> => Term::Suffix(t, s),
+    <t: Boxed<Term>> <s: TermSuffix> => Term::Suffix(t, s),
+
+    #[precedence(level="2")]
+    <UnaryOp> <Boxed<Term>> => Term::Unary(<>),
+}
+
+FuncDefArg: FuncArg = {
+    IdentifierNonKeyword => FuncArg::Closure(<>),
+    Variable => FuncArg::Variable(<>),
+}
+FuncDefArgs: Vec<FuncArg> = {
+    => vec![],
+    "(" <Separated1<FuncDefArg, ";">> ")",
+}
+#[inline]
+FuncDef: FuncDef = {
+    "def" <name: IdentifierNonKeyword> <args: FuncDefArgs> ":" <body: Boxed<Query>> ";" => FuncDef { <> },
+}
+
+#[inline]
+ObjectBindPatternEntry: ObjectBindPatternEntry = {
+    Variable => ObjectBindPatternEntry::KeyOnly(<>),
+    <var: Variable> ":" <value: Boxed<BindPattern>> => ObjectBindPatternEntry::KeyValue(
+        Box::new(Term::Variable(var).into()),
+        value,
+    ),
+    <ident: IdentifierNonKeyword> ":" <value: Boxed<BindPattern>> => ObjectBindPatternEntry::KeyValue(
+        Box::new(Term::String(vec![StringFragment::String(ident.0)]).into()),
+        value,
+    ),
+    <s: StringMayBeInterpolated> ":" <value: Boxed<BindPattern>> => ObjectBindPatternEntry::KeyValue(
+        Box::new(Term::String(s).into()),
+        value,
+    ),
+    "(" <Boxed<Query>> ")" <Boxed<BindPattern>> => ObjectBindPatternEntry::KeyValue(<>),
+}
+#[inline]
+BindPattern: BindPattern = {
+    Variable => BindPattern::Variable(<>),
+    "[" <Comma1<BindPattern>> "]" => BindPattern::Array(<>),
+    "{" <Comma1<ObjectBindPatternEntry>> "}" => BindPattern::Object(<>),
+}
+
+QueryAtomicClose: Query = {
+    #[precedence(level="0")]
+    "reduce" <source: Boxed<Term>> "as" <pattern: BindPattern> "(" <initial: Boxed<Query>> ";" <accumulator: Boxed<Query>> ")" => Query::Reduce { <> },
+    "foreach" <source: Boxed<Term>> "as" <pattern: BindPattern> "(" <initial: Boxed<Query>> ";" <update: Boxed<Query>> <extract: (";" <Boxed<Query>>)?> ")" => Query::ForEach { <> },
+    "if" <cond: Boxed<Query>> "then" <positive: Boxed<Query>> <elifs: ("elif" <Boxed<Query>> "then" <Boxed<Query>>)*> <mut negative: ("else" <Boxed<Query>>)?> "end" => {
+        for (cond, positive) in elifs.into_iter().rev() {
+            negative = Some(Box::new(Query::If { cond, positive, negative, }));
+        }
+        return Query::If { cond, positive, negative };
+    },
+
+    #[precedence(level="1")]
+    <QueryAtomicClose> "?" => Term::Suffix(Box::new(<>.into()), Suffix::Optional).into(),
+
+    #[precedence(level="2")]
+    Term => <>.into(),
+    #[assoc(side="all")]
+    "try" <body: Boxed<QueryAtomicClose>> "catch" <catch: Boxed<QueryAtomicClose>> => {
+        Query::Try {
+            body,
+            catch: Some(catch),
+        }
+    },
+}
+QueryAtomicOpen: Query = {
+    "try" <body: Boxed<QueryAtomic>> => {
+        Query::Try {
+            body,
+            catch: None,
+        }
+    },
+    "try" <body: Boxed<QueryAtomicClose>> "catch" <catch: Boxed<QueryAtomicOpen>> => {
+        Query::Try {
+            body,
+            catch: Some(catch),
+        }
+    },
+}
+
+#[inline]
+QueryAtomic = {
+    QueryAtomicOpen,
+    QueryAtomicClose,
+}
+QueryInner: Query = {
+    #[precedence(level="0")]
+    QueryAtomic,
+
+    #[precedence(level="2")] #[assoc(side="left")]
+    <lhs: Boxed<QueryInner>> "*" <rhs: Boxed<QueryInner>> => Query::Operate { operator: BinaryOp::Arithmetic(BinaryArithmeticOp::Multiply), <> },
+    <lhs: Boxed<QueryInner>> "/" <rhs: Boxed<QueryInner>> => Query::Operate { operator: BinaryOp::Arithmetic(BinaryArithmeticOp::Divide), <> },
+    <lhs: Boxed<QueryInner>> "%" <rhs: Boxed<QueryInner>> => Query::Operate { operator: BinaryOp::Arithmetic(BinaryArithmeticOp::Modulo), <> },
+
+    #[precedence(level="3")] #[assoc(side="left")]
+    <lhs: Boxed<QueryInner>> "+" <rhs: Boxed<QueryInner>> => Query::Operate { operator: BinaryOp::Arithmetic(BinaryArithmeticOp::Add), <> },
+    <lhs: Boxed<QueryInner>> "-" <rhs: Boxed<QueryInner>> => Query::Operate { operator: BinaryOp::Arithmetic(BinaryArithmeticOp::Subtract), <> },
+
+    #[precedence(level="4")] #[assoc(side="none")]
+    <lhs: Boxed<QueryInner>> <comparator: Comparator> <rhs: Boxed<QueryInner>> => Query::Compare { <> },
+
+    #[precedence(level="5")] #[assoc(side="left")]
+    <lhs: Boxed<QueryInner>> "and" <rhs: Boxed<QueryInner>> => Query::Operate { operator: BinaryOp::And, <> },
+
+    #[precedence(level="6")] #[assoc(side="left")]
+    <lhs: Boxed<QueryInner>> "or" <rhs: Boxed<QueryInner>> => Query::Operate { operator: BinaryOp::Or, <> },
+
+    #[precedence(level="7")] #[assoc(side="none")]
+    <lhs: Boxed<QueryInner>> <operator: UpdateOp> <rhs: Boxed<QueryInner>> => Query::Update { <> },
+
+    #[precedence(level="8")] #[assoc(side="right")]
+    <lhs: Boxed<QueryInner>> "//" <rhs: Boxed<QueryInner>> => Query::Operate { operator: BinaryOp::Alt, <> },
+
+    #[precedence(level="9")] #[assoc(side="left")]
+    <lhs: Boxed<QueryInner>> "," <rhs: Boxed<QueryInner>> => Query::Concat { <> },
+}
+#[inline]
+QueryStartFromNotFuncDef: Query = {
+    QueryInner,
+    <lhs: Boxed<QueryInner>> "|" <rhs: Boxed<QueryImpl>> => Query::Pipe { <> },
+    <source: Boxed<Term>> "as" <patterns: Separated1<BindPattern, "?//">> "|" <body: Boxed<QueryImpl>> => Query::Bind { <> },
+    "label" <label: Variable> "|" <body: Boxed<QueryImpl>> => Query::Label { <> },
+}
+QueryImpl: Query = {
+    QueryStartFromNotFuncDef,
+    <function: FuncDef> <query: Boxed<QueryImpl>> => Query::WithFunc { <> },
+}
+pub Query = QueryImpl;
+
+Import: Import = {
+    "import" <path: ConstantString> "as" <alias: IdentifierNonKeyword> <meta: (ConstantObject)?> ";" => {
+        Import { path, meta, alias: Some(alias) }
+    },
+    "import" <path: ConstantString> "as" <alias: Variable> <meta: (ConstantObject)?> ";" => {
+        // FIXME: Distinguish this.
+        Import { path, meta, alias: Some(alias) }
+    },
+    "include" <path: ConstantString>  <meta: (ConstantObject)?> ";" => {
+        Import { <>, alias: None }
+    },
+}
+
+pub Program: Program = {
+    <module_header: ("module" <ConstantObject> ";")?> <imports: Import*> <functions: FuncDef*> <query: QueryStartFromNotFuncDef?> => {
+        if let Some(mut query) = query {
+            for function in functions.into_iter().rev() {
+                query = Query::WithFunc { function, query: Box::new(query) };
+            }
+            Program { module_header, imports, functions: vec![], query }
+        } else {
+            Program { module_header, imports, functions, query: Term::Identity.into() }
+        }
+    },
+}
+
+extern {
+    type Location = Loc;
+    type Error = LexerError;
+
+    enum Token<'input> {
+        "+" => Token::Plus,
+        "-" => Token::Minus,
+        "*" => Token::Star,
+        "/" => Token::Slash,
+        "%" => Token::Percent,
+
+        "=" => Token::Eq,
+        "+=" => Token::PlusEq,
+        "-=" => Token::MinusEq,
+        "*=" => Token::StarEq,
+        "/=" => Token::SlashEq,
+        "%=" => Token::PercentEq,
+        "//=" => Token::SlashSlashEq,
+        "|=" => Token::PipeEq,
+
+        "==" => Token::EqEq,
+        "!=" => Token::NotEq,
+        "<=" => Token::LtEq,
+        ">=" => Token::GtEq,
+        "<" => Token::Lt,
+        ">" => Token::Gt,
+
+        "," => Token::Comma,
+        "." => Token::Dot,
+        ";" => Token::Semicolon,
+        ":" => Token::Colon,
+        ".." => Token::DotDot,
+
+        "|" => Token::Pipe,
+        "?" => Token::Question,
+        "//" => Token::SlashSlash,
+        "?//" => Token::QuestionSlashSlash,
+
+        "(" => Token::LParen,
+        ")" => Token::RParen,
+        "{" => Token::LBrace,
+        "}" => Token::RBrace,
+        "[" => Token::LBracket,
+        "]" => Token::RBracket,
+
+        StringStart => Token::StringStart,
+        StringFragmentString => Token::StringFragment(lexer::StringFragment::String(<&'input str>)),
+        StringFragmentChar => Token::StringFragment(lexer::StringFragment::Char(<char>)),
+        InterpolationStart => Token::InterpolationStart,
+        InterpolationEnd => Token::InterpolationEnd,
+        StringEnd => Token::StringEnd,
+
+        Number => Token::Number(<crate::Number>),
+
+        FieldStr => Token::Field(<&'input str>),
+        IdentifierNonKeywordStr => Token::Identifier(<&'input str>),
+        ModuleIdentifierStr => Token::ModuleIdentifier(<&'input str>),
+        VariableStr => Token::Variable(<&'input str>),
+        ModuleVariableStr => Token::ModuleVariable(<&'input str>),
+        Format => Token::Format(<&'input str>),
+
+        "or"      => Token::Keyword(<&'input str>, Keyword::Or),
+        "and"      => Token::Keyword(<&'input str>, Keyword::And),
+        "module"  => Token::Keyword(<&'input str>, Keyword::Module),
+        "import"  => Token::Keyword(<&'input str>, Keyword::Import),
+        "include" => Token::Keyword(<&'input str>, Keyword::Include),
+        "def"     => Token::Keyword(<&'input str>, Keyword::Def),
+        "as"      => Token::Keyword(<&'input str>, Keyword::As),
+        "label"   => Token::Keyword(<&'input str>, Keyword::Label),
+        "break"   => Token::Keyword(<&'input str>, Keyword::Break),
+        "null"    => Token::Keyword(<&'input str>, Keyword::Null),
+        "false"   => Token::Keyword(<&'input str>, Keyword::False),
+        "true"    => Token::Keyword(<&'input str>, Keyword::True),
+        "if"      => Token::Keyword(<&'input str>, Keyword::If),
+        "then"    => Token::Keyword(<&'input str>, Keyword::Then),
+        "elif"    => Token::Keyword(<&'input str>, Keyword::Elif),
+        "else"    => Token::Keyword(<&'input str>, Keyword::Else),
+        "end"     => Token::Keyword(<&'input str>, Keyword::End),
+        "try"     => Token::Keyword(<&'input str>, Keyword::Try),
+        "catch"   => Token::Keyword(<&'input str>, Keyword::Catch),
+        "reduce"  => Token::Keyword(<&'input str>, Keyword::Reduce),
+        "foreach" => Token::Keyword(<&'input str>, Keyword::Foreach),
+    }
+}
