@@ -362,6 +362,7 @@ checksum = "e2abad23fbc42b3700f2f279844dc832adb2b2eb069b2df918f455c4e18cc646"
 [[package]]
 name = "lexgen"
 version = "0.9.0"
+source = "git+https://github.com/osa1/lexgen.git?rev=b41125322839fe9a29955ae6ec583d486e893076#b41125322839fe9a29955ae6ec583d486e893076"
 dependencies = [
  "fxhash",
  "proc-macro2",
@@ -372,6 +373,7 @@ dependencies = [
 [[package]]
 name = "lexgen_util"
 version = "0.9.0"
+source = "git+https://github.com/osa1/lexgen.git?rev=b41125322839fe9a29955ae6ec583d486e893076#b41125322839fe9a29955ae6ec583d486e893076"
 dependencies = [
  "unicode-width",
 ]
