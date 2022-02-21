@@ -41,6 +41,11 @@ use crate::{
 /// - (function body here)
 /// - return // pop frame
 ///
+/// # Important note
+/// Things are compiled backwards. This makes us handling jump-ish code much easier, since most of
+/// the jumps (or reference to an address of a code to be precise) are going forward, so we don't
+/// have to do something like "acquire a placeholder, replace it with jump when the jump target
+/// address was determined".
 
 #[derive(Debug, Error)]
 pub enum CompileError {
@@ -782,6 +787,7 @@ impl Compiler {
     }
 
     /// Consumes a value from the stack, and produces a single value onto the stack.
+    /// Execution order: `index`, `body`
     fn compile_index<T: Compile, U: Compile>(
         &mut self,
         body: &T,
@@ -789,13 +795,14 @@ impl Compiler {
         next: Address,
     ) -> Result<Address> {
         let indexing = self.emitter.emit_normal_op(ByteCode::Index, next);
-        let indexing = self.compile_without_path_tracking(index, indexing)?;
-        let swap = self.emitter.emit_normal_op(ByteCode::Swap, indexing);
-        let body = body.compile(self, swap)?;
-        Ok(self.emitter.emit_normal_op(ByteCode::Dup, body))
+        let body = body.compile(self, indexing)?;
+        let swap = self.emitter.emit_normal_op(ByteCode::Swap, body);
+        let index = self.compile_without_path_tracking(index, swap)?;
+        Ok(self.emitter.emit_normal_op(ByteCode::Dup, index))
     }
 
     /// Consumes a value from the stack, and produces a single value onto the stack.
+    /// Execution order: `start`, `end`, `body`
     fn compile_slice<T: Compile, U: Compile, V: Compile>(
         &mut self,
         body: &T,
@@ -811,41 +818,29 @@ impl Compiler {
             },
             next,
         );
+        let next = body.compile(self, next)?;
+
         let next = self
             .emitter
             .emit_normal_op(ByteCode::ExitNonPathTracking, next);
-        let mut need_val = false;
         let next = if let Some(end) = end {
-            need_val = true;
-            end.compile(self, next)?
+            let next = self.emitter.emit_normal_op(ByteCode::Swap, next);
+            let next = end.compile(self, next)?;
+            self.emitter.emit_normal_op(ByteCode::Dup, next)
         } else {
             next
         };
         let next = if let Some(start) = start {
-            if need_val {
-                // Don't consume the value; put `start` penultimate of the stack, and leave the value top.
-                let next = self.emitter.emit_normal_op(ByteCode::Swap, next);
-                let next = start.compile(self, next)?;
-                self.emitter.emit_normal_op(ByteCode::Dup, next)
-            } else {
-                // Consume the value and produce the start
-                need_val = true;
-                start.compile(self, next)?
-            }
+            let next = self.emitter.emit_normal_op(ByteCode::Swap, next);
+            let next = start.compile(self, next)?;
+            self.emitter.emit_normal_op(ByteCode::Dup, next)
         } else {
             next
         };
+
         let next = self
             .emitter
             .emit_normal_op(ByteCode::EnterNonPathTracking, next);
-        // Same as the above.... although need_val = true.
-        let next = if need_val {
-            let next = self.emitter.emit_normal_op(ByteCode::Swap, next);
-            let next = body.compile(self, next)?;
-            self.emitter.emit_normal_op(ByteCode::Dup, next)
-        } else {
-            body.compile(self, next)?
-        };
         Ok(next)
     }
 
@@ -901,7 +896,6 @@ impl Compiler {
                     }
                 }
                 let next = self.emitter.emit_normal_op(ByteCode::Index, next);
-                let next = self.emitter.emit_normal_op(ByteCode::Swap, next);
                 let next = self.emitter.emit_normal_op(ByteCode::Load(context), next);
                 self.emitter.emit_normal_op(ByteCode::Dup, next)
             }
@@ -981,6 +975,7 @@ impl Compiler {
                         for (i, pattern) in v.iter().enumerate().rev() {
                             tmp = pattern.compile(compiler, tmp)?;
                             tmp = compiler.emitter.emit_normal_op(ByteCode::Index, tmp);
+                            tmp = compiler.emitter.emit_normal_op(ByteCode::Swap, tmp);
                             tmp = compiler
                                 .emitter
                                 .emit_normal_op(ByteCode::Push(Value::number(i)), tmp);
@@ -1000,6 +995,7 @@ impl Compiler {
                                     tmp =
                                         compiler.emitter.emit_normal_op(ByteCode::Store(slot), tmp);
                                     tmp = compiler.emitter.emit_normal_op(ByteCode::Index, tmp);
+                                    tmp = compiler.emitter.emit_normal_op(ByteCode::Swap, tmp);
                                     tmp = compiler.emitter.emit_normal_op(
                                         ByteCode::Push(Value::string(key.0.clone())),
                                         tmp,
@@ -1008,6 +1004,7 @@ impl Compiler {
                                 ObjectBindPatternEntry::ValueOnly(key, value) => {
                                     tmp = value.compile(compiler, tmp)?;
                                     tmp = compiler.emitter.emit_normal_op(ByteCode::Index, tmp);
+                                    tmp = compiler.emitter.emit_normal_op(ByteCode::Swap, tmp);
                                     tmp = compiler.compile_query(key, tmp)?;
                                     tmp = compiler.emitter.emit_normal_op(ByteCode::Dup, tmp);
                                 }
@@ -1018,6 +1015,7 @@ impl Compiler {
                                         compiler.emitter.emit_normal_op(ByteCode::Store(slot), tmp);
                                     tmp = compiler.emitter.emit_normal_op(ByteCode::Dup, tmp);
                                     tmp = compiler.emitter.emit_normal_op(ByteCode::Index, tmp);
+                                    tmp = compiler.emitter.emit_normal_op(ByteCode::Swap, tmp);
                                     tmp = compiler.emitter.emit_normal_op(
                                         ByteCode::Push(Value::string(key.0.clone())),
                                         tmp,

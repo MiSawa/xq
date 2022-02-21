@@ -77,12 +77,12 @@ pub(crate) enum ByteCode {
     /// Panics if the stack was empty, the slot didn't have a value or the value in the slot was not an array.
     Append(ScopedSlot),
 
-    /// Pops a value `index`, and another value `value` from the stack, and pushes `value[index]` to the stack.
+    /// Pops a value `value`, and another value `index` from the stack, and pushes `value[index]` to the stack.
     /// # Panics
     /// Panics if the stack had less than 2 elements.
     Index,
-    /// Pops an element from the stack if `end` was true. Then pops an element if `start` was true.
-    /// Then pops an element from the stack and use it as a value.
+    /// Pops an element from the stack and use it as a `value`.
+    /// Then pops an element from the stack if `end` was true. Then pops an element if `start` was true.
     /// Pushes the slice `value[start?:end?]` to the stack.
     /// # Panics
     /// Panics if the stack didn't have enough elements.
