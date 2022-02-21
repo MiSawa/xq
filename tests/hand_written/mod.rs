@@ -246,3 +246,16 @@ test!(
     3
     "#
 );
+
+test!(
+    binding_after_comma,
+    r#"
+    [1, 2 as $x | $x + 1, $x + 2]
+    "#,
+    r#"
+    null
+    "#,
+    r#"
+    [1,3,4]
+    "#
+);
