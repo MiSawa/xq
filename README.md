@@ -48,13 +48,6 @@ This program is under development. You probably want to use the original impleme
   I mean, it's not something that one should really use. It's just something possible and interesting... isn't it?
 
 
-## Intended unsupported features
-- `def` as a direct child of operations, like `.a * def f: .; f`, except as a child of pipe `|`.
-  - It confuses user. e.g. `2 * def f: .; 3 + 4` yields `14` in `jq` world,
-  - It complicates parser.
-  - You can always parenthesize it, like `.a * (def f: .; f)`.
-- Same restriction for bindings like `.a * .a as $a | .b`, label like `.a * label $a | break $a`. Same reason.
-
 ## Install and run
 Are you sure you want to use this??? It's not a daily-usable stage. Though if you want to try, you can install it via
 ```shell

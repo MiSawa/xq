@@ -117,12 +117,14 @@ mod test {
             parse_query(". + reduce . as $a (.; .) | . | .")?,
             parse_query("(. + (reduce . as $a (.; .))) | (. | .)")?,
         );
-
-        // Diff with the original jq and gojq: We don't allow using `def` in a RHS.
-        assert!(parse_query(". + def f:.; f + f").is_err());
-        assert!(parse_query(". + (def f:.; (f + f))").is_ok());
-        assert!(parse_query(". * def f:.; f + f").is_err());
-        assert!(parse_query(". * (def f:.; (f + f))").is_ok());
+        assert_eq!(
+            parse_query(". + def f:.; f + f")?,
+            parse_query(". + (def f:.; (f + f))")?,
+        );
+        assert_eq!(
+            parse_query(". * def f:.; f + f")?,
+            parse_query(". * (def f:.; (f + f))")?,
+        );
         // except rhs of pipe
         assert_eq!(
             parse_query(". | def f:.; f + f")?,

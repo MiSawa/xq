@@ -291,6 +291,7 @@ QueryAtomic: Query = {
     },
     <source: Boxed<Term>> "as" <patterns: Separated1<BindPattern, "?//">> "|" <body: Boxed<Query>> BindScopeEnd => Query::Bind { <> },
     "label" <label: Variable> "|" <body: Boxed<Query>> LabelScopeEnd => Query::Label { <> },
+    <function: FuncDef> <query: Boxed<Query>> DefScopeEnd => Query::WithFunc { <> },
 
     #[precedence(level="1")]
     <QueryAtomic> "?" => Term::Suffix(Box::new(<>.into()), Suffix::Optional).into(),
@@ -312,47 +313,40 @@ QueryAtomic: Query = {
     },
 }
 
-QueryInner: Query = {
+pub Query: Query = {
     #[precedence(level="0")]
     QueryAtomic,
 
     #[precedence(level="2")] #[assoc(side="left")]
-    <lhs: Boxed<QueryInner>> "*" <rhs: Boxed<QueryInner>> => Query::Operate { operator: BinaryOp::Arithmetic(BinaryArithmeticOp::Multiply), <> },
-    <lhs: Boxed<QueryInner>> "/" <rhs: Boxed<QueryInner>> => Query::Operate { operator: BinaryOp::Arithmetic(BinaryArithmeticOp::Divide), <> },
-    <lhs: Boxed<QueryInner>> "%" <rhs: Boxed<QueryInner>> => Query::Operate { operator: BinaryOp::Arithmetic(BinaryArithmeticOp::Modulo), <> },
+    <lhs: Boxed<Query>> "*" <rhs: Boxed<Query>> => Query::Operate { operator: BinaryOp::Arithmetic(BinaryArithmeticOp::Multiply), <> },
+    <lhs: Boxed<Query>> "/" <rhs: Boxed<Query>> => Query::Operate { operator: BinaryOp::Arithmetic(BinaryArithmeticOp::Divide), <> },
+    <lhs: Boxed<Query>> "%" <rhs: Boxed<Query>> => Query::Operate { operator: BinaryOp::Arithmetic(BinaryArithmeticOp::Modulo), <> },
 
     #[precedence(level="3")] #[assoc(side="left")]
-    <lhs: Boxed<QueryInner>> "+" <rhs: Boxed<QueryInner>> => Query::Operate { operator: BinaryOp::Arithmetic(BinaryArithmeticOp::Add), <> },
-    <lhs: Boxed<QueryInner>> "-" <rhs: Boxed<QueryInner>> => Query::Operate { operator: BinaryOp::Arithmetic(BinaryArithmeticOp::Subtract), <> },
+    <lhs: Boxed<Query>> "+" <rhs: Boxed<Query>> => Query::Operate { operator: BinaryOp::Arithmetic(BinaryArithmeticOp::Add), <> },
+    <lhs: Boxed<Query>> "-" <rhs: Boxed<Query>> => Query::Operate { operator: BinaryOp::Arithmetic(BinaryArithmeticOp::Subtract), <> },
 
     #[precedence(level="4")] #[assoc(side="none")]
-    <lhs: Boxed<QueryInner>> <comparator: Comparator> <rhs: Boxed<QueryInner>> => Query::Compare { <> },
+    <lhs: Boxed<Query>> <comparator: Comparator> <rhs: Boxed<Query>> => Query::Compare { <> },
 
     #[precedence(level="5")] #[assoc(side="left")]
-    <lhs: Boxed<QueryInner>> "and" <rhs: Boxed<QueryInner>> => Query::Operate { operator: BinaryOp::And, <> },
+    <lhs: Boxed<Query>> "and" <rhs: Boxed<Query>> => Query::Operate { operator: BinaryOp::And, <> },
 
     #[precedence(level="6")] #[assoc(side="left")]
-    <lhs: Boxed<QueryInner>> "or" <rhs: Boxed<QueryInner>> => Query::Operate { operator: BinaryOp::Or, <> },
+    <lhs: Boxed<Query>> "or" <rhs: Boxed<Query>> => Query::Operate { operator: BinaryOp::Or, <> },
 
     #[precedence(level="7")] #[assoc(side="none")]
-    <lhs: Boxed<QueryInner>> <operator: UpdateOp> <rhs: Boxed<QueryInner>> => Query::Update { <> },
+    <lhs: Boxed<Query>> <operator: UpdateOp> <rhs: Boxed<Query>> => Query::Update { <> },
 
     #[precedence(level="8")] #[assoc(side="right")]
-    <lhs: Boxed<QueryInner>> "//" <rhs: Boxed<QueryInner>> => Query::Operate { operator: BinaryOp::Alt, <> },
+    <lhs: Boxed<Query>> "//" <rhs: Boxed<Query>> => Query::Operate { operator: BinaryOp::Alt, <> },
 
     #[precedence(level="9")] #[assoc(side="left")]
-    <lhs: Boxed<QueryInner>> "," <rhs: Boxed<QueryInner>> => Query::Concat { <> },
+    <lhs: Boxed<Query>> "," <rhs: Boxed<Query>> => Query::Concat { <> },
+
+    #[precedence(level="10")] #[assoc(side="right")]
+    <lhs: Boxed<Query>> "|" <rhs: Boxed<Query>> => Query::Pipe { <> },
 }
-#[inline]
-QueryStartFromNotFuncDef: Query = {
-    QueryInner,
-    <lhs: Boxed<QueryInner>> "|" <rhs: Boxed<QueryImpl>> => Query::Pipe { <> },
-}
-QueryImpl: Query = {
-    QueryStartFromNotFuncDef,
-    <function: FuncDef> <query: Boxed<QueryImpl>> DefScopeEnd => Query::WithFunc { <> },
-}
-pub Query = QueryImpl;
 
 Import: Import = {
     "import" <path: ConstantString> "as" <alias: IdentifierNonKeyword> <meta: (ConstantObject)?> ";" => {
@@ -367,16 +361,21 @@ Import: Import = {
     },
 }
 
+FunctionsRev: Vec<FuncDef> = {
+    => vec![],
+    <e: FuncDef> <mut l: FunctionsRev> DefScopeEnd => {
+        l.push(e);
+        l
+    }
+}
+
 pub Program: Program = {
-    <module_header: ("module" <ConstantObject> ";")?> <imports: Import*> <functions: FuncDef*> <query: QueryStartFromNotFuncDef?> DefScopeEnd* => {
-        if let Some(mut query) = query {
-            for function in functions.into_iter().rev() {
-                query = Query::WithFunc { function, query: Box::new(query) };
-            }
-            Program { module_header, imports, functions: vec![], query }
-        } else {
-            Program { module_header, imports, functions, query: Term::Identity.into() }
-        }
+    <module_header: ("module" <ConstantObject> ";")?> <imports: Import*> <mut functions: FunctionsRev> => {
+        functions.reverse();
+        Program { module_header, imports, functions, query: Term::Identity.into() }
+    },
+    <module_header: ("module" <ConstantObject> ";")?> <imports: Import*> <query: Query> => {
+        Program { module_header, imports, functions: vec![], query }
     },
 }
 
