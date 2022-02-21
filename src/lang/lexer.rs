@@ -144,47 +144,6 @@ pub enum LexicalError {
     InvalidState,
 }
 
-// ';' 'then' 'elif' 'else' means pop and push (i.e. flush)
-// '(', '[', '{', 'if' opens a balancing.
-// '}', ']', ')', 'end' closes a balancing.
-//
-// 'def', 'try' opens an auto-closing context
-// 'catch' pops until 'try' and pushs
-// ':' pops and pushs
-// SOF pushes auto-closing contexts
-// EOF pops auto-closing contexts
-//
-
-// def f (?; ?) : ?; ?
-// Open AutoClose on `def`
-// Open Balance(`;`) on `def`
-// Open Balance(`:`) on `def`
-// Open Balance on `(`
-// Flush Balance on `;`
-// Close Balance on `)`
-// Close Balance(`:`) on `:`
-// Flush Balance(`;`) on `;`
-// Close AutoClose on whatever
-//
-// if ? then ? elif ? then ? else ? end
-// Open Balance(`end`) on `if`
-// Flush Balance(`end`) on `then`, `elsif` and `else`
-// Close Balance(`end`) on `end`
-//
-// try ?
-// Open Try on `try`
-// Close Try on whatever
-//
-// try ? catch ?
-// Open Try on `try`
-// Close Try and push AutoClose on `catch`
-// Close AutoClose on whatever
-//
-// reduce ? as ? (?; ?)
-// foreach ? as ? (?; ?; ?)
-// ? as ? | ?
-// label ? | ?
-
 enum ContextType<'input> {
     /// parenthesis, braces, brackets, interpolation, if-end, etc.
     Balancing(Token<'input>),
