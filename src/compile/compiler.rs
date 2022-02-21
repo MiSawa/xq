@@ -951,11 +951,15 @@ impl Compiler {
                 BindPattern::Object(obj) => {
                     for entry in obj {
                         match entry {
-                            ObjectBindPatternEntry::KeyValue(_, p) => {
-                                collect_variable_occurrences(p, occurrences);
-                            }
                             ObjectBindPatternEntry::KeyOnly(ident) => {
                                 *occurrences.entry(ident).or_insert(0) += 1;
+                            }
+                            ObjectBindPatternEntry::ValueOnly(_, p) => {
+                                collect_variable_occurrences(p, occurrences);
+                            }
+                            ObjectBindPatternEntry::KeyAndValue(key, p) => {
+                                *occurrences.entry(key).or_insert(0) += 1;
+                                collect_variable_occurrences(p, occurrences);
                             }
                         }
                     }
@@ -991,16 +995,28 @@ impl Compiler {
                         let mut tmp = next;
                         for (i, entry) in entries.iter().rev().enumerate() {
                             match entry {
-                                ObjectBindPatternEntry::KeyValue(key, value) => {
+                                ObjectBindPatternEntry::KeyOnly(key) => {
+                                    let slot = *compiler.lookup_variable(key)?;
+                                    tmp =
+                                        compiler.emitter.emit_normal_op(ByteCode::Store(slot), tmp);
+                                    tmp = compiler.emitter.emit_normal_op(ByteCode::Index, tmp);
+                                    tmp = compiler.emitter.emit_normal_op(
+                                        ByteCode::Push(Value::string(key.0.clone())),
+                                        tmp,
+                                    );
+                                }
+                                ObjectBindPatternEntry::ValueOnly(key, value) => {
                                     tmp = value.compile(compiler, tmp)?;
                                     tmp = compiler.emitter.emit_normal_op(ByteCode::Index, tmp);
                                     tmp = compiler.compile_query(key, tmp)?;
                                     tmp = compiler.emitter.emit_normal_op(ByteCode::Dup, tmp);
                                 }
-                                ObjectBindPatternEntry::KeyOnly(key) => {
+                                ObjectBindPatternEntry::KeyAndValue(key, value) => {
+                                    tmp = value.compile(compiler, tmp)?;
                                     let slot = *compiler.lookup_variable(key)?;
                                     tmp =
                                         compiler.emitter.emit_normal_op(ByteCode::Store(slot), tmp);
+                                    tmp = compiler.emitter.emit_normal_op(ByteCode::Dup, tmp);
                                     tmp = compiler.emitter.emit_normal_op(ByteCode::Index, tmp);
                                     tmp = compiler.emitter.emit_normal_op(
                                         ByteCode::Push(Value::string(key.0.clone())),

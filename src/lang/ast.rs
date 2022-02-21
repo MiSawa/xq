@@ -73,10 +73,12 @@ pub enum StringFragment {
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum ObjectBindPatternEntry {
-    /// `(<ident> | <variable> | <keyword> | <string> | '(' <query> ')') ':' pattern`
-    KeyValue(Box<Query>, Box<BindPattern>),
     /// `<variable>`
     KeyOnly(Identifier),
+    /// `(<ident> | <keyword> | <string> | '(' <query> ')') ':' pattern`
+    ValueOnly(Box<Query>, Box<BindPattern>),
+    /// `<variable> ':' pattern`
+    KeyAndValue(Identifier, Box<BindPattern>),
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
