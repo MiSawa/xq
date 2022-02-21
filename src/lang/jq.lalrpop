@@ -258,19 +258,16 @@ FuncDef: FuncDef = {
 #[inline]
 ObjectBindPatternEntry: ObjectBindPatternEntry = {
     Variable => ObjectBindPatternEntry::KeyOnly(<>),
-    <var: Variable> ":" <value: Boxed<BindPattern>> => ObjectBindPatternEntry::KeyValue(
-        Box::new(Term::Variable(var).into()),
-        value,
-    ),
-    <ident: IdentifierAllowKeyword> ":" <value: Boxed<BindPattern>> => ObjectBindPatternEntry::KeyValue(
+    <Variable> ":" <Boxed<BindPattern>> => ObjectBindPatternEntry::KeyAndValue(<>),
+    <ident: IdentifierAllowKeyword> ":" <value: Boxed<BindPattern>> => ObjectBindPatternEntry::ValueOnly(
         Box::new(Term::String(vec![StringFragment::String(ident.0)]).into()),
         value,
     ),
-    <s: StringMayBeInterpolated> ":" <value: Boxed<BindPattern>> => ObjectBindPatternEntry::KeyValue(
+    <s: StringMayBeInterpolated> ":" <value: Boxed<BindPattern>> => ObjectBindPatternEntry::ValueOnly(
         Box::new(Term::String(s).into()),
         value,
     ),
-    "(" <Boxed<Query>> ")" <Boxed<BindPattern>> => ObjectBindPatternEntry::KeyValue(<>),
+    "(" <Boxed<Query>> ")" ":" <Boxed<BindPattern>> => ObjectBindPatternEntry::ValueOnly(<>),
 }
 #[inline]
 BindPattern: BindPattern = {
