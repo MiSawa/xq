@@ -132,6 +132,8 @@ pub enum LexicalError {
     UnmatchingOpenClose(OpenCloseType, OpenCloseType),
     #[error("Expected `{0}` but got `{1}`")]
     UnexpectedToken(String, String),
+    #[error("Expected token `{0}`")]
+    OrphanToken(String),
     #[error("No matching open for close {0:?}")]
     TooManyClose(OpenCloseType),
     #[error("Invalid unicode scalar value: `{0}`")]
@@ -194,12 +196,19 @@ enum ContextType<'input> {
 pub struct Lexer<'input> {
     input: &'input str,
 }
+
 impl<'input> Lexer<'input> {
     pub fn new(input: &'input str) -> Self {
         Self { input }
     }
+}
 
-    pub fn into_iter(self) -> impl Iterator<Item = Result<(Loc, Token<'input>, Loc), LexerError>> {
+impl<'input> IntoIterator for Lexer<'input> {
+    type Item = Result<(Loc, Token<'input>, Loc), LexerError>;
+
+    type IntoIter = <Vec<Self::Item> as IntoIterator>::IntoIter;
+
+    fn into_iter(self) -> Self::IntoIter {
         #[derive(Default)]
         struct State<'input> {
             ret: Vec<Result<(Loc, Token<'input>, Loc), LexerError>>,
@@ -235,10 +244,7 @@ impl<'input> Lexer<'input> {
                         }
                     }
                 }
-                return Err(LexicalError::UnexpectedToken(
-                    format!("???"),
-                    "catch".to_string(),
-                ));
+                return Err(LexicalError::OrphanToken("catch".to_string()));
             }
             fn close_autoclose(&mut self) -> Option<Token<'input>> {
                 while let Some(item) = self.stack.last() {
@@ -278,10 +284,7 @@ impl<'input> Lexer<'input> {
                     }
                     Some(ContextType::AutoCloseAndEmit(_)) => unreachable!(),
                     Some(ContextType::Try(_)) => unreachable!(),
-                    None => Err(LexicalError::UnexpectedToken(
-                        "".to_string(),
-                        format!("{token:?}"),
-                    )), // TODO
+                    None => Err(LexicalError::OrphanToken(format!("{token:?}"))),
                 }
             }
             fn flush_or_close(&mut self, token: &Token<'input>) -> bool {
@@ -321,7 +324,7 @@ impl<'input> Lexer<'input> {
                     | Token::RBrace
                     | Token::RBracket
                     | Token::Keyword(Keyword::End) => {
-                        self.close_balancing(&token)?;
+                        self.close_balancing(token)?;
                     }
                     Token::Semicolon
                     | Token::Colon
@@ -387,10 +390,10 @@ impl<'input> Lexer<'input> {
             }
         }
 
-        let mut lexer = LexerImpl::new(self.input);
+        let lexer = LexerImpl::new(self.input);
         let mut state = State::default();
 
-        while let Some(item) = lexer.next() {
+        for item in lexer {
             state.handle_item(item);
         }
         state.finish().into_iter()
