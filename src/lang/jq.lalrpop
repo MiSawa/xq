@@ -38,9 +38,29 @@ Comma0t<T>: Vec<T> = {
     },
 }
 
-KeywordStr: &'input str = {
-    "or", "and", "module", "import", "include", "def", "as", "label", "break", "null", "true", "false",
-    "if", "then", "elif", "else", "end", "try", "catch", "reduce", "foreach",
+Keyword: Keyword = {
+    "or"       => Keyword::Or,
+    "and"      => Keyword::And,
+    "module"   => Keyword::Module,
+    "import"   => Keyword::Import,
+    "include"  => Keyword::Include,
+    "def"      => Keyword::Def,
+    "as"       => Keyword::As,
+    "label"    => Keyword::Label,
+    "break"    => Keyword::Break,
+    "null"     => Keyword::Null,
+    "false"    => Keyword::False,
+    "true"     => Keyword::True,
+    "if"       => Keyword::If,
+    "then"     => Keyword::Then,
+    "elif"     => Keyword::Elif,
+    "else"     => Keyword::Else,
+    "end"      => Keyword::End,
+    "try"      => Keyword::Try,
+    "catch"    => Keyword::Catch,
+    "reduce"   => Keyword::Reduce,
+    "foreach"  => Keyword::Foreach,
+    TryNoCatch => Keyword::TryNoCatch,
 }
 
 IdentifierNonKeyword: Identifier = {
@@ -51,7 +71,7 @@ ModuleIdentifier: Identifier = {
 }
 IdentifierAllowKeyword: Identifier = {
     IdentifierNonKeyword,
-    KeywordStr => Identifier::from(<>),
+    Keyword => Identifier::from(<>.to_str()),
 }
 Variable: Identifier = {
     VariableStr => Identifier::from(<>),
@@ -242,7 +262,7 @@ ObjectBindPatternEntry: ObjectBindPatternEntry = {
         Box::new(Term::Variable(var).into()),
         value,
     ),
-    <ident: IdentifierNonKeyword> ":" <value: Boxed<BindPattern>> => ObjectBindPatternEntry::KeyValue(
+    <ident: IdentifierAllowKeyword> ":" <value: Boxed<BindPattern>> => ObjectBindPatternEntry::KeyValue(
         Box::new(Term::String(vec![StringFragment::String(ident.0)]).into()),
         value,
     ),
@@ -259,7 +279,7 @@ BindPattern: BindPattern = {
     "{" <Comma1<ObjectBindPatternEntry>> "}" => BindPattern::Object(<>),
 }
 
-QueryAtomicClose: Query = {
+QueryAtomic: Query = {
     #[precedence(level="0")]
     "reduce" <source: Boxed<Term>> "as" <pattern: BindPattern> "(" <initial: Boxed<Query>> ";" <accumulator: Boxed<Query>> ")" => Query::Reduce { <> },
     "foreach" <source: Boxed<Term>> "as" <pattern: BindPattern> "(" <initial: Boxed<Query>> ";" <update: Boxed<Query>> <extract: (";" <Boxed<Query>>)?> ")" => Query::ForEach { <> },
@@ -269,83 +289,64 @@ QueryAtomicClose: Query = {
         }
         return Query::If { cond, positive, negative };
     },
+    <source: Boxed<Term>> "as" <patterns: Separated1<BindPattern, "?//">> "|" <body: Boxed<Query>> BindScopeEnd => Query::Bind { <> },
+    "label" <label: Variable> "|" <body: Boxed<Query>> LabelScopeEnd => Query::Label { <> },
+    <function: FuncDef> <query: Boxed<Query>> DefScopeEnd => Query::WithFunc { <> },
 
     #[precedence(level="1")]
-    <QueryAtomicClose> "?" => Term::Suffix(Box::new(<>.into()), Suffix::Optional).into(),
+    <QueryAtomic> "?" => Term::Suffix(Box::new(<>.into()), Suffix::Optional).into(),
 
     #[precedence(level="2")]
     Term => <>.into(),
     #[assoc(side="all")]
-    "try" <body: Boxed<QueryAtomicClose>> "catch" <catch: Boxed<QueryAtomicClose>> => {
+    "try" <body: Boxed<QueryAtomic>> "catch" <catch: Boxed<QueryAtomic>> => {
         Query::Try {
             body,
             catch: Some(catch),
         }
     },
-}
-QueryAtomicOpen: Query = {
-    "try" <body: Boxed<QueryAtomic>> => {
+    TryNoCatch <body: Boxed<QueryAtomic>> => {
         Query::Try {
             body,
             catch: None,
         }
     },
-    "try" <body: Boxed<QueryAtomicClose>> "catch" <catch: Boxed<QueryAtomicOpen>> => {
-        Query::Try {
-            body,
-            catch: Some(catch),
-        }
-    },
 }
 
-#[inline]
-QueryAtomic = {
-    QueryAtomicOpen,
-    QueryAtomicClose,
-}
-QueryInner: Query = {
+pub Query: Query = {
     #[precedence(level="0")]
     QueryAtomic,
 
     #[precedence(level="2")] #[assoc(side="left")]
-    <lhs: Boxed<QueryInner>> "*" <rhs: Boxed<QueryInner>> => Query::Operate { operator: BinaryOp::Arithmetic(BinaryArithmeticOp::Multiply), <> },
-    <lhs: Boxed<QueryInner>> "/" <rhs: Boxed<QueryInner>> => Query::Operate { operator: BinaryOp::Arithmetic(BinaryArithmeticOp::Divide), <> },
-    <lhs: Boxed<QueryInner>> "%" <rhs: Boxed<QueryInner>> => Query::Operate { operator: BinaryOp::Arithmetic(BinaryArithmeticOp::Modulo), <> },
+    <lhs: Boxed<Query>> "*" <rhs: Boxed<Query>> => Query::Operate { operator: BinaryOp::Arithmetic(BinaryArithmeticOp::Multiply), <> },
+    <lhs: Boxed<Query>> "/" <rhs: Boxed<Query>> => Query::Operate { operator: BinaryOp::Arithmetic(BinaryArithmeticOp::Divide), <> },
+    <lhs: Boxed<Query>> "%" <rhs: Boxed<Query>> => Query::Operate { operator: BinaryOp::Arithmetic(BinaryArithmeticOp::Modulo), <> },
 
     #[precedence(level="3")] #[assoc(side="left")]
-    <lhs: Boxed<QueryInner>> "+" <rhs: Boxed<QueryInner>> => Query::Operate { operator: BinaryOp::Arithmetic(BinaryArithmeticOp::Add), <> },
-    <lhs: Boxed<QueryInner>> "-" <rhs: Boxed<QueryInner>> => Query::Operate { operator: BinaryOp::Arithmetic(BinaryArithmeticOp::Subtract), <> },
+    <lhs: Boxed<Query>> "+" <rhs: Boxed<Query>> => Query::Operate { operator: BinaryOp::Arithmetic(BinaryArithmeticOp::Add), <> },
+    <lhs: Boxed<Query>> "-" <rhs: Boxed<Query>> => Query::Operate { operator: BinaryOp::Arithmetic(BinaryArithmeticOp::Subtract), <> },
 
     #[precedence(level="4")] #[assoc(side="none")]
-    <lhs: Boxed<QueryInner>> <comparator: Comparator> <rhs: Boxed<QueryInner>> => Query::Compare { <> },
+    <lhs: Boxed<Query>> <comparator: Comparator> <rhs: Boxed<Query>> => Query::Compare { <> },
 
     #[precedence(level="5")] #[assoc(side="left")]
-    <lhs: Boxed<QueryInner>> "and" <rhs: Boxed<QueryInner>> => Query::Operate { operator: BinaryOp::And, <> },
+    <lhs: Boxed<Query>> "and" <rhs: Boxed<Query>> => Query::Operate { operator: BinaryOp::And, <> },
 
     #[precedence(level="6")] #[assoc(side="left")]
-    <lhs: Boxed<QueryInner>> "or" <rhs: Boxed<QueryInner>> => Query::Operate { operator: BinaryOp::Or, <> },
+    <lhs: Boxed<Query>> "or" <rhs: Boxed<Query>> => Query::Operate { operator: BinaryOp::Or, <> },
 
     #[precedence(level="7")] #[assoc(side="none")]
-    <lhs: Boxed<QueryInner>> <operator: UpdateOp> <rhs: Boxed<QueryInner>> => Query::Update { <> },
+    <lhs: Boxed<Query>> <operator: UpdateOp> <rhs: Boxed<Query>> => Query::Update { <> },
 
     #[precedence(level="8")] #[assoc(side="right")]
-    <lhs: Boxed<QueryInner>> "//" <rhs: Boxed<QueryInner>> => Query::Operate { operator: BinaryOp::Alt, <> },
+    <lhs: Boxed<Query>> "//" <rhs: Boxed<Query>> => Query::Operate { operator: BinaryOp::Alt, <> },
 
     #[precedence(level="9")] #[assoc(side="left")]
-    <lhs: Boxed<QueryInner>> "," <rhs: Boxed<QueryInner>> => Query::Concat { <> },
+    <lhs: Boxed<Query>> "," <rhs: Boxed<Query>> => Query::Concat { <> },
+
+    #[precedence(level="10")] #[assoc(side="right")]
+    <lhs: Boxed<Query>> "|" <rhs: Boxed<Query>> => Query::Pipe { <> },
 }
-#[inline]
-QueryStartFromNotFuncDef: Query = {
-    QueryInner,
-    <lhs: Boxed<QueryInner>> "|" <rhs: Boxed<QueryImpl>> => Query::Pipe { <> },
-    <source: Boxed<Term>> "as" <patterns: Separated1<BindPattern, "?//">> "|" <body: Boxed<QueryImpl>> => Query::Bind { <> },
-    "label" <label: Variable> "|" <body: Boxed<QueryImpl>> => Query::Label { <> },
-}
-QueryImpl: Query = {
-    QueryStartFromNotFuncDef,
-    <function: FuncDef> <query: Boxed<QueryImpl>> => Query::WithFunc { <> },
-}
-pub Query = QueryImpl;
 
 Import: Import = {
     "import" <path: ConstantString> "as" <alias: IdentifierNonKeyword> <meta: (ConstantObject)?> ";" => {
@@ -360,16 +361,21 @@ Import: Import = {
     },
 }
 
+FunctionsRev: Vec<FuncDef> = {
+    => vec![],
+    <e: FuncDef> <mut l: FunctionsRev> DefScopeEnd => {
+        l.push(e);
+        l
+    }
+}
+
 pub Program: Program = {
-    <module_header: ("module" <ConstantObject> ";")?> <imports: Import*> <functions: FuncDef*> <query: QueryStartFromNotFuncDef?> => {
-        if let Some(mut query) = query {
-            for function in functions.into_iter().rev() {
-                query = Query::WithFunc { function, query: Box::new(query) };
-            }
-            Program { module_header, imports, functions: vec![], query }
-        } else {
-            Program { module_header, imports, functions, query: Term::Identity.into() }
-        }
+    <module_header: ("module" <ConstantObject> ";")?> <imports: Import*> <mut functions: FunctionsRev> => {
+        functions.reverse();
+        Program { module_header, imports, functions, query: Term::Identity.into() }
+    },
+    <module_header: ("module" <ConstantObject> ";")?> <imports: Import*> <query: Query> => {
+        Program { module_header, imports, functions: vec![], query }
     },
 }
 
@@ -434,26 +440,31 @@ extern {
         ModuleVariableStr => Token::ModuleVariable(<&'input str>),
         Format => Token::Format(<&'input str>),
 
-        "or"      => Token::Keyword(<&'input str>, Keyword::Or),
-        "and"      => Token::Keyword(<&'input str>, Keyword::And),
-        "module"  => Token::Keyword(<&'input str>, Keyword::Module),
-        "import"  => Token::Keyword(<&'input str>, Keyword::Import),
-        "include" => Token::Keyword(<&'input str>, Keyword::Include),
-        "def"     => Token::Keyword(<&'input str>, Keyword::Def),
-        "as"      => Token::Keyword(<&'input str>, Keyword::As),
-        "label"   => Token::Keyword(<&'input str>, Keyword::Label),
-        "break"   => Token::Keyword(<&'input str>, Keyword::Break),
-        "null"    => Token::Keyword(<&'input str>, Keyword::Null),
-        "false"   => Token::Keyword(<&'input str>, Keyword::False),
-        "true"    => Token::Keyword(<&'input str>, Keyword::True),
-        "if"      => Token::Keyword(<&'input str>, Keyword::If),
-        "then"    => Token::Keyword(<&'input str>, Keyword::Then),
-        "elif"    => Token::Keyword(<&'input str>, Keyword::Elif),
-        "else"    => Token::Keyword(<&'input str>, Keyword::Else),
-        "end"     => Token::Keyword(<&'input str>, Keyword::End),
-        "try"     => Token::Keyword(<&'input str>, Keyword::Try),
-        "catch"   => Token::Keyword(<&'input str>, Keyword::Catch),
-        "reduce"  => Token::Keyword(<&'input str>, Keyword::Reduce),
-        "foreach" => Token::Keyword(<&'input str>, Keyword::Foreach),
+        "or"      => Token::Keyword(Keyword::Or),
+        "and"     => Token::Keyword(Keyword::And),
+        "module"  => Token::Keyword(Keyword::Module),
+        "import"  => Token::Keyword(Keyword::Import),
+        "include" => Token::Keyword(Keyword::Include),
+        "def"     => Token::Keyword(Keyword::Def),
+        "as"      => Token::Keyword(Keyword::As),
+        "label"   => Token::Keyword(Keyword::Label),
+        "break"   => Token::Keyword(Keyword::Break),
+        "null"    => Token::Keyword(Keyword::Null),
+        "false"   => Token::Keyword(Keyword::False),
+        "true"    => Token::Keyword(Keyword::True),
+        "if"      => Token::Keyword(Keyword::If),
+        "then"    => Token::Keyword(Keyword::Then),
+        "elif"    => Token::Keyword(Keyword::Elif),
+        "else"    => Token::Keyword(Keyword::Else),
+        "end"     => Token::Keyword(Keyword::End),
+        "try"     => Token::Keyword(Keyword::Try),
+        "catch"   => Token::Keyword(Keyword::Catch),
+        "reduce"  => Token::Keyword(Keyword::Reduce),
+        "foreach" => Token::Keyword(Keyword::Foreach),
+
+        TryNoCatch => Token::Keyword(Keyword::TryNoCatch),
+        DefScopeEnd => Token::DefScopeEnd,
+        LabelScopeEnd => Token::LabelScopeEnd,
+        BindScopeEnd => Token::BindScopeEnd,
     }
 }

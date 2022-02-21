@@ -361,8 +361,9 @@ checksum = "e2abad23fbc42b3700f2f279844dc832adb2b2eb069b2df918f455c4e18cc646"
 
 [[package]]
 name = "lexgen"
-version = "0.9.0"
-source = "git+https://github.com/osa1/lexgen.git?rev=b41125322839fe9a29955ae6ec583d486e893076#b41125322839fe9a29955ae6ec583d486e893076"
+version = "0.10.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c8fd52abd364f752712c0e06022bece2eeafbc1b386e6794d03a348a906caab8"
 dependencies = [
  "fxhash",
  "proc-macro2",
@@ -372,8 +373,9 @@ dependencies = [
 
 [[package]]
 name = "lexgen_util"
-version = "0.9.0"
-source = "git+https://github.com/osa1/lexgen.git?rev=b41125322839fe9a29955ae6ec583d486e893076#b41125322839fe9a29955ae6ec583d486e893076"
+version = "0.10.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6a7234c237153c1ecb09f2467a78b1034f473d4dc3c6d0a056a151d299296aff"
 dependencies = [
  "unicode-width",
 ]

@@ -49,7 +49,7 @@ impl<'a> From<lalrpop_util::ParseError<lexgen_util::Loc, lexer::Token<'a>, lexer
 pub fn parse_program(input: &str) -> ParseResult<ast::Program> {
     let lexer = lexer::Lexer::new(input);
     parser::ProgramParser::new()
-        .parse(input, lexer)
+        .parse(input, lexer.into_iter())
         .map_err(|e| e.into())
 }
 
@@ -60,7 +60,7 @@ mod test {
     fn parse_query(q: &str) -> ParseResult<ast::Query> {
         let lexer = lexer::Lexer::new(q);
         parser::QueryParser::new()
-            .parse(q, lexer)
+            .parse(q, lexer.into_iter())
             .map_err(|e| e.into())
     }
 
@@ -117,12 +117,14 @@ mod test {
             parse_query(". + reduce . as $a (.; .) | . | .")?,
             parse_query("(. + (reduce . as $a (.; .))) | (. | .)")?,
         );
-
-        // Diff with the original jq and gojq: We don't allow using `def` in a RHS.
-        assert!(parse_query(". + def f:.; f + f").is_err());
-        assert!(parse_query(". + (def f:.; (f + f))").is_ok());
-        assert!(parse_query(". * def f:.; f + f").is_err());
-        assert!(parse_query(". * (def f:.; (f + f))").is_ok());
+        assert_eq!(
+            parse_query(". + def f:.; f + f")?,
+            parse_query(". + (def f:.; (f + f))")?,
+        );
+        assert_eq!(
+            parse_query(". * def f:.; f + f")?,
+            parse_query(". * (def f:.; (f + f))")?,
+        );
         // except rhs of pipe
         assert_eq!(
             parse_query(". | def f:.; f + f")?,
@@ -132,8 +134,18 @@ mod test {
             parse_query(". | def f:.; f | f | . + .")?,
             parse_query(". | (def f:.; (f | (f | (.+.))))")?,
         );
-
-        assert!(parse_query(". * . as $a | .").is_err());
+        assert_eq!(
+            parse_query(". * . as $a | .")?,
+            parse_query(". * (. as $a | .)")?,
+        );
+        assert_eq!(
+            parse_query(". * . as $a | .")?,
+            parse_query(". * (. as $a | .)")?,
+        );
+        assert_eq!(
+            parse_query("[1, 2 as $x | $x + 1, $x + 2]")?,
+            parse_query("[1, (2 as $x | ($x + 1, $x + 2))]")?,
+        );
         Ok(())
     }
 
