@@ -132,8 +132,18 @@ mod test {
             parse_query(". | def f:.; f | f | . + .")?,
             parse_query(". | (def f:.; (f | (f | (.+.))))")?,
         );
-
-        assert!(parse_query(". * . as $a | .").is_err());
+        assert_eq!(
+            parse_query(". * . as $a | .")?,
+            parse_query(". * (. as $a | .)")?,
+        );
+        assert_eq!(
+            parse_query(". * . as $a | .")?,
+            parse_query(". * (. as $a | .)")?,
+        );
+        assert_eq!(
+            parse_query("[1, 2 as $x | $x + 1, $x + 2]")?,
+            parse_query("[1, (2 as $x | ($x + 1, $x + 2))]")?,
+        );
         Ok(())
     }
 

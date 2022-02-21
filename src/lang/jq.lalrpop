@@ -279,7 +279,7 @@ BindPattern: BindPattern = {
     "{" <Comma1<ObjectBindPatternEntry>> "}" => BindPattern::Object(<>),
 }
 
-QueryAtomicClose: Query = {
+QueryAtomic: Query = {
     #[precedence(level="0")]
     "reduce" <source: Boxed<Term>> "as" <pattern: BindPattern> "(" <initial: Boxed<Query>> ";" <accumulator: Boxed<Query>> ")" => Query::Reduce { <> },
     "foreach" <source: Boxed<Term>> "as" <pattern: BindPattern> "(" <initial: Boxed<Query>> ";" <update: Boxed<Query>> <extract: (";" <Boxed<Query>>)?> ")" => Query::ForEach { <> },
@@ -289,40 +289,29 @@ QueryAtomicClose: Query = {
         }
         return Query::If { cond, positive, negative };
     },
+    <source: Boxed<Term>> "as" <patterns: Separated1<BindPattern, "?//">> "|" <body: Boxed<Query>> BindScopeEnd => Query::Bind { <> },
+    "label" <label: Variable> "|" <body: Boxed<Query>> LabelScopeEnd => Query::Label { <> },
 
     #[precedence(level="1")]
-    <QueryAtomicClose> "?" => Term::Suffix(Box::new(<>.into()), Suffix::Optional).into(),
+    <QueryAtomic> "?" => Term::Suffix(Box::new(<>.into()), Suffix::Optional).into(),
 
     #[precedence(level="2")]
     Term => <>.into(),
     #[assoc(side="all")]
-    "try" <body: Boxed<QueryAtomicClose>> "catch" <catch: Boxed<QueryAtomicClose>> => {
+    "try" <body: Boxed<QueryAtomic>> "catch" <catch: Boxed<QueryAtomic>> => {
         Query::Try {
             body,
             catch: Some(catch),
         }
     },
-}
-QueryAtomicOpen: Query = {
     TryNoCatch <body: Boxed<QueryAtomic>> => {
         Query::Try {
             body,
             catch: None,
         }
     },
-    "try" <body: Boxed<QueryAtomicClose>> "catch" <catch: Boxed<QueryAtomicOpen>> => {
-        Query::Try {
-            body,
-            catch: Some(catch),
-        }
-    },
 }
 
-#[inline]
-QueryAtomic = {
-    QueryAtomicOpen,
-    QueryAtomicClose,
-}
 QueryInner: Query = {
     #[precedence(level="0")]
     QueryAtomic,
@@ -358,8 +347,6 @@ QueryInner: Query = {
 QueryStartFromNotFuncDef: Query = {
     QueryInner,
     <lhs: Boxed<QueryInner>> "|" <rhs: Boxed<QueryImpl>> => Query::Pipe { <> },
-    <source: Boxed<Term>> "as" <patterns: Separated1<BindPattern, "?//">> "|" <body: Boxed<QueryImpl>> BindScopeEnd => Query::Bind { <> },
-    "label" <label: Variable> "|" <body: Boxed<QueryImpl>> LabelScopeEnd => Query::Label { <> },
 }
 QueryImpl: Query = {
     QueryStartFromNotFuncDef,
