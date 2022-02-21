@@ -94,9 +94,9 @@ struct OutputFormatArg {
     /// Compact output
     #[clap(short, long, conflicts_with = "yaml-output")]
     compact_output: bool,
-    /// Raw string output
+    /// Raw output
     #[clap(short, long, conflicts_with = "yaml-output")]
-    raw_string_output: bool,
+    raw_output: bool,
 }
 
 impl OutputFormatArg {
@@ -144,16 +144,17 @@ fn main() -> Result<()> {
     let output = |value| -> Result<()> {
         match value {
             Ok(value) => match output_format {
-                OutputFormat::Json => if args.output_format.compact_output {
-                    serde_json::ser::to_writer::<_, Value>(stdout(), &value)
-                } else {
-                    if args.output_format.raw_string_output && value.is_string() {
-                        stdout().write_all(value.unwrap_string().as_bytes()).or(Ok(()))
+                OutputFormat::Json => match value {
+                    Value::String(s) if args.output_format.raw_output => stdout()
+                        .write_all(s.as_bytes())
+                        .with_context(|| "write to output"),
+                    _ => if args.output_format.compact_output {
+                        serde_json::ser::to_writer::<_, Value>(stdout(), &value)
                     } else {
                         serde_json::ser::to_writer_pretty::<_, Value>(stdout(), &value)
                     }
-                }
-                .with_context(|| "Write to output"),
+                    .with_context(|| "write to output"),
+                },
                 OutputFormat::Yaml => serde_yaml::to_writer::<_, Value>(stdout(), &value)
                     .with_context(|| "Write to output"),
             }
