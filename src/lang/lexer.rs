@@ -24,9 +24,38 @@ pub enum Keyword {
     Else,
     End,
     Try,
+    TryNoCatch,
     Catch,
     Reduce,
     Foreach,
+}
+impl Keyword {
+    pub fn to_str(&self) -> &'static str {
+        match self {
+            Keyword::Or => "or",
+            Keyword::And => "and",
+            Keyword::Module => "module",
+            Keyword::Import => "import",
+            Keyword::Include => "include",
+            Keyword::Def => "def",
+            Keyword::As => "as",
+            Keyword::Label => "label",
+            Keyword::Break => "break",
+            Keyword::Null => "null",
+            Keyword::False => "false",
+            Keyword::True => "true",
+            Keyword::If => "if",
+            Keyword::Then => "then",
+            Keyword::Elif => "elif",
+            Keyword::Else => "else",
+            Keyword::End => "end",
+            Keyword::Try => "try",
+            Keyword::TryNoCatch => "try",
+            Keyword::Catch => "catch",
+            Keyword::Reduce => "reduce",
+            Keyword::Foreach => "foreach",
+        }
+    }
 }
 
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
@@ -82,7 +111,7 @@ pub enum Token<'input> {
     InterpolationEnd,
     StringEnd,
 
-    Keyword(&'input str, Keyword),
+    Keyword(Keyword),
     Field(&'input str),
     Identifier(&'input str),
     ModuleIdentifier(&'input str),
@@ -90,23 +119,21 @@ pub enum Token<'input> {
     ModuleVariable(&'input str),
     Format(&'input str),
     Number(crate::Number),
-}
 
-pub struct LexerState {
-    paren_nest: Vec<usize>,
-}
-impl Default for LexerState {
-    fn default() -> Self {
-        Self {
-            paren_nest: vec![0],
-        }
-    }
+    // Post-processed
+    DefScopeEnd,
+    LabelScopeEnd,
+    BindScopeEnd,
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Error)]
 pub enum LexicalError {
-    #[error("Found too many close parentheses")]
-    TooManyCloseParen,
+    #[error("Unmatching open {0:?} and close {1:?}")]
+    UnmatchingOpenClose(OpenCloseType, OpenCloseType),
+    #[error("Expected `{0}` but got `{1}`")]
+    UnexpectedToken(String, String),
+    #[error("No matching open for close {0:?}")]
+    TooManyClose(OpenCloseType),
     #[error("Invalid unicode scalar value: `{0}`")]
     InvalidUnicodeScalar(u32),
     #[error("Unable to parse number: `{0}`")]
@@ -115,8 +142,311 @@ pub enum LexicalError {
     InvalidState,
 }
 
+// ';' 'then' 'elif' 'else' means pop and push (i.e. flush)
+// '(', '[', '{', 'if' opens a balancing.
+// '}', ']', ')', 'end' closes a balancing.
+//
+// 'def', 'try' opens an auto-closing context
+// 'catch' pops until 'try' and pushs
+// ':' pops and pushs
+// SOF pushes auto-closing contexts
+// EOF pops auto-closing contexts
+//
+
+// def f (?; ?) : ?; ?
+// Open AutoClose on `def`
+// Open Balance(`;`) on `def`
+// Open Balance(`:`) on `def`
+// Open Balance on `(`
+// Flush Balance on `;`
+// Close Balance on `)`
+// Close Balance(`:`) on `:`
+// Flush Balance(`;`) on `;`
+// Close AutoClose on whatever
+//
+// if ? then ? elif ? then ? else ? end
+// Open Balance(`end`) on `if`
+// Flush Balance(`end`) on `then`, `elsif` and `else`
+// Close Balance(`end`) on `end`
+//
+// try ?
+// Open Try on `try`
+// Close Try on whatever
+//
+// try ? catch ?
+// Open Try on `try`
+// Close Try and push AutoClose on `catch`
+// Close AutoClose on whatever
+//
+// reduce ? as ? (?; ?)
+// foreach ? as ? (?; ?; ?)
+// ? as ? | ?
+// label ? | ?
+
+enum ContextType<'input> {
+    /// parenthesis, braces, brackets, interpolation, if-end, etc.
+    Balancing(Token<'input>),
+    /// def to the end of the scope, catch to the end of the following query, etc.
+    AutoCloseAndEmit(Token<'input>),
+    /// try but haven't get catch yet
+    Try(usize),
+}
+pub struct Lexer<'input> {
+    input: &'input str,
+}
+impl<'input> Lexer<'input> {
+    pub fn new(input: &'input str) -> Self {
+        Self { input }
+    }
+
+    pub fn into_iter(self) -> impl Iterator<Item = Result<(Loc, Token<'input>, Loc), LexerError>> {
+        #[derive(Default)]
+        struct State<'input> {
+            ret: Vec<Result<(Loc, Token<'input>, Loc), LexerError>>,
+            pos: Loc,
+            stack: Vec<ContextType<'input>>,
+        }
+        impl<'input> State<'input> {
+            fn track_pos(&mut self, pos: Loc) {
+                self.pos = pos;
+            }
+            fn open(&mut self, ty: ContextType<'input>) {
+                self.stack.push(ty);
+            }
+            fn open_balancing(&mut self, token: Token<'input>) {
+                self.open(ContextType::Balancing(token));
+            }
+            fn close_to_try(&mut self) -> Result<(), LexicalError> {
+                while let Some(item) = self.stack.last() {
+                    match item {
+                        ContextType::Balancing(token) => {
+                            return Err(LexicalError::UnexpectedToken(
+                                format!("{token:?}"),
+                                "catch".to_string(),
+                            ))
+                        }
+                        ContextType::AutoCloseAndEmit(term) => {
+                            self.ret.push(Ok((self.pos, term.clone(), self.pos)));
+                            self.stack.pop();
+                        }
+                        ContextType::Try(_) => {
+                            self.stack.pop();
+                            return Ok(());
+                        }
+                    }
+                }
+                return Err(LexicalError::UnexpectedToken(
+                    format!("???"),
+                    "catch".to_string(),
+                ));
+            }
+            fn close_autoclose(&mut self) -> Option<Token<'input>> {
+                while let Some(item) = self.stack.last() {
+                    match item {
+                        ContextType::Balancing(token) => return Some(token.clone()),
+                        ContextType::AutoCloseAndEmit(term) => {
+                            self.ret.push(Ok((self.pos, term.clone(), self.pos)));
+                            self.stack.pop();
+                        }
+                        ContextType::Try(i) => {
+                            if let Some(Ok((_, Token::Keyword(ref mut keyword), _))) =
+                                self.ret.get_mut(*i).map(Result::as_mut)
+                            {
+                                *keyword = Keyword::TryNoCatch;
+                                self.stack.pop();
+                            } else {
+                                panic!("Something went wrong with parsing try catch");
+                            }
+                        }
+                    }
+                }
+                None
+            }
+            fn close_balancing(&mut self, token: &Token<'input>) -> Result<(), LexicalError> {
+                self.close_autoclose();
+                match self.stack.last() {
+                    Some(ContextType::Balancing(expected)) => {
+                        if token == expected {
+                            self.stack.pop();
+                            Ok(())
+                        } else {
+                            Err(LexicalError::UnexpectedToken(
+                                format!("{expected:?}"),
+                                format!("{token:?}"),
+                            ))
+                        }
+                    }
+                    Some(ContextType::AutoCloseAndEmit(_)) => unreachable!(),
+                    Some(ContextType::Try(_)) => unreachable!(),
+                    None => Err(LexicalError::UnexpectedToken(
+                        "".to_string(),
+                        format!("{token:?}"),
+                    )), // TODO
+                }
+            }
+            fn flush_or_close(&mut self, token: &Token<'input>) -> bool {
+                self.close_autoclose();
+                match self.stack.last() {
+                    Some(ContextType::Balancing(expected)) => {
+                        if token == expected {
+                            self.stack.pop();
+                            return true;
+                        }
+                    }
+                    Some(ContextType::AutoCloseAndEmit(_)) => unreachable!(),
+                    Some(ContextType::Try(_)) => unreachable!(),
+                    None => {}
+                }
+                false
+            }
+            fn try_close_without_flush(&mut self, token: &Token<'input>) -> bool {
+                if let Some(ContextType::Balancing(expected)) = self.stack.last() {
+                    if token == expected {
+                        self.stack.pop();
+                        return true;
+                    }
+                }
+                false
+            }
+
+            fn handle_token(&mut self, token: &Token<'input>) -> Result<(), LexicalError> {
+                match token {
+                    Token::LParen => self.open_balancing(Token::RParen),
+                    Token::LBrace => self.open_balancing(Token::RBrace),
+                    Token::LBracket => self.open_balancing(Token::RBracket),
+                    Token::Keyword(Keyword::If) => {
+                        self.open_balancing(Token::Keyword(Keyword::End))
+                    }
+                    Token::RParen
+                    | Token::RBrace
+                    | Token::RBracket
+                    | Token::Keyword(Keyword::End) => {
+                        self.close_balancing(&token)?;
+                    }
+                    Token::Semicolon
+                    | Token::Colon
+                    | Token::Keyword(Keyword::Then | Keyword::Elif | Keyword::Else) => {
+                        self.flush_or_close(token);
+                    }
+                    Token::Keyword(Keyword::Def) => {
+                        // def _ (_; _; ...): _; _
+                        self.open(ContextType::AutoCloseAndEmit(Token::DefScopeEnd));
+                        self.open_balancing(Token::Semicolon);
+                        self.open_balancing(Token::Colon);
+                    }
+                    Token::Keyword(Keyword::Try) => {
+                        self.open(ContextType::Try(self.ret.len()));
+                    }
+                    Token::Keyword(Keyword::Catch) => {
+                        self.close_to_try()?;
+                    }
+                    Token::Keyword(Keyword::Reduce | Keyword::Foreach) => {
+                        self.open_balancing(Token::Keyword(Keyword::As));
+                    }
+                    Token::Keyword(Keyword::As) => {
+                        if !self.try_close_without_flush(token) {
+                            self.open(ContextType::AutoCloseAndEmit(Token::BindScopeEnd));
+                        }
+                    }
+                    Token::Keyword(Keyword::Label) => {
+                        self.open(ContextType::AutoCloseAndEmit(Token::LabelScopeEnd));
+                    }
+                    _ => {}
+                }
+                Ok(())
+            }
+            fn handle_item(&mut self, item: Result<(Loc, Token<'input>, Loc), LexerError>) {
+                match item {
+                    Ok((l, token, r)) => {
+                        self.track_pos(l);
+                        let to_push =
+                            self.handle_token(&token)
+                                .map(|_| (l, token, r))
+                                .map_err(|e| LexerError {
+                                    kind: lexgen_util::LexerErrorKind::Custom(e),
+                                    location: l,
+                                });
+                        self.ret.push(to_push);
+                    }
+                    Err(_) => {
+                        self.ret.push(item);
+                    }
+                }
+            }
+            fn finish(mut self) -> Vec<Result<(Loc, Token<'input>, Loc), LexerError>> {
+                if let Some(token) = self.close_autoclose() {
+                    self.ret.push(Err(LexerError {
+                        kind: lexgen_util::LexerErrorKind::Custom(LexicalError::UnexpectedToken(
+                            format!("{token:?}"),
+                            "EOF".to_string(),
+                        )),
+                        location: self.pos,
+                    }));
+                }
+                self.ret
+            }
+        }
+
+        let mut lexer = LexerImpl::new(self.input);
+        let mut state = State::default();
+
+        while let Some(item) = lexer.next() {
+            state.handle_item(item);
+        }
+        state.finish().into_iter()
+    }
+}
+
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
+pub enum OpenCloseType {
+    /// `(` and `)`
+    Parenthesis,
+    /// `[` and `]`
+    Bracket,
+    /// `{` and `}`
+    Brace,
+    /// `\(` and `)`
+    Interpolation,
+}
+
+#[derive(Debug, Default)]
+struct LexerState {
+    stack: Vec<OpenCloseType>,
+}
+impl LexerState {
+    fn open(&mut self, ty: OpenCloseType) {
+        self.stack.push(ty);
+    }
+    fn current_type(&self) -> Option<OpenCloseType> {
+        self.stack.last().cloned()
+    }
+    fn close(&mut self, ty: OpenCloseType) -> Result<(), LexicalError> {
+        if let Some(open) = self.current_type() {
+            if open == ty {
+                self.stack.pop();
+                Ok(())
+            } else {
+                Err(LexicalError::UnmatchingOpenClose(open, ty))
+            }
+        } else {
+            Err(LexicalError::TooManyClose(ty))
+        }
+    }
+}
+
+macro_rules! handle_keyword {
+    ($lexer: expr, $keyword: expr) => {
+        if $lexer.state().current_type() == Some(OpenCloseType::Brace) {
+            // If here is a direct child of braces, it is used as an identifier.
+            $lexer.return_(Token::Identifier($lexer.match_()))
+        } else {
+            $lexer.return_(Token::Keyword($keyword))
+        }
+    };
+}
+
 lexer! {
-    pub Lexer(LexerState) -> Token<'input>;
+    LexerImpl(LexerState) -> Token<'input>;
     type Error = LexicalError;
 
     let ws = [' ' '\t' '\n'] | "\r\n";
@@ -159,62 +489,57 @@ lexer! {
         "//" = Token::SlashSlash,
         "?//" = Token::QuestionSlashSlash,
 
-        '(' =? |lexer| {
-            match lexer.state().paren_nest.last_mut() {
-                Some(x) => {
-                    *x += 1;
-                    lexer.return_(Ok(Token::LParen))
-                },
-                None => {
-                    lexer.return_(Err(LexicalError::InvalidState))
-                }
-            }
+        '(' => |lexer| {
+            lexer.state().open(OpenCloseType::Parenthesis);
+            lexer.return_(Token::LParen)
         },
         ')' =? |lexer| {
-            match lexer.state().paren_nest.last_mut() {
-                Some(0) => {
-                    lexer.state().paren_nest.pop();
-                    if lexer.state().paren_nest.is_empty() {
-                        lexer.return_(Err(LexicalError::TooManyCloseParen))
-                    } else {
-                        lexer.switch_and_return(LexerRule::InString, Ok(Token::InterpolationEnd))
-                    }
-                },
-                Some(x) => {
-                    *x -= 1;
-                    lexer.return_(Ok(Token::RParen))
-                },
-                None => {
-                    lexer.return_(Err(LexicalError::TooManyCloseParen))
-                }
+            if lexer.state().current_type() == Some(OpenCloseType::Interpolation) {
+                let token = lexer.state().close(OpenCloseType::Interpolation).map(|_| Token::InterpolationEnd);
+                lexer.switch_and_return(LexerImplRule::InString, token)
+            } else {
+                let token = lexer.state().close(OpenCloseType::Parenthesis).map(|_| Token::RParen);
+                lexer.return_(token)
             }
         },
-        '{' = Token::LBrace,
-        '}' = Token::RBrace,
-        '[' = Token::LBracket,
-        ']' = Token::RBracket,
+        '{' => |lexer| {
+            lexer.state().open(OpenCloseType::Brace);
+            lexer.return_(Token::LBrace)
+        },
+        '}' =? |lexer| {
+            let token = lexer.state().close(OpenCloseType::Brace).map(|_| Token::RBrace);
+            lexer.return_(token)
+        },
+        '[' => |lexer| {
+            lexer.state().open(OpenCloseType::Bracket);
+            lexer.return_(Token::LBracket)
+        },
+        ']' =? |lexer| {
+            let token = lexer.state().close(OpenCloseType::Bracket).map(|_| Token::RBracket);
+            lexer.return_(token)
+        },
 
-        "or"      => |lexer| lexer.return_(Token::Keyword(lexer.match_(), Keyword::Or)),
-        "and"     => |lexer| lexer.return_(Token::Keyword(lexer.match_(), Keyword::And)),
-        "module"  => |lexer| lexer.return_(Token::Keyword(lexer.match_(), Keyword::Module)),
-        "import"  => |lexer| lexer.return_(Token::Keyword(lexer.match_(), Keyword::Import)),
-        "include" => |lexer| lexer.return_(Token::Keyword(lexer.match_(), Keyword::Include)),
-        "def"     => |lexer| lexer.return_(Token::Keyword(lexer.match_(), Keyword::Def)),
-        "as"      => |lexer| lexer.return_(Token::Keyword(lexer.match_(), Keyword::As)),
-        "label"   => |lexer| lexer.return_(Token::Keyword(lexer.match_(), Keyword::Label)),
-        "break"   => |lexer| lexer.return_(Token::Keyword(lexer.match_(), Keyword::Break)),
-        "null"    => |lexer| lexer.return_(Token::Keyword(lexer.match_(), Keyword::Null)),
-        "false"   => |lexer| lexer.return_(Token::Keyword(lexer.match_(), Keyword::False)),
-        "true"    => |lexer| lexer.return_(Token::Keyword(lexer.match_(), Keyword::True)),
-        "if"      => |lexer| lexer.return_(Token::Keyword(lexer.match_(), Keyword::If)),
-        "then"    => |lexer| lexer.return_(Token::Keyword(lexer.match_(), Keyword::Then)),
-        "elif"    => |lexer| lexer.return_(Token::Keyword(lexer.match_(), Keyword::Elif)),
-        "else"    => |lexer| lexer.return_(Token::Keyword(lexer.match_(), Keyword::Else)),
-        "end"     => |lexer| lexer.return_(Token::Keyword(lexer.match_(), Keyword::End)),
-        "try"     => |lexer| lexer.return_(Token::Keyword(lexer.match_(), Keyword::Try)),
-        "catch"   => |lexer| lexer.return_(Token::Keyword(lexer.match_(), Keyword::Catch)),
-        "reduce"  => |lexer| lexer.return_(Token::Keyword(lexer.match_(), Keyword::Reduce)),
-        "foreach" => |lexer| lexer.return_(Token::Keyword(lexer.match_(), Keyword::Foreach)),
+        "or"      => |lexer| handle_keyword!(lexer, Keyword::Or),
+        "and"     => |lexer| handle_keyword!(lexer, Keyword::And),
+        "module"  => |lexer| handle_keyword!(lexer, Keyword::Module),
+        "import"  => |lexer| handle_keyword!(lexer, Keyword::Import),
+        "include" => |lexer| handle_keyword!(lexer, Keyword::Include),
+        "def"     => |lexer| handle_keyword!(lexer, Keyword::Def),
+        "as"      => |lexer| handle_keyword!(lexer, Keyword::As),
+        "label"   => |lexer| handle_keyword!(lexer, Keyword::Label),
+        "break"   => |lexer| handle_keyword!(lexer, Keyword::Break),
+        "null"    => |lexer| handle_keyword!(lexer, Keyword::Null),
+        "false"   => |lexer| handle_keyword!(lexer, Keyword::False),
+        "true"    => |lexer| handle_keyword!(lexer, Keyword::True),
+        "if"      => |lexer| handle_keyword!(lexer, Keyword::If),
+        "then"    => |lexer| handle_keyword!(lexer, Keyword::Then),
+        "elif"    => |lexer| handle_keyword!(lexer, Keyword::Elif),
+        "else"    => |lexer| handle_keyword!(lexer, Keyword::Else),
+        "end"     => |lexer| handle_keyword!(lexer, Keyword::End),
+        "try"     => |lexer| handle_keyword!(lexer, Keyword::Try),
+        "catch"   => |lexer| handle_keyword!(lexer, Keyword::Catch),
+        "reduce"  => |lexer| handle_keyword!(lexer, Keyword::Reduce),
+        "foreach" => |lexer| handle_keyword!(lexer, Keyword::Foreach),
 
         '.' $ident_start $ident_follow* => |lexer| {
             lexer.return_(Token::Field(&lexer.match_()[1..]))
@@ -242,7 +567,7 @@ lexer! {
             lexer.return_(parsed)
         },
         '"' => |lexer| {
-            lexer.switch_and_return(LexerRule::InString, Token::StringStart)
+            lexer.switch_and_return(LexerImplRule::InString, Token::StringStart)
         },
     }
     rule InString {
@@ -264,11 +589,11 @@ lexer! {
             }
         },
         "\\(" => |lexer| {
-            lexer.state().paren_nest.push(0);
-            lexer.switch_and_return(LexerRule::Init, Token::InterpolationStart)
+            lexer.state().open(OpenCloseType::Interpolation);
+            lexer.switch_and_return(LexerImplRule::Init, Token::InterpolationStart)
         },
         '"' => |lexer| {
-            lexer.switch_and_return(LexerRule::Init, Token::StringEnd)
+            lexer.switch_and_return(LexerImplRule::Init, Token::StringEnd)
         },
         (_ # ['\\' '"'])+ => |lexer| {
             lexer.return_(Token::StringFragment(StringFragment::String(lexer.match_())))
@@ -285,6 +610,7 @@ mod test {
     }
     fn assert_lex(q: &str, expected_tokens: &[Token]) {
         let tokens: Vec<_> = Lexer::new(q)
+            .into_iter()
             .map(Result::unwrap)
             .map(|(_, token, _)| token)
             .collect();

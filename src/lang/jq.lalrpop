@@ -38,9 +38,29 @@ Comma0t<T>: Vec<T> = {
     },
 }
 
-KeywordStr: &'input str = {
-    "or", "and", "module", "import", "include", "def", "as", "label", "break", "null", "true", "false",
-    "if", "then", "elif", "else", "end", "try", "catch", "reduce", "foreach",
+Keyword: Keyword = {
+    "or"       => Keyword::Or,
+    "and"      => Keyword::And,
+    "module"   => Keyword::Module,
+    "import"   => Keyword::Import,
+    "include"  => Keyword::Include,
+    "def"      => Keyword::Def,
+    "as"       => Keyword::As,
+    "label"    => Keyword::Label,
+    "break"    => Keyword::Break,
+    "null"     => Keyword::Null,
+    "false"    => Keyword::False,
+    "true"     => Keyword::True,
+    "if"       => Keyword::If,
+    "then"     => Keyword::Then,
+    "elif"     => Keyword::Elif,
+    "else"     => Keyword::Else,
+    "end"      => Keyword::End,
+    "try"      => Keyword::Try,
+    "catch"    => Keyword::Catch,
+    "reduce"   => Keyword::Reduce,
+    "foreach"  => Keyword::Foreach,
+    TryNoCatch => Keyword::TryNoCatch,
 }
 
 IdentifierNonKeyword: Identifier = {
@@ -51,7 +71,7 @@ ModuleIdentifier: Identifier = {
 }
 IdentifierAllowKeyword: Identifier = {
     IdentifierNonKeyword,
-    KeywordStr => Identifier::from(<>),
+    Keyword => Identifier::from(<>.to_str()),
 }
 Variable: Identifier = {
     VariableStr => Identifier::from(<>),
@@ -242,7 +262,7 @@ ObjectBindPatternEntry: ObjectBindPatternEntry = {
         Box::new(Term::Variable(var).into()),
         value,
     ),
-    <ident: IdentifierNonKeyword> ":" <value: Boxed<BindPattern>> => ObjectBindPatternEntry::KeyValue(
+    <ident: IdentifierAllowKeyword> ":" <value: Boxed<BindPattern>> => ObjectBindPatternEntry::KeyValue(
         Box::new(Term::String(vec![StringFragment::String(ident.0)]).into()),
         value,
     ),
@@ -284,7 +304,7 @@ QueryAtomicClose: Query = {
     },
 }
 QueryAtomicOpen: Query = {
-    "try" <body: Boxed<QueryAtomic>> => {
+    TryNoCatch <body: Boxed<QueryAtomic>> => {
         Query::Try {
             body,
             catch: None,
@@ -338,12 +358,12 @@ QueryInner: Query = {
 QueryStartFromNotFuncDef: Query = {
     QueryInner,
     <lhs: Boxed<QueryInner>> "|" <rhs: Boxed<QueryImpl>> => Query::Pipe { <> },
-    <source: Boxed<Term>> "as" <patterns: Separated1<BindPattern, "?//">> "|" <body: Boxed<QueryImpl>> => Query::Bind { <> },
-    "label" <label: Variable> "|" <body: Boxed<QueryImpl>> => Query::Label { <> },
+    <source: Boxed<Term>> "as" <patterns: Separated1<BindPattern, "?//">> "|" <body: Boxed<QueryImpl>> BindScopeEnd => Query::Bind { <> },
+    "label" <label: Variable> "|" <body: Boxed<QueryImpl>> LabelScopeEnd => Query::Label { <> },
 }
 QueryImpl: Query = {
     QueryStartFromNotFuncDef,
-    <function: FuncDef> <query: Boxed<QueryImpl>> => Query::WithFunc { <> },
+    <function: FuncDef> <query: Boxed<QueryImpl>> DefScopeEnd => Query::WithFunc { <> },
 }
 pub Query = QueryImpl;
 
@@ -361,7 +381,7 @@ Import: Import = {
 }
 
 pub Program: Program = {
-    <module_header: ("module" <ConstantObject> ";")?> <imports: Import*> <functions: FuncDef*> <query: QueryStartFromNotFuncDef?> => {
+    <module_header: ("module" <ConstantObject> ";")?> <imports: Import*> <functions: FuncDef*> <query: QueryStartFromNotFuncDef?> DefScopeEnd* => {
         if let Some(mut query) = query {
             for function in functions.into_iter().rev() {
                 query = Query::WithFunc { function, query: Box::new(query) };
@@ -434,26 +454,31 @@ extern {
         ModuleVariableStr => Token::ModuleVariable(<&'input str>),
         Format => Token::Format(<&'input str>),
 
-        "or"      => Token::Keyword(<&'input str>, Keyword::Or),
-        "and"      => Token::Keyword(<&'input str>, Keyword::And),
-        "module"  => Token::Keyword(<&'input str>, Keyword::Module),
-        "import"  => Token::Keyword(<&'input str>, Keyword::Import),
-        "include" => Token::Keyword(<&'input str>, Keyword::Include),
-        "def"     => Token::Keyword(<&'input str>, Keyword::Def),
-        "as"      => Token::Keyword(<&'input str>, Keyword::As),
-        "label"   => Token::Keyword(<&'input str>, Keyword::Label),
-        "break"   => Token::Keyword(<&'input str>, Keyword::Break),
-        "null"    => Token::Keyword(<&'input str>, Keyword::Null),
-        "false"   => Token::Keyword(<&'input str>, Keyword::False),
-        "true"    => Token::Keyword(<&'input str>, Keyword::True),
-        "if"      => Token::Keyword(<&'input str>, Keyword::If),
-        "then"    => Token::Keyword(<&'input str>, Keyword::Then),
-        "elif"    => Token::Keyword(<&'input str>, Keyword::Elif),
-        "else"    => Token::Keyword(<&'input str>, Keyword::Else),
-        "end"     => Token::Keyword(<&'input str>, Keyword::End),
-        "try"     => Token::Keyword(<&'input str>, Keyword::Try),
-        "catch"   => Token::Keyword(<&'input str>, Keyword::Catch),
-        "reduce"  => Token::Keyword(<&'input str>, Keyword::Reduce),
-        "foreach" => Token::Keyword(<&'input str>, Keyword::Foreach),
+        "or"      => Token::Keyword(Keyword::Or),
+        "and"     => Token::Keyword(Keyword::And),
+        "module"  => Token::Keyword(Keyword::Module),
+        "import"  => Token::Keyword(Keyword::Import),
+        "include" => Token::Keyword(Keyword::Include),
+        "def"     => Token::Keyword(Keyword::Def),
+        "as"      => Token::Keyword(Keyword::As),
+        "label"   => Token::Keyword(Keyword::Label),
+        "break"   => Token::Keyword(Keyword::Break),
+        "null"    => Token::Keyword(Keyword::Null),
+        "false"   => Token::Keyword(Keyword::False),
+        "true"    => Token::Keyword(Keyword::True),
+        "if"      => Token::Keyword(Keyword::If),
+        "then"    => Token::Keyword(Keyword::Then),
+        "elif"    => Token::Keyword(Keyword::Elif),
+        "else"    => Token::Keyword(Keyword::Else),
+        "end"     => Token::Keyword(Keyword::End),
+        "try"     => Token::Keyword(Keyword::Try),
+        "catch"   => Token::Keyword(Keyword::Catch),
+        "reduce"  => Token::Keyword(Keyword::Reduce),
+        "foreach" => Token::Keyword(Keyword::Foreach),
+
+        TryNoCatch => Token::Keyword(Keyword::TryNoCatch),
+        DefScopeEnd => Token::DefScopeEnd,
+        LabelScopeEnd => Token::LabelScopeEnd,
+        BindScopeEnd => Token::BindScopeEnd,
     }
 }
