@@ -605,8 +605,8 @@ fn run_code(program: &Program, state: &mut State, env: &mut Environment) -> Opti
                     }
                 }
                 Index => {
-                    let index = state.pop();
                     let value = state.pop();
+                    let index = state.pop();
                     if let Err(e) = state.check_origin_of_path(&value) {
                         err.replace(e);
                         continue 'backtrack;
@@ -621,9 +621,9 @@ fn run_code(program: &Program, state: &mut State, env: &mut Environment) -> Opti
                     }
                 }
                 Slice { start, end } => {
+                    let value = state.pop();
                     let end = if *end { Some(state.pop()) } else { None };
                     let start = if *start { Some(state.pop()) } else { None };
-                    let value = state.pop();
                     if let Err(e) = state.check_origin_of_path(&value) {
                         err = Some(e);
                         continue 'backtrack;
