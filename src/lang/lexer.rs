@@ -203,7 +203,7 @@ impl<'input> IntoIterator for Lexer<'input> {
                         }
                     }
                 }
-                return Err(LexicalError::OrphanToken("catch".to_string()));
+                Err(LexicalError::OrphanToken("catch".to_string()))
             }
             fn close_autoclose(&mut self) -> Option<Token<'input>> {
                 while let Some(item) = self.stack.last() {

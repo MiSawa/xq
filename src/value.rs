@@ -83,6 +83,10 @@ impl Array {
     pub fn remove(&mut self, index: usize) -> Value {
         self.0.remove(index)
     }
+
+    pub fn split_off(&mut self, index: usize) -> Self {
+        Self(self.0.split_off(index))
+    }
 }
 
 impl Object {

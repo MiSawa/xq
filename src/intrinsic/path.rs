@@ -153,20 +153,23 @@ fn set_path_rec(context: Value, path: &[Value], replacement: Value) -> Result<Va
                 arr.into()
             }
             (Value::Array(arr), Value::Object(map)) => {
+                // If it was empty, insert the thing into the starting point.
+                // map_to_slice_range returns start..start if the range was empty so this code
+                // should be fine.
                 let range = map_to_slice_range(arr.len(), map)?;
-                if range.is_empty() {
-                    // FIXME: JQ seems to handle this differently...
-                    return Ok(Value::Array(arr));
-                }
-                let replacement = set_path_rec(Value::Null, path, replacement)?;
+                let mut before = make_owned(arr);
+                let after = before.split_off(range.end);
+                let middle = if range.start == 0 {
+                    std::mem::take(&mut before)
+                } else {
+                    before.split_off(range.start)
+                };
+                let replacement = set_path_rec(middle.into(), path, replacement)?;
                 if let Value::Array(replacement) = replacement {
-                    // TODO: test this
-                    let before = &arr[..range.start];
-                    let after = &arr[range.end..];
                     before
                         .iter()
                         .chain(replacement.as_ref())
-                        .chain(after)
+                        .chain(after.iter())
                         .cloned()
                         .collect::<Array>()
                         .into()
