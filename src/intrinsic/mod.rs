@@ -171,7 +171,7 @@ fn contains(context: Value, element: Value) -> Result<Value> {
     fn contains_rec(lhs: &Value, rhs: &Value) -> Result<bool> {
         Ok(match (lhs, rhs) {
             (Value::Null, Value::Null) => true,
-            (Value::Boolean(lhs), Value::Boolean(rhs)) => lhs == rhs,
+            (Value::Boolean(lhs), Value::Boolean(rhs)) if lhs == rhs => true,
             (Value::Number(lhs), Value::Number(rhs)) => lhs == rhs, // TODO: nan handling in JQ semantics...
             (Value::String(lhs), Value::String(rhs)) => lhs.contains(rhs.as_ref()),
             (Value::Array(lhs), Value::Array(rhs)) => rhs

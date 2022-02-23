@@ -99,6 +99,20 @@ test!(
 );
 
 test!(
+    contains_on_boolean,
+    r#"
+    .[] | [contains(.,not)?]
+    "#,
+    r#"
+    [false,true]
+    "#,
+    r#"
+    [true]
+    [true]
+    "#
+);
+
+test!(
     indices_with_empty_array,
     r#"
     indices([])
