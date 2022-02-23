@@ -81,6 +81,7 @@ $ cargo set-version --bump patch    # or just edit Cargo.toml to bump the versio
 $ cargo build                       # to generate Cargo.lock
 $ git commit -am "Bump version"     # so that there's no uncommited changes
 $ git tag v0.2.x                    # just in case...
+$ git push
 $ git push --tags
 $ cargo publish
 ```
