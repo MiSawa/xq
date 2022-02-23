@@ -430,6 +430,7 @@ lexer! {
         "-=" = Token::MinusEq,
         "*=" = Token::StarEq,
         "/=" = Token::SlashEq,
+        "%=" = Token::PercentEq,
         "//=" = Token::SlashSlashEq,
         "|=" = Token::PipeEq,
 
