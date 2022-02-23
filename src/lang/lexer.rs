@@ -491,9 +491,6 @@ lexer! {
         "as"      => |lexer| handle_keyword!(lexer, Keyword::As),
         "label"   => |lexer| handle_keyword!(lexer, Keyword::Label),
         "break"   => |lexer| handle_keyword!(lexer, Keyword::Break),
-        "null"    => |lexer| handle_keyword!(lexer, Keyword::Null),
-        "false"   => |lexer| handle_keyword!(lexer, Keyword::False),
-        "true"    => |lexer| handle_keyword!(lexer, Keyword::True),
         "if"      => |lexer| handle_keyword!(lexer, Keyword::If),
         "then"    => |lexer| handle_keyword!(lexer, Keyword::Then),
         "elif"    => |lexer| handle_keyword!(lexer, Keyword::Elif),
@@ -503,6 +500,13 @@ lexer! {
         "catch"   => |lexer| handle_keyword!(lexer, Keyword::Catch),
         "reduce"  => |lexer| handle_keyword!(lexer, Keyword::Reduce),
         "foreach" => |lexer| handle_keyword!(lexer, Keyword::Foreach),
+
+        // These three keywords can be in a value of an object entry.
+        // Since we don't care this in the post processing anyway,
+        // we always treat them as a keyword.
+        "null"    = Token::Keyword(Keyword::Null),
+        "false"   = Token::Keyword(Keyword::False),
+        "true"    = Token::Keyword(Keyword::True),
 
         '.' $ident_start $ident_follow* => |lexer| {
             lexer.return_(Token::Field(&lexer.match_()[1..]))

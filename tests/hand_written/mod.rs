@@ -347,3 +347,16 @@ test!(
     [1,2]
     "#
 );
+
+test!(
+    keyword_in_object,
+    r#"
+    {x: null, y: true, z: false, true: 1, false: 2, null: 3, try: 4, else: 5}
+    "#,
+    r#"
+    null
+    "#,
+    r#"
+    {"x": null, "y": true, "z": false, "true": 1, "false": 2, "null": 3, "try": 4, "else": 5}
+    "#
+);
