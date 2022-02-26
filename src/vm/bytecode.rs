@@ -4,9 +4,6 @@ use crate::{
 };
 use std::fmt::{Debug, Formatter};
 
-#[derive(Debug, Copy, Clone, Hash, Ord, PartialOrd, Eq, PartialEq)]
-pub struct Label(pub(crate) ScopeId, pub(crate) usize);
-
 #[derive(Clone, Eq, PartialEq)]
 pub struct NamedFunction<F: Clone + ?Sized> {
     pub name: &'static str,
@@ -124,11 +121,10 @@ pub(crate) enum ByteCode {
     ForkAlt {
         fork_pc: Address,
     },
-    /// Pushes a fork that catches break-type error for the same label, and swallow the error to continue from the next fork.
-    /// TODO: Not sure if this is the right semantics.
-    ForkLabel(Label),
+    /// Pushes a fork that catches break-type error for the same scope/slot, and swallow the error to continue from the next fork.
+    ForkLabel(ScopedSlot),
     /// Search for the fork emitted by the corresponding [Self::ForkLabel].
-    Break(Label),
+    Break(ScopedSlot),
     /// Discard the current fork, and continues from the next fork.
     Backtrack,
     /// Change the current pc to the given address.
@@ -157,13 +153,14 @@ pub(crate) enum ByteCode {
     /// # Panics
     /// Panics if the call pc was already set, i.e. no [Self::NewFrame] was called after the previous Call bytecode family.
     TailCallClosure(ScopedSlot),
-    /// Creates a frame with the scope id, variable slots, closure slots, and the call pc specified in the previous Call bytecode family.
+    /// Creates a frame with the scope id, variable slots, closure slots, label slots, and the call pc specified in the previous Call bytecode family.
     /// # Panics
     /// Panics if this was not preceded by Call bytecode family
     NewFrame {
         id: ScopeId,
         variable_cnt: usize,
         closure_cnt: usize,
+        label_cnt: usize,
     },
     /// Discards the current frame, and start from the return address.
     /// # Panics

@@ -18,7 +18,7 @@ use crate::{
     module_loader::{ModuleLoadError, ModuleLoader},
     value::Array,
     vm::{
-        bytecode::{ClosureAddress, Label, NamedFn0, NamedFn1, NamedFn2},
+        bytecode::{ClosureAddress, NamedFn0, NamedFn1, NamedFn2},
         Address, ByteCode, Program, ScopeId, ScopedSlot,
     },
     Value,
@@ -217,10 +217,10 @@ struct Scope {
     id: ScopeId,
     next_variable_slot_id: usize,
     next_closure_slot_id: usize,
-    next_label_id: usize,
+    next_label_slot_id: usize,
     functions: PHashMap<FunctionIdentifier, FunctionLike>,
     variables: PHashMap<Identifier, ScopedSlot>,
-    labels: PHashMap<Identifier, Label>,
+    labels: PHashMap<Identifier, ScopedSlot>,
     leaked_scope_ids: Rc<RefCell<HashSet<ScopeId>>>,
 }
 
@@ -230,7 +230,7 @@ impl Scope {
             id,
             next_variable_slot_id: 0,
             next_closure_slot_id: 0,
-            next_label_id: 0,
+            next_label_slot_id: 0,
             functions: Default::default(),
             variables: Default::default(),
             labels: Default::default(),
@@ -243,7 +243,7 @@ impl Scope {
             id,
             next_variable_slot_id: 0,
             next_closure_slot_id: 0,
-            next_label_id: 0,
+            next_label_slot_id: 0,
             functions: previous.functions.clone(),
             variables: previous.variables.clone(),
             labels: previous.labels.clone(),
@@ -252,7 +252,7 @@ impl Scope {
     }
 
     fn require_slot(&self) -> bool {
-        self.next_variable_slot_id > 0 || self.next_closure_slot_id > 0
+        self.next_variable_slot_id > 0 || self.next_closure_slot_id > 0 || self.next_label_slot_id > 0
     }
 
     fn has_slot_leaked_scope(&self) -> bool {
@@ -286,17 +286,17 @@ impl Scope {
         slot
     }
 
-    fn allocate_label(&mut self) -> Label {
-        let label = Label(self.id, self.next_label_id);
-        self.next_label_id += 1;
-        label
+    fn allocate_label(&mut self) -> ScopedSlot {
+        let slot = ScopedSlot(self.id, self.next_label_slot_id);
+        self.next_label_slot_id += 1;
+        slot
     }
 
-    fn register_label(&mut self, name: Identifier) -> Label {
-        let label = Label(self.id, self.next_label_id);
-        self.next_label_id += 1;
-        self.labels.insert(name, label);
-        label
+    fn register_label(&mut self, name: Identifier) -> ScopedSlot {
+        let slot = ScopedSlot(self.id, self.next_label_slot_id);
+        self.next_label_slot_id += 1;
+        self.labels.insert(name, slot);
+        slot
     }
 
     fn lookup_variable(&self, name: &Identifier) -> Option<&ScopedSlot> {
@@ -319,8 +319,14 @@ impl Scope {
         ret
     }
 
-    fn lookup_label(&self, name: &Identifier) -> Option<&Label> {
-        self.labels.get(name)
+    fn lookup_label(&self, name: &Identifier) -> Option<&ScopedSlot> {
+        let ret = self.labels.get(name);
+        if let Some(ScopedSlot(id, _)) = ret {
+            if id != &self.id {
+                self.leaked_scope_ids.borrow_mut().insert(*id);
+            }
+        }
+        ret
     }
 }
 
@@ -400,7 +406,7 @@ impl Compiler {
         assert_eq!(current.id, save.id);
         save.next_variable_slot_id = current.next_variable_slot_id;
         save.next_closure_slot_id = current.next_closure_slot_id;
-        save.next_label_id = current.next_label_id;
+        save.next_label_slot_id = current.next_label_slot_id;
         *current = save;
     }
 
@@ -432,13 +438,17 @@ impl Compiler {
         self.current_scope().require_slot()
     }
 
-    fn exit_scope(&mut self, id: ScopeId) -> (usize, usize) {
+    fn exit_scope(&mut self, id: ScopeId) -> (usize, usize, usize) {
         let scope = self
             .scope_stack
             .pop()
             .expect("Scope stack shouldn't be empty");
         assert_eq!(id, scope.id);
-        (scope.next_variable_slot_id, scope.next_closure_slot_id)
+        (
+            scope.next_variable_slot_id,
+            scope.next_closure_slot_id,
+            scope.next_label_slot_id,
+        )
     }
 
     fn exit_scope_and_emit_new_frame(&mut self, id: ScopeId, next: Address) -> Address {
@@ -448,6 +458,7 @@ impl Compiler {
                 id,
                 variable_cnt: scope_info.0,
                 closure_cnt: scope_info.1,
+                label_cnt: scope_info.2,
             },
             next,
         )
@@ -1225,11 +1236,11 @@ impl Compiler {
                 }
             },
             Term::Break(name) => {
-                let label = *self
+                let label_slot = *self
                     .current_scope()
                     .lookup_label(name)
                     .ok_or_else(|| CompileError::UnknownLabel(name.clone()))?;
-                self.emitter.emit_terminal_op(ByteCode::Break(label))
+                self.emitter.emit_terminal_op(ByteCode::Break(label_slot))
             }
         };
         Ok(ret)
@@ -1326,11 +1337,11 @@ impl Compiler {
             Query::Try { body, catch } => self.compile_try(body, catch.as_ref(), next)?,
             Query::Label { label, body } => {
                 let saved = self.save_scope();
-                let label = self.current_scope_mut().register_label(label.clone());
+                let label_slot = self.current_scope_mut().register_label(label.clone());
                 let body = self.compile_query(body, next)?;
                 self.restore_scope(saved);
                 self.emitter
-                    .emit_normal_op(ByteCode::ForkLabel(label), body)
+                    .emit_normal_op(ByteCode::ForkLabel(label_slot), body)
             }
             Query::Operate { lhs, operator, rhs } => match operator {
                 BinaryOp::Arithmetic(operator) => {
@@ -1401,7 +1412,7 @@ impl Compiler {
                     let slot = compiler.allocate_variable();
                     let tmp_slot = compiler.allocate_variable();
                     let del_slot = compiler.allocate_variable();
-                    let label = compiler.current_scope_mut().allocate_label();
+                    let label_slot = compiler.current_scope_mut().allocate_label();
 
                     let after = compiler.emitter.emit_normal_op(
                         ByteCode::Intrinsic1(NamedFn1 {
@@ -1416,7 +1427,9 @@ impl Compiler {
                     let after = compiler.emitter.emit_normal_op(ByteCode::Load(slot), after);
                     let after = compiler.emitter.emit_normal_op(ByteCode::Pop, after);
 
-                    let on_empty = compiler.emitter.emit_terminal_op(ByteCode::Break(label));
+                    let on_empty = compiler
+                        .emitter
+                        .emit_terminal_op(ByteCode::Break(label_slot));
                     let on_empty = compiler
                         .emitter
                         .emit_normal_op(ByteCode::Store(slot), on_empty);
@@ -1426,7 +1439,9 @@ impl Compiler {
                     let on_empty = compiler.emitter.emit_normal_op(ByteCode::Pop, on_empty);
 
                     // for each path(lhs), call set_path(., path, . | getpath(path) | rhs) for the first value produced
-                    let next = compiler.emitter.emit_terminal_op(ByteCode::Break(label));
+                    let next = compiler
+                        .emitter
+                        .emit_terminal_op(ByteCode::Break(label_slot));
                     let next = compiler.emitter.emit_normal_op(ByteCode::Store(slot), next);
                     let next = compiler.emitter.emit_normal_op(
                         ByteCode::Intrinsic2(NamedFn2 {
@@ -1452,7 +1467,7 @@ impl Compiler {
                     let next = compiler.emitter.emit_normal_op(ByteCode::Dup, next);
                     let next = compiler
                         .emitter
-                        .emit_normal_op(ByteCode::ForkLabel(label), next);
+                        .emit_normal_op(ByteCode::ForkLabel(label_slot), next);
                     let next = compiler.compile_query(path_expression, next)?;
                     let next = compiler
                         .emitter

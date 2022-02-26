@@ -1,4 +1,4 @@
-use crate::{value::RcString, vm::bytecode::Label, Number, Value};
+use crate::{value::RcString, vm::machine::LabelId, Number, Value};
 use thiserror::Error;
 
 pub type Result<T, E = QueryExecutionError> = std::result::Result<T, E>;
@@ -34,7 +34,7 @@ pub enum QueryExecutionError {
     #[error("Invalid path for `{0:?}`")]
     InvalidPathError(Value),
     #[error("Breaking on label `{0:?}`")]
-    Breaking(Label),
+    Breaking(LabelId),
     #[error("Path should be an array but was `{0:?}`")]
     PathNotArray(Value),
     #[error("Invalid index `{0:?}`")]

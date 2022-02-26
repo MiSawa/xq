@@ -439,3 +439,44 @@ test!(
     {"x":0}
     "#
 );
+
+test!(
+    recurse_label1,
+    r#"
+    isempty(isempty(empty))
+    "#,
+    r#"
+    null
+    "#,
+    r#"
+    false
+    "#
+);
+
+test!(
+    recurse_label2,
+    r#"
+    first((0, 0) | first(0))
+    "#,
+    r#"
+    null
+    "#,
+    r#"
+    0
+    "#
+);
+
+test!(
+    label_prevent_tailrec,
+    r#"
+    def f: label $x | if . < 3 then ., (. + 1 | f, break $x, .) else . end; 1 | f
+    "#,
+    r#"
+    null
+    "#,
+    r#"
+    1
+    2
+    3
+    "#
+);
