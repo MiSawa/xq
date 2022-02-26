@@ -258,6 +258,7 @@ pub(crate) fn group_by(context: Value) -> Result<Value> {
 
 fn indices(context: Value, s: Value) -> Result<Value> {
     let ret = match (context, s) {
+        (Value::Null, _) => Value::Null,
         (Value::String(lhs), Value::String(rhs)) => Array::from_vec(if rhs.is_empty() {
             vec![]
         } else {

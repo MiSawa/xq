@@ -113,6 +113,19 @@ test!(
 );
 
 test!(
+    indices_with_empty_string,
+    r#"
+    indices("")
+    "#,
+    r#"
+    "abcde"
+    "#,
+    r#"
+    []
+    "#
+);
+
+test!(
     indices_with_empty_array,
     r#"
     indices([])
@@ -122,6 +135,19 @@ test!(
     "#,
     r#"
     []
+    "#
+);
+
+test!(
+    indices_against_null,
+    r#"
+    indices(0)
+    "#,
+    r#"
+    null
+    "#,
+    r#"
+    null
     "#
 );
 
