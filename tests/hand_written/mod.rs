@@ -465,3 +465,18 @@ test!(
     0
     "#
 );
+
+test!(
+    label_prevent_tailrec,
+    r#"
+    def f: label $x | if . < 3 then ., (. + 1 | f, break $x, .) else . end; 1 | f
+    "#,
+    r#"
+    null
+    "#,
+    r#"
+    1
+    2
+    3
+    "#
+);
