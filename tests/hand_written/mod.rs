@@ -360,3 +360,29 @@ test!(
     {"x": null, "y": true, "z": false, "true": 1, "false": 2, "null": 3, "try": 4, "else": 5}
     "#
 );
+
+test!(
+    object_indexing_optional,
+    r#"
+    [1,{x:2},3,{x:4},5] | [.[].x?]
+    "#,
+    r#"
+    null
+    "#,
+    r#"
+    [2,4]
+    "#
+);
+
+test!(
+    multiple_optional_operators,
+    r#"
+    .x??, .
+    "#,
+    r#"
+    0
+    "#,
+    r#"
+    0
+    "#
+);

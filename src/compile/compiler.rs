@@ -858,7 +858,17 @@ impl Compiler {
         next: Address,
     ) -> Result<Address> {
         match suffix {
-            Suffix::Optional => self.compile_try::<_, Query>(term, None, next),
+            Suffix::Optional => match term {
+                Term::Suffix(term, suffix) if suffix != &Suffix::Optional => {
+                    let next = self.compile_try::<_, Query>(
+                        &Term::Suffix(Term::Identity.into(), suffix.clone()),
+                        None,
+                        next,
+                    )?;
+                    self.compile_term(term, next)
+                }
+                _ => self.compile_try::<_, Query>(term, None, next),
+            },
             Suffix::Iterate => self.compile_iterate(term, next),
             Suffix::Index(ident) => {
                 self.compile_index(term, &Term::Constant(Value::string(ident.0.clone())), next)
