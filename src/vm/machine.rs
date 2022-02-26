@@ -9,7 +9,7 @@ use crate::{
     intrinsic,
     util::make_owned,
     vm::{
-        bytecode::{ClosureAddress, Label, NamedFunction},
+        bytecode::{ClosureAddress, NamedFunction},
         error::QueryExecutionError,
         Address, ByteCode, Program, Result, ScopeId, ScopedSlot, Value,
     },
@@ -98,20 +98,27 @@ impl Iterator for PathValueIterator {
 type Frames = PVector<Option<Frame>>;
 type Closure = (ClosureAddress, Frames);
 
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub struct LabelId(usize);
+
 #[derive(Debug, Clone)]
 struct Frame {
     slots: Rc<RefCell<Vec<Option<Value>>>>,
     closure_slots: Rc<RefCell<Vec<Option<Closure>>>>,
+    label_slots: Rc<RefCell<Vec<Option<LabelId>>>>,
 }
 
 impl Frame {
-    fn new(variable_cnt: usize, closure_cnt: usize) -> Self {
+    fn new(variable_cnt: usize, closure_cnt: usize, label_cnt: usize) -> Self {
         Self {
             slots: Rc::new(RefCell::new(
                 std::iter::repeat(None).take(variable_cnt).collect(),
             )),
             closure_slots: Rc::new(RefCell::new(
                 std::iter::repeat(None).take(closure_cnt).collect(),
+            )),
+            label_slots: Rc::new(RefCell::new(
+                std::iter::repeat(None).take(label_cnt).collect(),
             )),
         }
     }
@@ -124,6 +131,7 @@ pub struct Machine {
 
 #[derive(Debug)]
 struct Environment {
+    next_label_id: usize,
     forks: Vec<(<State as Undo>::UndoToken, OnFork)>,
 }
 
@@ -148,13 +156,14 @@ enum OnFork {
     CatchError,
     SkipCatch,
     TryAlternative,
-    CatchLabel(Label),
+    CatchLabel(LabelId),
     Iterate,
 }
 
 impl Environment {
     fn new(state: <State as Undo>::UndoToken) -> Self {
         Self {
+            next_label_id: 0,
             forks: vec![(state, OnFork::Nop)],
         }
     }
@@ -168,6 +177,12 @@ impl Environment {
 
     fn pop_fork(&mut self) -> Option<(<State as Undo>::UndoToken, OnFork)> {
         self.forks.pop()
+    }
+
+    fn gen_label_id(&mut self) -> LabelId {
+        let ret = LabelId(self.next_label_id);
+        self.next_label_id += 1;
+        ret
     }
 }
 
@@ -305,12 +320,28 @@ impl State {
         })
     }
 
+    fn label_slot(&mut self, scoped_slot: &ScopedSlot) -> RefMut<Option<LabelId>> {
+        let frame = self
+            .frames
+            .get_mut(scoped_slot.0 .0)
+            .and_then(Option::as_mut)
+            .ok_or(ProgramError::UninitializedFrame)
+            .unwrap();
+        let slots = frame.label_slots.borrow_mut();
+        RefMut::map(slots, |v| {
+            v.get_mut(scoped_slot.1)
+                .ok_or(ProgramError::UnknownSlot)
+                .unwrap()
+        })
+    }
+
     fn push_frame(
         &mut self,
         context_frames: Option<Frames>,
         scope_id: ScopeId,
         variable_cnt: usize,
         closure_cnt: usize,
+        label_cnt: usize,
         chain_ret: bool,
         return_address: Address,
     ) {
@@ -323,7 +354,7 @@ impl State {
             self.frames
                 .extend(std::iter::repeat(None).take(scope_id.0 - self.frames.len() + 1))
         }
-        self.frames[scope_id.0] = Some(Frame::new(variable_cnt, closure_cnt));
+        self.frames[scope_id.0] = Some(Frame::new(variable_cnt, closure_cnt, label_cnt));
         self.frame_stack.push((return_address, saved, chain_ret));
     }
 
@@ -729,12 +760,20 @@ fn run_code(program: &Program, state: &mut State, env: &mut Environment) -> Opti
                 },
                 ForkTryEnd => env.push_fork(state, OnFork::SkipCatch, state.pc.get_next()),
                 ForkAlt { fork_pc } => env.push_fork(state, OnFork::TryAlternative, *fork_pc),
-                ForkLabel(label) => {
-                    env.push_fork(state, OnFork::CatchLabel(*label), state.pc.get_next());
+                ForkLabel(label_slot) => {
+                    let label_id = env.gen_label_id();
+                    state.label_slot(label_slot).replace(label_id);
                     // pc doesn't really matter
+                    env.push_fork(state, OnFork::CatchLabel(label_id), state.pc.get_next());
                 }
-                Break(label) => {
-                    err = Some(QueryExecutionError::Breaking(*label));
+                Break(label_slot) => {
+                    let label_id = state
+                        .label_slot(label_slot)
+                        .as_ref()
+                        .ok_or(ProgramError::UninitializedSlot)
+                        .unwrap()
+                        .clone();
+                    err = Some(QueryExecutionError::Breaking(label_id));
                     continue 'backtrack;
                 }
                 Backtrack => continue 'backtrack,
@@ -799,6 +838,7 @@ fn run_code(program: &Program, state: &mut State, env: &mut Environment) -> Opti
                     id,
                     variable_cnt,
                     closure_cnt,
+                    label_cnt,
                 } => {
                     let return_address = call_pc
                         .take()
@@ -809,6 +849,7 @@ fn run_code(program: &Program, state: &mut State, env: &mut Environment) -> Opti
                         *id,
                         *variable_cnt,
                         *closure_cnt,
+                        *label_cnt,
                         chain_ret,
                         return_address,
                     );
