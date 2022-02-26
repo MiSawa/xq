@@ -139,6 +139,19 @@ test!(
 );
 
 test!(
+    indices_against_null,
+    r#"
+    indices(0)
+    "#,
+    r#"
+    null
+    "#,
+    r#"
+    null
+    "#
+);
+
+test!(
     limit_infinite_stream,
     r#"
     limit(3; repeat(0))
