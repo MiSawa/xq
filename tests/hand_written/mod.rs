@@ -46,6 +46,20 @@ test!(
 );
 
 test!(
+    format_csv_tsv,
+    r#"
+    [1, "foo", null, 2, nan, "foo,\n\"bar\"\tbaz"] | @csv, @tsv
+    "#,
+    r#"
+    null
+    "#,
+    r#"
+    "1,\"foo\",,2,,\"foo,\n\"\"bar\"\"\tbaz\""
+    "1\tfoo\t\t2\t\tfoo,\\n\"bar\"\\tbaz"
+    "#
+);
+
+test!(
     boolean_comparison,
     r#"
     [

@@ -5,6 +5,7 @@ use crate::{
     Array, Number, Value,
 };
 use itertools::Itertools;
+use num::Float;
 use num::ToPrimitive;
 use std::{borrow::Cow, rc::Rc};
 
@@ -149,12 +150,17 @@ where
     let mut ret = String::new();
     for entry in entries.iter() {
         match entry {
-            Value::Null => ret.push(delim),
+            Value::Null => {}
             Value::Boolean(v) => ret.push_str(if *v { "true" } else { "false" }),
-            Value::Number(v) => ret.push_str(&format!("{}", v)),
+            Value::Number(v) => {
+                if !v.is_nan() {
+                    ret.push_str(&format!("{}", v))
+                }
+            }
             Value::String(s) => add_string(&mut ret, s),
             v => return Err(QueryExecutionError::InvalidArgType("(c|t)sv", v.clone())),
         }
+        ret.push(delim);
     }
     if !ret.is_empty() {
         ret.pop();
@@ -164,6 +170,7 @@ where
 
 fn csv(value: Value) -> Result<Value> {
     fn append_quoted_string(s: &mut String, v: &str) {
+        s.push('"');
         for c in v.chars() {
             if c == '"' {
                 s.push_str(r#""""#);
@@ -171,6 +178,7 @@ fn csv(value: Value) -> Result<Value> {
                 s.push(c);
             }
         }
+        s.push('"');
     }
     xsv(value, ',', append_quoted_string)
 }
