@@ -412,29 +412,3 @@ test!(
     0
     "#
 );
-
-test!(
-    recurse_label1,
-    r#"
-    isempty(isempty(empty))
-    "#,
-    r#"
-    null
-    "#,
-    r#"
-    false
-    "#
-);
-
-test!(
-    recurse_label2,
-    r#"
-    first((0, 0) | first(0))
-    "#,
-    r#"
-    null
-    "#,
-    r#"
-    0
-    "#
-);
