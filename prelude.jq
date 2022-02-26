@@ -32,7 +32,7 @@ def range($from; $upto; $by): $from | while(($by > 0 and . < $upto) or ($by < 0 
 def range($from; $upto): $from | while(. < $upto; . + 1);
 def range($upto): range(0; $upto);
 
-def isempty(f): label $outer | ((f | (false, break $outer)), (true, break $outer));
+def isempty(f): label $outer | (f | false, break $outer), true;
 def limit($n; f): label $outer | foreach f as $item (0; . + 1; if . <= $n then $item else break $outer end);
 def first(f): label $out | f | ., break $out;
 def last(f): reduce f as $item (null; $item);
