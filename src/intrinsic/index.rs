@@ -2,15 +2,18 @@ use crate::{
     vm::{error::Result, machine::PathElement, QueryExecutionError},
     Array, Number, Object, Value,
 };
-use num::ToPrimitive;
+use num::{ToPrimitive, Zero};
 use std::{
     ops::{Bound, Range},
     rc::Rc,
 };
 
-fn try_into_isize(n: Number) -> Result<isize> {
-    n.to_isize()
-        .ok_or(QueryExecutionError::NonIndexableNumber(n))
+fn number_to_isize(n: Number) -> isize {
+    n.to_isize().unwrap_or(if n > Zero::zero() {
+        isize::MAX
+    } else {
+        isize::MIN
+    })
 }
 
 fn parse_and_shift_index<F: Fn(Value) -> QueryExecutionError>(
@@ -22,7 +25,7 @@ fn parse_and_shift_index<F: Fn(Value) -> QueryExecutionError>(
         Value::Number(i) => *i,
         value => return Err(err(value.clone())),
     };
-    let i = try_into_isize(i)?;
+    let i = number_to_isize(i);
     let idx = if i < 0 {
         let shifted = i + (array_length as isize);
         if shifted < 0 {

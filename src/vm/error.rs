@@ -19,8 +19,6 @@ pub enum QueryExecutionError {
     SliceOnNonArrayNorString(Value),
     #[error("Expected an integer but got a non-integral value `{0:?}`")]
     NonIntegralNumber(Number),
-    #[error("Expected a number convertible to isize")]
-    NonIndexableNumber(Number),
     #[error("Unary {0:?} negation was applied to non-numeric value `{1:?}`")]
     UnaryOnNonNumeric(&'static str, Value),
     #[error("Cannot {0:?} `{1:?}` and `{2:?}`")]
