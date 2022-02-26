@@ -1,4 +1,4 @@
-[![test](https://github.com/MiSawa/xq/actions/workflows/test.yml/badge.svg)](https://github.com/MiSawa/xq/actions/workflows/test.yml) [![crates.io](https://img.shields.io/crates/v/xq.svg)](https://crates.io/crates/xq)
+[![CI](https://github.com/MiSawa/xq/actions/workflows/ci.yml/badge.svg)](https://github.com/MiSawa/xq/actions/workflows/ci.yml) [![crates.io](https://img.shields.io/crates/v/xq.svg)](https://crates.io/crates/xq)
 
 # XQ
 
