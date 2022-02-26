@@ -335,6 +335,7 @@ impl State {
         })
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn push_frame(
         &mut self,
         context_frames: Option<Frames>,
@@ -767,12 +768,11 @@ fn run_code(program: &Program, state: &mut State, env: &mut Environment) -> Opti
                     env.push_fork(state, OnFork::CatchLabel(label_id), state.pc.get_next());
                 }
                 Break(label_slot) => {
-                    let label_id = state
+                    let label_id = *state
                         .label_slot(label_slot)
                         .as_ref()
                         .ok_or(ProgramError::UninitializedSlot)
-                        .unwrap()
-                        .clone();
+                        .unwrap();
                     err = Some(QueryExecutionError::Breaking(label_id));
                     continue 'backtrack;
                 }
