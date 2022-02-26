@@ -1,7 +1,7 @@
 use crate::{
     lang::ast::BinaryArithmeticOp,
     vm::{bytecode::NamedFn1, QueryExecutionError},
-    Value,
+    Number, Value,
 };
 use num::{Float, ToPrimitive, Zero};
 use std::collections::HashSet;
@@ -149,10 +149,11 @@ fn modulo(lhs: Value, rhs: Value) -> Result<Value, QueryExecutionError> {
     use Value::*;
     Ok(match (lhs, rhs) {
         (Number(lhs), Number(rhs)) => {
-            if rhs.is_zero() {
+            let rhs = number_to_i64(rhs);
+            if rhs == 0 {
                 return Err(QueryExecutionError::DivModByZero);
             }
-            Value::number(lhs % rhs)
+            Value::number(number_to_i64(lhs) % rhs)
         }
         (lhs @ (Null | Boolean(_) | Number(_) | String(_) | Array(_) | Object(_)), rhs) => {
             return Err(QueryExecutionError::IncompatibleBinaryOperator(
@@ -160,4 +161,9 @@ fn modulo(lhs: Value, rhs: Value) -> Result<Value, QueryExecutionError> {
             ));
         }
     })
+}
+
+fn number_to_i64(n: Number) -> i64 {
+    n.to_i64()
+        .unwrap_or(if n > Zero::zero() { i64::MAX } else { i64::MIN })
 }
