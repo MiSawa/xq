@@ -9,7 +9,6 @@ use super::{
     lexer::{self, Keyword, LexerError, Loc, Token},
 };
 
-#[LALR]
 grammar<'input>(input: &'input str);
 
 #[inline]
@@ -310,40 +309,42 @@ QueryAtomic: Query = {
     },
 }
 
-pub Query: Query = {
+QueryImpl: Query = {
     #[precedence(level="0")]
     QueryAtomic,
 
     #[precedence(level="2")] #[assoc(side="left")]
-    <lhs: Boxed<Query>> "*" <rhs: Boxed<Query>> => Query::Operate { operator: BinaryOp::Arithmetic(BinaryArithmeticOp::Multiply), <> },
-    <lhs: Boxed<Query>> "/" <rhs: Boxed<Query>> => Query::Operate { operator: BinaryOp::Arithmetic(BinaryArithmeticOp::Divide), <> },
-    <lhs: Boxed<Query>> "%" <rhs: Boxed<Query>> => Query::Operate { operator: BinaryOp::Arithmetic(BinaryArithmeticOp::Modulo), <> },
+    <lhs: Boxed<QueryImpl>> "*" <rhs: Boxed<QueryImpl>> => Query::Operate { operator: BinaryOp::Arithmetic(BinaryArithmeticOp::Multiply), <> },
+    <lhs: Boxed<QueryImpl>> "/" <rhs: Boxed<QueryImpl>> => Query::Operate { operator: BinaryOp::Arithmetic(BinaryArithmeticOp::Divide), <> },
+    <lhs: Boxed<QueryImpl>> "%" <rhs: Boxed<QueryImpl>> => Query::Operate { operator: BinaryOp::Arithmetic(BinaryArithmeticOp::Modulo), <> },
 
     #[precedence(level="3")] #[assoc(side="left")]
-    <lhs: Boxed<Query>> "+" <rhs: Boxed<Query>> => Query::Operate { operator: BinaryOp::Arithmetic(BinaryArithmeticOp::Add), <> },
-    <lhs: Boxed<Query>> "-" <rhs: Boxed<Query>> => Query::Operate { operator: BinaryOp::Arithmetic(BinaryArithmeticOp::Subtract), <> },
+    <lhs: Boxed<QueryImpl>> "+" <rhs: Boxed<QueryImpl>> => Query::Operate { operator: BinaryOp::Arithmetic(BinaryArithmeticOp::Add), <> },
+    <lhs: Boxed<QueryImpl>> "-" <rhs: Boxed<QueryImpl>> => Query::Operate { operator: BinaryOp::Arithmetic(BinaryArithmeticOp::Subtract), <> },
 
     #[precedence(level="4")] #[assoc(side="none")]
-    <lhs: Boxed<Query>> <comparator: Comparator> <rhs: Boxed<Query>> => Query::Compare { <> },
+    <lhs: Boxed<QueryImpl>> <comparator: Comparator> <rhs: Boxed<QueryImpl>> => Query::Compare { <> },
 
     #[precedence(level="5")] #[assoc(side="left")]
-    <lhs: Boxed<Query>> "and" <rhs: Boxed<Query>> => Query::Operate { operator: BinaryOp::And, <> },
+    <lhs: Boxed<QueryImpl>> "and" <rhs: Boxed<QueryImpl>> => Query::Operate { operator: BinaryOp::And, <> },
 
     #[precedence(level="6")] #[assoc(side="left")]
-    <lhs: Boxed<Query>> "or" <rhs: Boxed<Query>> => Query::Operate { operator: BinaryOp::Or, <> },
+    <lhs: Boxed<QueryImpl>> "or" <rhs: Boxed<QueryImpl>> => Query::Operate { operator: BinaryOp::Or, <> },
 
     #[precedence(level="7")] #[assoc(side="none")]
-    <lhs: Boxed<Query>> <operator: UpdateOp> <rhs: Boxed<Query>> => Query::Update { <> },
+    <lhs: Boxed<QueryImpl>> <operator: UpdateOp> <rhs: Boxed<QueryImpl>> => Query::Update { <> },
 
     #[precedence(level="8")] #[assoc(side="right")]
-    <lhs: Boxed<Query>> "//" <rhs: Boxed<Query>> => Query::Operate { operator: BinaryOp::Alt, <> },
+    <lhs: Boxed<QueryImpl>> "//" <rhs: Boxed<QueryImpl>> => Query::Operate { operator: BinaryOp::Alt, <> },
 
     #[precedence(level="9")] #[assoc(side="left")]
-    <lhs: Boxed<Query>> "," <rhs: Boxed<Query>> => Query::Concat { <> },
+    <lhs: Boxed<QueryImpl>> "," <rhs: Boxed<QueryImpl>> => Query::Concat { <> },
 
     #[precedence(level="10")] #[assoc(side="right")]
-    <lhs: Boxed<Query>> "|" <rhs: Boxed<Query>> => Query::Pipe { <> },
+    <lhs: Boxed<QueryImpl>> "|" <rhs: Boxed<QueryImpl>> => Query::Pipe { <> },
 }
+
+pub Query = QueryImpl;
 
 Import: Import = {
     "import" <path: ConstantString> "as" <alias: IdentifierNonKeyword> <meta: (ConstantObject)?> ";" => {
