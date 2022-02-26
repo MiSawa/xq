@@ -412,3 +412,30 @@ test!(
     0
     "#
 );
+
+test!(
+    error_against_null_backtrack,
+    r#"
+    [0, error, 1], (.x, error(null), .y) = 1
+    "#,
+    r#"
+    null
+    "#,
+    r#"
+    [0,1]
+    {"x":1,"y":1}
+    "#
+);
+
+test!(
+    try_catch_value,
+    r#"
+    try error({ x: 0 }) catch .
+    "#,
+    r#"
+    null
+    "#,
+    r#"
+    {"x":0}
+    "#
+);

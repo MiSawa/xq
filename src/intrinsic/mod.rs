@@ -109,13 +109,7 @@ pub(crate) fn truthy(value: Value) -> bool {
 }
 
 fn error(value: Value) -> Result<Value> {
-    match value {
-        Value::String(s) => Err(QueryExecutionError::UserDefinedError((*s).clone())),
-        value => Err(QueryExecutionError::UserDefinedError(format!(
-            "{:?}",
-            value
-        ))),
-    }
+    return Err(QueryExecutionError::UserDefinedError(value));
 }
 
 fn error1(_: Value, arg: Value) -> Result<Value> {

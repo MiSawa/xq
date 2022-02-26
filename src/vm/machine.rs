@@ -471,9 +471,9 @@ fn run_code(program: &Program, state: &mut State, env: &mut Environment) -> Opti
                     if catch_skip == 0 {
                         match err.take() {
                             None => continue 'select_fork,
-                            Some(QueryExecutionError::UserDefinedError(s)) => {
+                            Some(QueryExecutionError::UserDefinedError(v)) => {
                                 state.undo(token);
-                                state.push(Value::string(s));
+                                state.push(v);
                                 break 'select_fork state.save();
                             }
                             Some(e) => {
@@ -828,6 +828,9 @@ fn run_code(program: &Program, state: &mut State, env: &mut Environment) -> Opti
                     log::trace!("Calling function {} with context {:?}", name, context);
                     match func(context) {
                         Ok(value) => state.push(value),
+                        Err(QueryExecutionError::UserDefinedError(Value::Null)) => {
+                            continue 'backtrack
+                        }
                         Err(e) => err = Some(e),
                     }
                 }
@@ -842,6 +845,9 @@ fn run_code(program: &Program, state: &mut State, env: &mut Environment) -> Opti
                     );
                     match func(context, arg1) {
                         Ok(value) => state.push(value),
+                        Err(QueryExecutionError::UserDefinedError(Value::Null)) => {
+                            continue 'backtrack
+                        }
                         Err(e) => err = Some(e),
                     }
                 }
