@@ -64,5 +64,5 @@ pub enum QueryExecutionError {
     #[error("Unable to parse date time")]
     InvalidDateTimeString(#[from] chrono::format::ParseError),
     #[error("{0:?}")]
-    UserDefinedError(String),
+    UserDefinedError(Value),
 }
