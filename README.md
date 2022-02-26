@@ -74,16 +74,11 @@ if you've installed via `cargo install`. Also remove the cloned directory if you
 
 
 ## Pubilsh new version
-Note for myself. TL;DR: Bump the version, reflect it to the lock file, commit changes and `cargo publish`.
+Note for myself.
 ```shell
 $ git swithc master                 # make sure you're on the master branch
-$ cargo set-version --bump patch    # or just edit Cargo.toml to bump the version
-$ cargo build                       # to generate Cargo.lock
-$ git commit -am "Bump version"     # so that there's no uncommited changes
-$ git tag v0.2.x                    # just in case...
-$ git push
-$ git push --tags
-$ cargo publish
+$ cargo release patch               # to dry-run the release
+$ cargo release patch --execute           # to actually execute the release
 ```
 
 
