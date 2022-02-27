@@ -1,6 +1,7 @@
 use crate::test;
 
 mod assignments;
+mod math;
 
 test!(
     recursive,
