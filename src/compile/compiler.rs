@@ -252,7 +252,9 @@ impl Scope {
     }
 
     fn require_slot(&self) -> bool {
-        self.next_variable_slot_id > 0 || self.next_closure_slot_id > 0 || self.next_label_slot_id > 0
+        self.next_variable_slot_id > 0
+            || self.next_closure_slot_id > 0
+            || self.next_label_slot_id > 0
     }
 
     fn has_slot_leaked_scope(&self) -> bool {

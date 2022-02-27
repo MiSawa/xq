@@ -533,3 +533,56 @@ test!(
     -6
     "#
 );
+
+test!(
+    delete1,
+    r#"
+    [1,2,3] | (del(.[1:2][0]), del(.[1:2][1], .[1]))
+    "#,
+    r#"
+    null
+    "#,
+    r#"
+    [1,3]
+    [1,3]
+    "#
+);
+
+test!(
+    delete2,
+    r#"
+    {x:[1]} | del(.x[0],.x)
+    "#,
+    r#"
+    null
+    "#,
+    r#"
+    {}
+    "#
+);
+
+test!(
+    delete3,
+    r#"
+    try ({x:[1]} | del(.x.y, .x[0], .x)) catch "err"
+    "#,
+    r#"
+    null
+    "#,
+    r#"
+    "err"
+    "#
+);
+
+test!(
+    delete4,
+    r#"
+    try ({x:[1]} | del(.x[0], .x.y, .x)) catch "err"
+    "#,
+    r#"
+    null
+    "#,
+    r#"
+    "err"
+    "#
+);
