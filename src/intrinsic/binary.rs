@@ -1,4 +1,5 @@
 use crate::{
+    intrinsic::string,
     lang::ast::BinaryArithmeticOp,
     vm::{bytecode::NamedFn1, QueryExecutionError},
     Number, Value,
@@ -126,17 +127,7 @@ fn divide(lhs: Value, rhs: Value) -> Result<Value, QueryExecutionError> {
             }
             Value::number(lhs / rhs)
         }
-        (String(lhs), String(rhs)) if rhs.is_empty() => lhs
-            .chars()
-            .map(|c| c.to_string().into())
-            .collect::<crate::Array>()
-            .into(),
-        (String(lhs), String(rhs)) => lhs
-            .split(&*rhs)
-            .into_iter()
-            .map(|s| s.to_string().into())
-            .collect::<crate::Array>()
-            .into(),
+        (String(lhs), String(rhs)) => string::split(lhs.as_ref(), rhs.as_ref()),
         (lhs @ (Null | Boolean(_) | Number(_) | String(_) | Array(_) | Object(_)), rhs) => {
             return Err(QueryExecutionError::IncompatibleBinaryOperator(
                 "divide", lhs, rhs,
