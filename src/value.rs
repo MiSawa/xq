@@ -1,6 +1,7 @@
 use crate::Number;
 use derive_more::{DebugCustom, Display, Index, IndexMut, IntoIterator, IsVariant, Unwrap};
 use itertools::Itertools;
+use num::Float;
 use serde::{
     de::{Error, MapAccess, SeqAccess, Visitor},
     ser::{SerializeMap, SerializeSeq},
@@ -273,7 +274,17 @@ impl Serialize for Value {
         match self {
             Value::Null => serializer.serialize_none(),
             Value::Boolean(v) => serializer.serialize_bool(*v),
-            Value::Number(v) => v.serialize(serializer),
+            Value::Number(v) => {
+                if v.is_finite() {
+                    v.serialize(serializer)
+                } else if v.is_nan() {
+                    serializer.serialize_none()
+                } else if v.is_sign_negative() {
+                    serializer.serialize_f64(f64::MIN)
+                } else {
+                    serializer.serialize_f64(f64::MAX)
+                }
+            }
             Value::String(s) => serializer.serialize_str(s),
             Value::Array(arr) => {
                 let mut seq = serializer.serialize_seq(Some(arr.len()))?;
