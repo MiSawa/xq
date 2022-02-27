@@ -75,6 +75,21 @@ pub(crate) fn explode(value: Value) -> Result<Value> {
     }
 }
 
+pub(crate) fn split(lhs: &String, rhs: &String) -> Value {
+    if rhs.is_empty() {
+        lhs.chars()
+            .map(|c| c.to_string().into())
+            .collect::<Array>()
+            .into()
+    } else {
+        lhs.split(&*rhs)
+            .into_iter()
+            .map(|s| s.to_string().into())
+            .collect::<Array>()
+            .into()
+    }
+}
+
 pub(crate) fn implode(value: Value) -> Result<Value> {
     match value {
         Value::Array(s) => {

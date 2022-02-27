@@ -80,6 +80,7 @@ static INTRINSICS1: phf::Map<&'static str, NamedFn1> = phf_map! {
     "indices" => NamedFn1 { name: "indices", func: indices },
     "startswith" => NamedFn1 { name: "startswith", func: starts_with },
     "endswith" => NamedFn1 { name: "endswith", func: ends_with },
+    "split" => NamedFn1 { name: "split", func: split1 },
     "delpaths" => NamedFn1 { name: "delpaths", func: path::del_paths },
     "bsearch" => NamedFn1 { name: "bsearch", func: binary_search },
 
@@ -302,10 +303,18 @@ fn starts_with(context: Value, s: Value) -> Result<Value> {
         (context, _) => Err(QueryExecutionError::InvalidArgType("startswith", context)),
     }
 }
+
 fn ends_with(context: Value, s: Value) -> Result<Value> {
     match (context, s) {
         (Value::String(lhs), Value::String(rhs)) => Ok(lhs.ends_with(rhs.as_ref()).into()),
         (context, _) => Err(QueryExecutionError::InvalidArgType("endswith", context)),
+    }
+}
+
+fn split1(context: Value, s: Value) -> Result<Value> {
+    match (context, s) {
+        (Value::String(lhs), Value::String(rhs)) => Ok(string::split(lhs.as_ref(), rhs.as_ref())),
+        (context, _) => Err(QueryExecutionError::InvalidArgType("split", context)),
     }
 }
 
