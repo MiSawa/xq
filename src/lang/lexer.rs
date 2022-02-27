@@ -412,6 +412,7 @@ lexer! {
     type Error = LexicalError;
 
     let ws = [' ' '\t' '\n'] | "\r\n";
+    let comment = '#' (_ # ['\r' '\n'])*;
     let ident_start = ['a'-'z' 'A'-'Z' '_'];
     let digit = ['0'-'9'];
     let hex_digit = $digit | ['a'-'f' 'A'-'F'];
@@ -419,6 +420,7 @@ lexer! {
 
     rule Init {
         $ws,
+        $comment,
         '+' = Token::Plus,
         '-' = Token::Minus,
         '*' = Token::Star,
@@ -640,6 +642,26 @@ mod test {
                 Token::Number(1.5.into()),
                 Token::Number(0.2.into()),
                 Token::Number(0.03.into()),
+            ],
+        );
+    }
+
+    #[test]
+    fn test_comment() {
+        assert_lex(
+            r#""\(
+            1# This
+            + # is
+            2  #
+            )"  # comment"#,
+            &[
+                Token::StringStart,
+                Token::InterpolationStart,
+                Token::Number(1.into()),
+                Token::Plus,
+                Token::Number(2.into()),
+                Token::InterpolationEnd,
+                Token::StringEnd,
             ],
         );
     }
