@@ -36,10 +36,14 @@ pub(crate) fn is_finite(v: Number) -> Result<bool> {
     Ok(v.is_finite())
 }
 
-pub(crate) fn floor(v: Number) -> Result<Number> {
-    Ok(v.floor())
+macro_rules! pub_math_fn {
+    ($($name: ident),*) => {
+        $(
+            pub(crate) fn $name(v: Number) -> Result<Number> {
+                Ok(v.$name())
+            }
+        )*
+    };
 }
 
-pub(crate) fn sqrt(v: Number) -> Result<Number> {
-    Ok(v.sqrt())
-}
+pub_math_fn!(floor, sqrt, sin, cos, tan, asin, acos, atan, sinh, cosh, tanh, asinh, acosh, atanh);
