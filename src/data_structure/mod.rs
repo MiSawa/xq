@@ -2,8 +2,8 @@ pub mod undo;
 
 use std::{borrow::Borrow, rc::Rc};
 
-pub type PVector<T> = im_rc::Vector<T>;
-pub type PHashMap<K, V> = im_rc::HashMap<K, V>;
+pub type PVector<T> = imbl::Vector<T>;
+pub type PHashMap<K, V> = imbl::HashMap<K, V>;
 
 #[derive(Clone, Debug)]
 pub(crate) struct PStack<T, B = [T; 32]> {
