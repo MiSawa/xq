@@ -33,7 +33,24 @@ pub(crate) fn del_paths(context: Value, paths: Value) -> Result<Value> {
                     v => return Err(QueryExecutionError::PathNotArray(v.clone())),
                 }
             }
-            paths.sort_by_key(|p| p.len());
+            fn depth(path: &[Value]) -> usize {
+                // Indexing or slicing preceded by a slicing doesn't increment the depth of the
+                // values that it going to delete.
+                // To calculate the depth, we can count non-slicing indexings, and increment
+                // if the last component was a slicing.
+                let non_slice_len = path
+                    .iter()
+                    .filter(|i| !matches!(i, Value::Object(_)))
+                    .count();
+                let last_slice = path
+                    .last()
+                    .filter(|i| matches!(i, Value::Object(_)))
+                    .map(|_| 1)
+                    .unwrap_or(0);
+                non_slice_len + last_slice
+            }
+            // We delete from deeper ones so we can raise errors.
+            paths.sort_by_key(|p| std::cmp::Reverse(depth(p)));
             let mut value = context.clone();
             for path in paths {
                 value =
