@@ -32,8 +32,8 @@ pub(crate) fn is_normal(v: Number) -> Result<bool> {
     Ok(v.is_normal())
 }
 
-pub(crate) fn is_finite(v: Number) -> Result<bool> {
-    Ok(v.is_finite())
+pub(crate) fn is_infinite(v: Number) -> Result<bool> {
+    Ok(v.is_infinite())
 }
 
 macro_rules! pub_math_fn {

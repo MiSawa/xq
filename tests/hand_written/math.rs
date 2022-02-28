@@ -1,6 +1,22 @@
 use crate::test;
 
 test!(
+    isfinite_isinfinite,
+    r#"
+    0, nan, infinite, -infinite | [isfinite, isinfinite]
+    "#,
+    r#"
+    null
+    "#,
+    r#"
+    [true,false]
+    [true,false]
+    [false,true]
+    [false,true]
+    "#
+);
+
+test!(
     trigonometric_functions,
     r#"
     map(sin), map(cos), map(tan) | map(. * 1000000000 | floor / 1000000000)
