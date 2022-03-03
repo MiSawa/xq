@@ -218,8 +218,13 @@ fn tsv(value: Value) -> Result<Value> {
 }
 
 fn sh(value: Value) -> Result<Value> {
-    let s = stringify_inner(value);
-    let ret = shell_escape::escape(Cow::from(make_owned(s))).to_string();
+    let escape = |value: Value| {
+        shell_escape::escape(Cow::from(make_owned(stringify_inner(value)))).to_string()
+    };
+    let ret = match value {
+        Value::Array(arr) => arr.iter().map(|value| escape(value.clone())).join(" "),
+        _ => escape(value),
+    };
     Ok(ret.into())
 }
 
