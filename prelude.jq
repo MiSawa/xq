@@ -84,7 +84,7 @@ def combinations($n): [limit($n; repeat(.))] | combinations;
 def ltrimstr($s): if startswith($s) then .[($s | length):] else . end;
 def rtrimstr($s): if endswith($s) then .[:-($s | length)] else . end;
 
-def join($sep): def stringify: label $out | ((nulls | ("", break $out)), ((booleans, numbers, strings) | (tostring, break $out)), error("Unsupported element \(.) on join")); if length == 0 then "" else reduce (.[1:][] | stringify) as $e (.[0] | stringify; . + $sep + $e) end;
+def join($sep): if length == 0 then "" else reduce .[] as $e (null; (if . == null then "" else . + $sep end) + ($e | if . == null then "" elif type | . == "boolean" or . == "number" or . == "string" then tostring else error("Unsupported element \(.) on join") end)) end;
 def ascii_downcase: explode | map(if . >= 65 and . <= 90 then .+32 end) | implode;
 def ascii_upcase: explode | map(if . >= 97 and . <= 122 then .-32 end) | implode;
 
