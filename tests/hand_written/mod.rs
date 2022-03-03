@@ -167,6 +167,22 @@ test!(
 );
 
 test!(
+    join,
+    r#"
+    ([], {}, [0,null,false,true,"abc"], {a:0,b:null,c:false,d:true,e:"abc"}) | join(",")
+    "#,
+    r#"
+    null
+    "#,
+    r#"
+    ""
+    ""
+    "0,,false,true,abc"
+    "0,,false,true,abc"
+    "#
+);
+
+test!(
     limit_infinite_stream,
     r#"
     limit(3; repeat(0))
