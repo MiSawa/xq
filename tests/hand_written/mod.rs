@@ -586,3 +586,18 @@ test!(
     "err"
     "#
 );
+
+test!(
+    string_format_sh,
+    r#"
+    @sh "\(0, "a b c", [0,null,true,"a b c"])"
+    "#,
+    r#"
+    null
+    "#,
+    r#"
+    "0"
+    "'a b c'"
+    "0 null true 'a b c'"
+    "#
+);
