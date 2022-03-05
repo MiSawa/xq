@@ -617,3 +617,21 @@ test!(
     "0 null true 'a b c'"
     "#
 );
+
+test!(
+    format,
+    r#"
+    format("html", "uri", "csv", "tsv", "sh", "base64")
+    "#,
+    r#"
+    [1,2,3]
+    "#,
+    r#"
+    "[1,2,3]"
+    "%5B1%2C2%2C3%5D"
+    "1,2,3"
+    "1\t2\t3"
+    "1 2 3"
+    "WzEsMiwzXQ=="
+    "#
+);

@@ -1195,7 +1195,7 @@ impl Compiler {
                 self.lookup_and_compile_func_call(name.clone(), args, next)?
             }
             Term::Format(format, str) => {
-                let stringifier = intrinsic::stringifier(format)
+                let stringifier = intrinsic::stringifier(&format.0)
                     .ok_or_else(|| CompileError::UnknownStringFormatter(format.clone()))?;
                 match str {
                     Some(s) => self.compile_string(

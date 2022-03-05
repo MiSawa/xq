@@ -83,6 +83,7 @@ static INTRINSICS1: phf::Map<&'static str, NamedFn1> = phf_map! {
     "split" => NamedFn1 { name: "split", func: split1 },
     "delpaths" => NamedFn1 { name: "delpaths", func: path::del_paths },
     "bsearch" => NamedFn1 { name: "bsearch", func: binary_search },
+    "format" => NamedFn1 { name: "format", func: format },
 
     "strftime" => NamedFn1 { name: "strftime", func: time::format_time },
     "strptime" => NamedFn1 { name: "strptime", func: time::parse_time },
@@ -325,5 +326,14 @@ fn binary_search(context: Value, x: Value) -> Result<Value> {
             Err(i) => Value::number(-1 - (i as isize)),
         }),
         _ => Err(QueryExecutionError::InvalidArgType("bsearch", context)),
+    }
+}
+
+fn format(context: Value, s: Value) -> Result<Value> {
+    match (context, s) {
+        (lhs, Value::String(fmt)) => (stringifier(&fmt)
+            .ok_or_else(|| QueryExecutionError::UnknownStringFormatter(fmt))?
+            .func)(lhs),
+        (_, s) => Err(QueryExecutionError::InvalidArgType("format", s)),
     }
 }
