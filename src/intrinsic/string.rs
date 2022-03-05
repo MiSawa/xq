@@ -1,5 +1,4 @@
 use crate::{
-    lang::ast::Identifier,
     util::make_owned,
     vm::{bytecode::NamedFn0, QueryExecutionError, Result},
     Array, Number, Value,
@@ -20,8 +19,8 @@ pub(crate) fn to_number(value: Value) -> Result<Value> {
     }
 }
 
-pub(crate) fn stringifier(id: &Identifier) -> Option<NamedFn0> {
-    match id.0.as_str() {
+pub(crate) fn stringifier(fmt: &String) -> Option<NamedFn0> {
+    match fmt.as_str() {
         "text" => NamedFn0 {
             name: "text",
             func: text,
