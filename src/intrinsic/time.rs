@@ -73,23 +73,26 @@ fn try_array_to_time<TZ: TimeZone>(tz: &TZ, value: &Value) -> Option<DateTime<TZ
 }
 
 pub(crate) fn format_time(context: Value, format: Value) -> Result<Value> {
-    let timestamp = try_unwrap_number(&context)
+    let dt = try_unwrap_number(&context)
+        .map(|timestamp| timestamp_to_time(&Utc, timestamp))
+        .or_else(|| try_array_to_time(&Utc, &context))
         .ok_or(QueryExecutionError::InvalidArgType("strftime", context))?;
     let format = try_unwrap_string(&format)
         .ok_or(QueryExecutionError::InvalidArgType("strftime", format))?;
-    let dt = timestamp_to_time(&Utc, timestamp);
     let s = format!("{}", dt.format(format.as_ref()));
     Ok(Value::string(s))
 }
 
 pub(crate) fn format_time_local(context: Value, format: Value) -> Result<Value> {
-    let timestamp = try_unwrap_number(&context).ok_or(QueryExecutionError::InvalidArgType(
-        "strflocaltime",
-        context,
-    ))?;
+    let dt = try_unwrap_number(&context)
+        .map(|timestamp| timestamp_to_time(&Local, timestamp))
+        .or_else(|| try_array_to_time(&Local, &context))
+        .ok_or(QueryExecutionError::InvalidArgType(
+            "strflocaltime",
+            context,
+        ))?;
     let format = try_unwrap_string(&format)
         .ok_or(QueryExecutionError::InvalidArgType("strflocaltime", format))?;
-    let dt = timestamp_to_time(&Local, timestamp);
     let s = format!("{}", dt.format(format.as_ref()));
     Ok(Value::string(s))
 }

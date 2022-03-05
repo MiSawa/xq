@@ -635,3 +635,16 @@ test!(
     "WzEsMiwzXQ=="
     "#
 );
+
+test!(
+    strptime_strftime,
+    r#"
+    strptime("%FT%TZ") | strftime("%c")
+    "#,
+    r#"
+    "2015-03-05T23:51:47Z"
+    "#,
+    r#"
+    "Thu Mar  5 23:51:47 2015"
+    "#
+);
