@@ -19,8 +19,8 @@ pub(crate) fn to_number(value: Value) -> Result<Value> {
     }
 }
 
-pub(crate) fn stringifier(fmt: &String) -> Option<NamedFn0> {
-    match fmt.as_str() {
+pub(crate) fn stringifier(fmt: &str) -> Option<NamedFn0> {
+    match fmt {
         "text" => NamedFn0 {
             name: "text",
             func: text,
@@ -97,7 +97,7 @@ pub(crate) fn implode(value: Value) -> Result<Value> {
     }
 }
 
-pub(crate) fn split(lhs: &String, rhs: &String) -> Value {
+pub(crate) fn split(lhs: &str, rhs: &str) -> Value {
     if rhs.is_empty() {
         lhs.chars()
             .map(|c| c.to_string().into())

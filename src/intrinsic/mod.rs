@@ -125,7 +125,7 @@ pub(crate) fn truthy(value: Value) -> bool {
 }
 
 fn error(value: Value) -> Result<Value> {
-    return Err(QueryExecutionError::UserDefinedError(value));
+    Err(QueryExecutionError::UserDefinedError(value))
 }
 
 fn error1(_: Value, arg: Value) -> Result<Value> {
@@ -362,7 +362,7 @@ fn binary_search(context: Value, x: Value) -> Result<Value> {
 fn format(context: Value, s: Value) -> Result<Value> {
     match (context, s) {
         (lhs, Value::String(fmt)) => (stringifier(&fmt)
-            .ok_or_else(|| QueryExecutionError::UnknownStringFormatter(fmt))?
+            .ok_or(QueryExecutionError::UnknownStringFormatter(fmt))?
             .func)(lhs),
         (_, s) => Err(QueryExecutionError::InvalidArgType("format", s)),
     }
