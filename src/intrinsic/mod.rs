@@ -37,6 +37,8 @@ static INTRINSICS0: phf::Map<&'static str, NamedFn0> = phf_map! {
     "type" => NamedFn0 { name: "type", func: get_type },
     "length" => NamedFn0 { name: "length", func: length },
     "utf8bytelength" => NamedFn0 { name: "utf8bytelength", func: utf8_byte_length },
+    "keys_unsorted" =>  NamedFn0 { name: "keys_unsorted", func: keys_unsorted },
+    "keys" =>  NamedFn0 { name: "keys", func: keys },
     "sort" => NamedFn0 { name: "sort", func: sort },
     "reverse" => NamedFn0 { name: "reverse", func: reverse },
     "tostring" => NamedFn0 { name: "tostring", func: text },
@@ -157,6 +159,40 @@ fn utf8_byte_length(context: Value) -> Result<Value> {
     match context {
         Value::String(s) => Ok(Value::number(s.len())),
         _ => Err(QueryExecutionError::InvalidUTF8ByteLength(context)),
+    }
+}
+
+fn keys_unsorted(context: Value) -> Result<Value> {
+    match context {
+        Value::Array(arr) => Ok((0..arr.len())
+            .map(|i| Value::number(i))
+            .collect::<Array>()
+            .into()),
+        Value::Object(obj) => Ok(obj
+            .keys()
+            .map(|k| k.to_string().into())
+            .collect::<Array>()
+            .into()),
+        _ => Err(QueryExecutionError::InvalidArgType(
+            "keys_unsorted",
+            context,
+        )),
+    }
+}
+
+fn keys(context: Value) -> Result<Value> {
+    match context {
+        Value::Array(arr) => Ok((0..arr.len())
+            .map(|i| Value::number(i))
+            .collect::<Array>()
+            .into()),
+        Value::Object(obj) => Ok(obj
+            .keys()
+            .sorted()
+            .map(|k| k.to_string().into())
+            .collect::<Array>()
+            .into()),
+        _ => Err(QueryExecutionError::InvalidArgType("keys", context)),
     }
 }
 
