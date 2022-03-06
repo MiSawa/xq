@@ -1,3 +1,5 @@
+use std::rc::Rc;
+
 use crate::{value::RcString, vm::machine::LabelId, Number, Value};
 use thiserror::Error;
 
@@ -62,7 +64,39 @@ pub enum QueryExecutionError {
     #[error("Unknown string formatter `{0:?}`")]
     UnknownStringFormatter(RcString),
     #[error("Unable to parse date time")]
-    InvalidDateTimeString(#[from] chrono::format::ParseError),
+    DateTimeParseError(RcString),
+    #[error("Unable to format date time")]
+    DateTimeFormatError(RcString),
+    #[error("Invalid date time")]
+    InvalidDateTime(#[from] time::error::ComponentRange),
+    #[error("Unable to determine local date time offset")]
+    IndeterminateOffset(#[from] time::error::IndeterminateOffset),
+    #[error("Unable to determine local time zone")]
+    TimeZoneLookupFailure(RcString),
     #[error("{0:?}")]
     UserDefinedError(Value),
+}
+
+impl From<time_fmt::parse::ParseError> for QueryExecutionError {
+    fn from(e: time_fmt::parse::ParseError) -> Self {
+        Self::DateTimeParseError(Rc::new(format!("{}", e)))
+    }
+}
+
+impl From<time_fmt::format::FormatError> for QueryExecutionError {
+    fn from(e: time_fmt::format::FormatError) -> Self {
+        Self::DateTimeParseError(Rc::new(format!("{}", e)))
+    }
+}
+
+impl From<time::error::Parse> for QueryExecutionError {
+    fn from(e: time::error::Parse) -> Self {
+        Self::DateTimeParseError(Rc::new(format!("{}", e)))
+    }
+}
+
+impl From<time_tz::system::Error> for QueryExecutionError {
+    fn from(e: time_tz::system::Error) -> Self {
+        Self::TimeZoneLookupFailure(Rc::new(format!("{}", e)))
+    }
 }

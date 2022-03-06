@@ -87,7 +87,6 @@ def ascii_upcase: explode | map(if . >= 97 and . <= 122 then .-32 end) | implode
 
 def transpose: . as $dot | [range(max_by(length) | length) as $i | $dot | map(.[$i])];
 
-def fromdateiso8601: strptime("%+") | mktime;
 def todateiso8601: strftime("%Y-%m-%dT%H:%M:%SZ");
 def fromdate: fromdateiso8601;
 def todate: todateiso8601;
