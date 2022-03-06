@@ -52,6 +52,7 @@ static INTRINSICS0: phf::Map<&'static str, NamedFn0> = phf_map! {
     "localtime" => NamedFn0 { name: "localtime", func: time::gm_time_local },
     "mktime" => NamedFn0 { name: "mktime", func: time::mk_time },
     "now" => NamedFn0 { name: "now", func: time::now },
+    "fromdateiso8601" => NamedFn0 { name: "fromdateiso8601", func: time::fromdateiso8601 },
 
     "nan" => NamedFn0 { name: "nan", func: math::nan },
     "infinite" => NamedFn0 { name: "infinite", func: math::infinite },

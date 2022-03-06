@@ -4,8 +4,10 @@ use crate::{
     vm::{QueryExecutionError, Result},
     Array, Value,
 };
-use chrono::{DateTime, Datelike, Local, TimeZone, Timelike, Utc};
 use std::rc::Rc;
+use time::{Date, Month, OffsetDateTime, PrimitiveDateTime, Time, UtcOffset};
+use time_fmt::{format::format_offset_date_time_in_zone, parse::parse_date_time_maybe_with_zone};
+use time_tz::{system::get_timezone, timezones::db};
 
 fn try_unwrap_number(value: &Value) -> Option<PrimitiveReal> {
     match value {
@@ -28,32 +30,34 @@ fn try_unwrap_array(value: &Value) -> Option<Rc<Array>> {
     }
 }
 
-fn timestamp_to_time<TZ: TimeZone>(tz: &TZ, timestamp: PrimitiveReal) -> DateTime<TZ> {
-    let seconds = timestamp.div_euclid(1.0) as i64;
-    let nanos = (timestamp.rem_euclid(1.0) * 1e9) as u32;
-    tz.timestamp(seconds, nanos)
+fn timestamp_to_time(timestamp: PrimitiveReal) -> Result<OffsetDateTime> {
+    let seconds = timestamp.div_euclid(1.0) as i128;
+    let nanos = (timestamp.rem_euclid(1.0) * 1e9) as i128;
+    Ok(OffsetDateTime::from_unix_timestamp_nanos(
+        seconds * (1e9 as i128) + nanos,
+    )?)
 }
 
-fn time_to_timestamp<TZ: TimeZone>(dt: &DateTime<TZ>) -> Value {
-    let nanos = dt.timestamp_nanos();
+fn time_to_timestamp(dt: &OffsetDateTime) -> Value {
+    let nanos = dt.unix_timestamp_nanos();
     Value::number((nanos as PrimitiveReal) / 1e9)
 }
 
-fn time_to_array<DT: Datelike + Timelike>(dt: &DT) -> Value {
+fn time_to_array(dt: &OffsetDateTime) -> Value {
     let v = vec![
         Value::number(dt.year()),
-        Value::number(dt.month0()),
+        Value::number(u8::from(dt.month()) - 1),
         Value::number(dt.day()),
         Value::number(dt.hour()),
         Value::number(dt.minute()),
         Value::number(dt.second() as PrimitiveReal + (dt.nanosecond() as PrimitiveReal) / 1e9),
-        Value::number(dt.weekday().num_days_from_sunday()),
-        Value::number(dt.ordinal0()),
+        Value::number(dt.weekday().number_days_from_sunday()),
+        Value::number(dt.ordinal() - 1),
     ];
     Array::from_vec(v).into()
 }
 
-fn try_array_to_time<TZ: TimeZone>(tz: &TZ, value: &Value) -> Option<DateTime<TZ>> {
+fn try_array_to_time(value: &Value) -> Option<Result<PrimitiveDateTime>> {
     let arr = try_unwrap_array(value)?;
     let year = try_unwrap_number(arr.get(0)?)?;
     let month0 = try_unwrap_number(arr.get(1)?)?;
@@ -61,39 +65,50 @@ fn try_array_to_time<TZ: TimeZone>(tz: &TZ, value: &Value) -> Option<DateTime<TZ
     let hour = try_unwrap_number(arr.get(3)?)?;
     let minute = try_unwrap_number(arr.get(4)?)?;
     let second = try_unwrap_number(arr.get(5)?)?;
-    Some(
-        tz.ymd(year as i32, month0 as u32 + 1, day as u32)
-            .and_hms_nano(
-                hour as u32,
-                minute as u32,
-                second.div_euclid(1.0) as u32,
+    Some((|| -> Result<PrimitiveDateTime> {
+        Ok(PrimitiveDateTime::new(
+            Date::from_calendar_date(year as i32, Month::try_from(month0 as u8 + 1)?, day as u8)?,
+            Time::from_hms_nano(
+                hour as u8,
+                minute as u8,
+                second.div_euclid(1.0) as u8,
                 (second.rem_euclid(1.0) * 1e9) as u32,
-            ),
-    )
+            )?,
+        ))
+    })())
 }
 
 pub(crate) fn format_time(context: Value, format: Value) -> Result<Value> {
     let dt = try_unwrap_number(&context)
-        .map(|timestamp| timestamp_to_time(&Utc, timestamp))
-        .or_else(|| try_array_to_time(&Utc, &context))
-        .ok_or(QueryExecutionError::InvalidArgType("strftime", context))?;
+        .map(timestamp_to_time)
+        .or_else(|| try_array_to_time(&context).map(|r| r.map(PrimitiveDateTime::assume_utc)))
+        .ok_or(QueryExecutionError::InvalidArgType("strftime", context))??;
     let format = try_unwrap_string(&format)
         .ok_or(QueryExecutionError::InvalidArgType("strftime", format))?;
-    let s = format!("{}", dt.format(format.as_ref()));
+    let s = format_offset_date_time_in_zone(format.as_ref(), dt, db::UTC)?;
     Ok(Value::string(s))
 }
 
 pub(crate) fn format_time_local(context: Value, format: Value) -> Result<Value> {
     let dt = try_unwrap_number(&context)
-        .map(|timestamp| timestamp_to_time(&Local, timestamp))
-        .or_else(|| try_array_to_time(&Local, &context))
+        .map(timestamp_to_time)
+        .or_else(|| {
+            try_array_to_time(&context).map(|r| {
+                r.and_then(|dt| {
+                    // This is not right. e.g. daylight saving time...
+                    // But there's no way to do this right actually.
+                    let offset = UtcOffset::local_offset_at(dt.assume_utc())?;
+                    Ok(dt.assume_offset(offset))
+                })
+            })
+        })
         .ok_or(QueryExecutionError::InvalidArgType(
             "strflocaltime",
             context,
-        ))?;
+        ))??;
     let format = try_unwrap_string(&format)
         .ok_or(QueryExecutionError::InvalidArgType("strflocaltime", format))?;
-    let s = format!("{}", dt.format(format.as_ref()));
+    let s = format_offset_date_time_in_zone(format.as_ref(), dt, get_timezone()?)?;
     Ok(Value::string(s))
 }
 
@@ -102,31 +117,47 @@ pub(crate) fn parse_time(context: Value, format: Value) -> Result<Value> {
         .ok_or(QueryExecutionError::InvalidArgType("strptime", context))?;
     let format = try_unwrap_string(&format)
         .ok_or(QueryExecutionError::InvalidArgType("strptime", format))?;
-    let dt = chrono::NaiveDateTime::parse_from_str(time.as_ref(), format.as_ref())?;
+    let dt = parse_date_time_maybe_with_zone(format.as_ref(), time.as_ref())?
+        .0
+        .assume_utc();
     Ok(time_to_array(&dt))
+}
+
+pub(crate) fn fromdateiso8601(context: Value) -> Result<Value> {
+    let time = try_unwrap_string(&context).ok_or(QueryExecutionError::InvalidArgType(
+        "fromdateiso8601",
+        context,
+    ))?;
+    let dt = OffsetDateTime::parse(
+        time.as_ref(),
+        &time::format_description::well_known::Rfc3339,
+    )?;
+    Ok(time_to_timestamp(&dt))
 }
 
 pub(crate) fn gm_time(context: Value) -> Result<Value> {
     let timestamp = try_unwrap_number(&context)
         .ok_or(QueryExecutionError::InvalidArgType("gmtime", context))?;
-    let dt = timestamp_to_time(&Utc, timestamp);
+    let dt = timestamp_to_time(timestamp)?;
     Ok(time_to_array(&dt))
 }
 
 pub(crate) fn gm_time_local(context: Value) -> Result<Value> {
     let timestamp = try_unwrap_number(&context)
         .ok_or(QueryExecutionError::InvalidArgType("localtime", context))?;
-    let dt = timestamp_to_time(&Local, timestamp);
+    let dt = timestamp_to_time(timestamp)?;
+    let dt = dt.to_offset(UtcOffset::local_offset_at(dt)?);
     Ok(time_to_array(&dt))
 }
 
 pub(crate) fn mk_time(context: Value) -> Result<Value> {
-    let dt = try_array_to_time(&Utc, &context)
-        .ok_or(QueryExecutionError::InvalidArgType("mktime", context))?;
+    let dt = try_array_to_time(&context)
+        .ok_or(QueryExecutionError::InvalidArgType("mktime", context))??
+        .assume_utc();
     Ok(time_to_timestamp(&dt))
 }
 
 pub(crate) fn now(_: Value) -> Result<Value> {
-    let now = Utc::now();
+    let now = OffsetDateTime::now_utc();
     Ok(time_to_timestamp(&now))
 }
