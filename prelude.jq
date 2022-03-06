@@ -61,9 +61,9 @@ def all(g; f): isempty(g | select(f | not));
 def all(f): all(.[]; f);
 def all: all(.);
 
-def sort_by(f): map([f, .]) | sort | map(.[1]);
-def min_by(f): def __yes_i_know_this_is_bad:.; sort_by(f)[0];
-def max_by(f): def __yes_i_know_this_is_bad:.; sort_by(f)[-1];
+def sort_by(f): [keys[] as $i | [[.[$i] | f], $i, .[$i]]] | sort | map(.[2]);
+def min_by(f): reduce (.[] | [[f], .]) as [$cmp, $val] (null; if . == null or .[0] >  $cmp then [$cmp, $val] end) | .[1];
+def max_by(f): reduce (.[] | [[f], .]) as [$cmp, $val] (null; if . == null or .[0] <= $cmp then [$cmp, $val] end) | .[1];
 def min: min_by(.);
 def max: max_by(.);
 def unique_by(f): def __yes_i_know_this_is_bad:.; [group_by(f)[] | .[0]];
