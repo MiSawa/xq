@@ -164,10 +164,7 @@ fn utf8_byte_length(context: Value) -> Result<Value> {
 
 fn keys_unsorted(context: Value) -> Result<Value> {
     match context {
-        Value::Array(arr) => Ok((0..arr.len())
-            .map(|i| Value::number(i))
-            .collect::<Array>()
-            .into()),
+        Value::Array(arr) => Ok((0..arr.len()).map(Value::number).collect::<Array>().into()),
         Value::Object(obj) => Ok(obj
             .keys()
             .map(|k| k.to_string().into())
@@ -182,10 +179,7 @@ fn keys_unsorted(context: Value) -> Result<Value> {
 
 fn keys(context: Value) -> Result<Value> {
     match context {
-        Value::Array(arr) => Ok((0..arr.len())
-            .map(|i| Value::number(i))
-            .collect::<Array>()
-            .into()),
+        Value::Array(arr) => Ok((0..arr.len()).map(Value::number).collect::<Array>().into()),
         Value::Object(obj) => Ok(obj
             .keys()
             .sorted()
