@@ -54,7 +54,7 @@ Are you sure you want to use this??? It's not a daily-usable stage. Though if yo
 $ cargo install xq
 $ cat whatever.json | xq 'query goes here'
 ```
-. Or to get the latet version, please clone this repository to your local, and run
+. Or to get the latest version, please clone this repository to your local, and run
 ```shell
 $ cargo install --path path-to-cloned-dir
 $ cat whatever.json | xq 'query goes here'
@@ -73,17 +73,17 @@ $ cargo uninstall xq
 if you've installed via `cargo install`. Also remove the cloned directory if you've cloned the repository.
 
 
-## Pubilsh new version
+## Publish new version
 Note for myself.
 ```shell
-$ git swithc master                 # make sure you're on the master branch
+$ git switch master                 # make sure you're on the master branch
 $ cargo release patch               # to dry-run the release
 $ cargo release patch --execute     # to actually execute the release
 ```
 
 
 ## Acknowledgements
-- Although this isn't a direct translation at all, I referred to [jq](https://stedolan.github.io/jq/manual/) built by [ Stephen Dolan](https://github.com/stedolan) and [gojq](https://github.com/itchyny/gojq/) built by [itchyny](https://github.com/itchyny). Thank you for the interesting product!
+- Although this isn't a direct translation at all, I referred to [jq](https://stedolan.github.io/jq/manual/) built by [Stephen Dolan](https://github.com/stedolan) and [gojq](https://github.com/itchyny/gojq/) built by [itchyny](https://github.com/itchyny). Thank you for the interesting product!
 
 
 ## Credits
