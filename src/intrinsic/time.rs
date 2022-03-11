@@ -6,8 +6,8 @@ use crate::{
 };
 use std::rc::Rc;
 use time::{Date, Month, OffsetDateTime, PrimitiveDateTime, Time, UtcOffset};
-use time_fmt::{format::format_offset_date_time_in_zone, parse::parse_date_time_maybe_with_zone};
-use time_tz::{system::get_timezone, timezones::db};
+use time_fmt::{format::format_zoned_offset_date_time, parse::parse_date_time_maybe_with_zone};
+use time_tz::{system::get_timezone, Offset, TimeZone};
 
 fn try_unwrap_number(value: &Value) -> Option<PrimitiveReal> {
     match value {
@@ -85,7 +85,7 @@ pub(crate) fn format_time(context: Value, format: Value) -> Result<Value> {
         .ok_or(QueryExecutionError::InvalidArgType("strftime", context))??;
     let format = try_unwrap_string(&format)
         .ok_or(QueryExecutionError::InvalidArgType("strftime", format))?;
-    let s = format_offset_date_time_in_zone(format.as_ref(), dt, db::UTC)?;
+    let s = format_zoned_offset_date_time(format.as_ref(), dt, "UTC")?;
     Ok(Value::string(s))
 }
 
@@ -108,7 +108,22 @@ pub(crate) fn format_time_local(context: Value, format: Value) -> Result<Value> 
         ))??;
     let format = try_unwrap_string(&format)
         .ok_or(QueryExecutionError::InvalidArgType("strflocaltime", format))?;
-    let s = format_offset_date_time_in_zone(format.as_ref(), dt, get_timezone()?)?;
+    let s = if let Ok(s) = std::env::var("TZ") {
+        let posix_tz = time_tz::posix_tz::PosixTz::parse(&s).map_err(|_| {
+            QueryExecutionError::TimeZoneLookupFailure(Rc::new(
+                "Invalid TZ environment variable".to_string(),
+            ))
+        })?;
+        let zone = posix_tz.get_offset(&dt).map_err(|_| {
+            QueryExecutionError::TimeZoneLookupFailure(Rc::new(
+                "Unable to apply time zone got from TZ".to_string(),
+            ))
+        })?;
+        format_zoned_offset_date_time(format.as_ref(), dt.to_offset(zone.to_utc()), zone.name())?
+    } else {
+        let zone = get_timezone()?.get_offset_utc(&dt);
+        format_zoned_offset_date_time(format.as_ref(), dt.to_offset(zone.to_utc()), zone.name())?
+    };
     Ok(Value::string(s))
 }
 
