@@ -129,9 +129,9 @@ dependencies = [
 
 [[package]]
 name = "clap-verbosity-flag"
-version = "0.4.1"
+version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c2474445ef3370e4844f9082eef2f80e4abaf7d985781afd78b89b58e2f69a14"
+checksum = "17e437250f23cdd03daf3de763093aa27873a026ef9a156800da9ddd617c51d4"
 dependencies = [
  "clap",
  "log",
@@ -539,9 +539,9 @@ dependencies = [
 
 [[package]]
 name = "num_threads"
-version = "0.1.3"
+version = "0.1.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "97ba99ba6393e2c3734791401b66902d981cb03bf190af674ca69949b6d5fb15"
+checksum = "c539a50b93a303167eded6e8dff5220cd39447409fb659f4cd24b1f72fe4f133"
 dependencies = [
  "libc",
 ]
@@ -899,9 +899,9 @@ checksum = "45bb67a18fa91266cc7807181f62f9178a6873bfad7dc788c42e6430db40184f"
 
 [[package]]
 name = "simplelog"
-version = "0.10.2"
+version = "0.11.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "85d04ae642154220ef00ee82c36fb07853c10a4f2a0ca6719f9991211d2eb959"
+checksum = "c1348164456f72ca0116e4538bdaabb0ddb622c7d9f16387c725af3e96d6001c"
 dependencies = [
  "chrono",
  "log",
@@ -1030,9 +1030,9 @@ dependencies = [
 
 [[package]]
 name = "time-fmt"
-version = "0.3.0"
+version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "898b6ccaa8b7dd647f8db7887d1ab9c95b1cbba5f26238fe024932281bfdb52e"
+checksum = "dbf96fcfb2c02aadc0386b846d91c1eaa12567e7607d11808a84bf39c473c260"
 dependencies = [
  "cfg-if",
  "delegate",
