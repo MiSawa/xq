@@ -1,5 +1,5 @@
 use std::error::Error;
-use xq::{module_loader::PreludeLoader, run_query, Value};
+use xq::{module_loader::PreludeLoader, run_query, InputError, Value};
 
 #[macro_export]
 macro_rules! test {
@@ -12,9 +12,9 @@ macro_rules! test {
 }
 
 pub(crate) fn run_test(query: &str, input: &str, output: &str) -> Result<(), Box<dyn Error>> {
-    let input: Vec<_> = serde_json::de::Deserializer::from_str(input)
+    let input = serde_json::de::Deserializer::from_str(input)
         .into_iter::<Value>()
-        .collect::<Result<_, serde_json::Error>>()?;
+        .map(|r| r.map_err(InputError::new));
     let expected: Vec<_> = serde_json::de::Deserializer::from_str(output)
         .into_iter::<Value>()
         .collect::<Result<_, serde_json::Error>>()?;
