@@ -7,9 +7,9 @@ pub type Result<T, E = QueryExecutionError> = std::result::Result<T, E>;
 
 #[derive(Debug, Error)]
 #[error(transparent)]
-pub struct InputError(#[from] Box<dyn std::error::Error>);
+pub struct InputError(#[from] Box<dyn std::error::Error + Send + Sync>);
 impl InputError {
-    pub fn new<E: 'static + std::error::Error>(e: E) -> Self {
+    pub fn new<E: 'static + std::error::Error + Send + Sync>(e: E) -> Self {
         Self(Box::new(e))
     }
 }

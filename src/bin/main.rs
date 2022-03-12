@@ -5,7 +5,7 @@ use std::{
     io::{stdin, stdout, Write},
     path::PathBuf,
 };
-use xq::{module_loader::PreludeLoader, run_query, InputError, Value};
+use xq::{module_loader::PreludeLoader, run_query, Array, InputError, Value};
 
 #[derive(Parser, Debug)]
 #[clap(author, about, version)]
@@ -57,6 +57,10 @@ struct InputFormatArg {
     /// Read input as yaml values
     #[clap(group = "input", long)]
     yaml_input: bool,
+
+    /// Read input values into an array
+    #[clap(short, long)]
+    slurp: bool,
 }
 
 impl InputFormatArg {
@@ -94,7 +98,7 @@ struct OutputFormatArg {
     /// Compact output
     #[clap(short, long, conflicts_with = "yaml-output")]
     compact_output: bool,
-    /// Raw output
+    /// Output raw string if the output value was a string
     #[clap(short, long, conflicts_with = "yaml-output")]
     raw_output: bool,
 }
@@ -196,7 +200,12 @@ fn main() -> Result<()> {
             let input = serde_json::de::Deserializer::from_reader(locked)
                 .into_iter::<Value>()
                 .map(|r| r.map_err(InputError::new));
-            run_with_input(args, input)?;
+            if args.input_format.slurp {
+                let v: Array = input.collect::<Result<_, InputError>>()?;
+                run_with_input(args, [Ok(v.into())].into_iter())?;
+            } else {
+                run_with_input(args, input)?;
+            }
         }
         InputFormat::Yaml => {
             use serde::Deserialize;
@@ -206,7 +215,12 @@ fn main() -> Result<()> {
                 .into_iter()
                 .map(Value::deserialize)
                 .map(|r| r.map_err(InputError::new));
-            run_with_input(args, input)?;
+            if args.input_format.slurp {
+                let v: Array = input.collect::<Result<_, InputError>>()?;
+                run_with_input(args, [Ok(v.into())].into_iter())?;
+            } else {
+                run_with_input(args, input)?;
+            }
         }
     }
     Ok(())
