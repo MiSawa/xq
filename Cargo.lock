@@ -163,17 +163,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7a81dae078cea95a014a339291cec439d2f232ebe854a9d672b796c6afafa9b7"
 
 [[package]]
-name = "delegate"
-version = "0.6.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "35c47a31748d9cfa641f6cccb3608385fafe261ba36054f3d40d5a3ca11eb1af"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn",
-]
-
-[[package]]
 name = "derive_more"
 version = "0.99.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1030,12 +1019,10 @@ dependencies = [
 
 [[package]]
 name = "time-fmt"
-version = "0.3.2"
+version = "0.3.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dbf96fcfb2c02aadc0386b846d91c1eaa12567e7607d11808a84bf39c473c260"
+checksum = "a1ecd582b4dcb8b5dc526c7664d82ea19d0c11cb0d14fd0ba04c968f38c5b0c0"
 dependencies = [
- "cfg-if",
- "delegate",
  "thiserror",
  "time 0.3.7",
 ]

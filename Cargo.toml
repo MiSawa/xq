@@ -42,7 +42,7 @@ lalrpop-util = "0.19.7"
 lexgen = "0.10.0"
 lexgen_util = "0.10.0"
 time = { version = "0.3.7", features = ["local-offset"] }
-time-fmt = "0.3.2"
+time-fmt = "0.3.4"
 time-tz = { version = "0.5.2", features = ["system", "posix-tz"] }
 
 clap = { version = "3.1.6", features = ["derive"], optional = true }
