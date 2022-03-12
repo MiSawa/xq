@@ -88,10 +88,10 @@ struct OutputFormatArg {
     /// Specify output format
     #[clap(group = "output", long, arg_enum, default_value_t = OutputFormat::Json)]
     output_format: OutputFormat,
-    /// Read output as json values
+    /// Write output as json values
     #[clap(group = "output", long)]
     json_output: bool,
-    /// Read output as yaml values
+    /// Write output as yaml values
     #[clap(group = "output", long)]
     yaml_output: bool,
 
