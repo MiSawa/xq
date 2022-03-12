@@ -5,7 +5,17 @@ use thiserror::Error;
 
 pub type Result<T, E = QueryExecutionError> = std::result::Result<T, E>;
 
-#[derive(Debug, Clone, Eq, PartialEq, Error)]
+#[derive(Debug, Error)]
+#[error(transparent)]
+pub struct InputError(#[from] Box<dyn std::error::Error>);
+impl InputError {
+    pub fn new<E: 'static + std::error::Error>(e: E) -> Self {
+        Self(Box::new(e))
+    }
+}
+
+#[derive(Debug, Error)]
+#[non_exhaustive]
 pub enum QueryExecutionError {
     #[error("Object was indexed by non-string value `{0:?}`")]
     ObjectIndexByNonString(Value),
@@ -73,6 +83,8 @@ pub enum QueryExecutionError {
     IndeterminateOffset(#[from] time::error::IndeterminateOffset),
     #[error("Unable to determine local time zone")]
     TimeZoneLookupFailure(RcString),
+    #[error("Input source gave an error")]
+    InputError(#[from] InputError),
     #[error("{0:?}")]
     UserDefinedError(Value),
 }

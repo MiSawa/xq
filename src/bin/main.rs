@@ -5,7 +5,7 @@ use std::{
     io::{stdin, stdout, Write},
     path::PathBuf,
 };
-use xq::{module_loader::PreludeLoader, run_query, Value};
+use xq::{module_loader::PreludeLoader, run_query, InputError, Value};
 
 #[derive(Parser, Debug)]
 #[clap(author, about, version)]
@@ -126,10 +126,10 @@ fn init_log(verbosity: &Verbosity) -> Result<()> {
     .with_context(|| "Unable to initialize logger")
 }
 
-fn main() -> Result<()> {
-    let args: MainArgs = MainArgs::parse();
-    init_log(&args.verbosity)?;
-    log::debug!("Parsed argument: {:?}", args);
+fn run_with_input(
+    args: MainArgs,
+    input: impl Iterator<Item = Result<Value, InputError>>,
+) -> Result<()> {
     let query = if let Some(path) = args.query_file {
         log::trace!("Read query from file {:?}", path);
         std::fs::read_to_string(path)?
@@ -140,69 +140,73 @@ fn main() -> Result<()> {
         );
         args.query
     };
+    let module_loader = PreludeLoader();
+
+    let result_iterator = run_query(&query, input, &module_loader)
+        .map_err(|e| anyhow!("{:?}", e))
+        .with_context(|| "compile query")?;
+
     let output_format = args.output_format.get();
-    let output = |value| -> Result<()> {
-        match value {
-            Ok(value) => match output_format {
-                OutputFormat::Json => match value {
-                    Value::String(s) if args.output_format.raw_output => stdout()
-                        .write_all(s.as_bytes())
-                        .with_context(|| "write to output"),
-                    _ => if args.output_format.compact_output {
-                        serde_json::ser::to_writer::<_, Value>(stdout(), &value)
-                    } else {
-                        serde_json::ser::to_writer_pretty::<_, Value>(stdout(), &value)
+    match output_format {
+        OutputFormat::Json => {
+            for value in result_iterator {
+                match value {
+                    Ok(Value::String(s)) if args.output_format.raw_output => {
+                        stdout().write_all(s.as_bytes())?;
+                        println!();
                     }
-                    .with_context(|| "write to output"),
-                },
-                OutputFormat::Yaml => serde_yaml::to_writer::<_, Value>(stdout(), &value)
-                    .with_context(|| "Write to output"),
-            }
-            .and_then(|()| writeln!(stdout()).with_context(|| "Write ln"))?,
-            Err(e) => {
-                eprintln!("Error: {:?}", e);
+                    Ok(value) => {
+                        if args.output_format.compact_output {
+                            serde_json::ser::to_writer::<_, Value>(stdout().lock(), &value)?;
+                            println!();
+                        } else {
+                            serde_json::ser::to_writer_pretty::<_, Value>(stdout().lock(), &value)?;
+                            println!();
+                        }
+                    }
+                    Err(e) => eprintln!("Error: {e:?}"),
+                }
             }
         }
-        Ok(())
-    };
+        OutputFormat::Yaml => {
+            for value in result_iterator {
+                match value {
+                    Ok(value) => serde_yaml::to_writer::<_, Value>(stdout().lock(), &value)
+                        .with_context(|| "Write to output")?,
+                    Err(e) => eprintln!("Error: {e:?}"),
+                }
+            }
+        }
+    }
+    Ok(())
+}
 
-    let module_loader = PreludeLoader();
+fn main() -> Result<()> {
+    let args: MainArgs = MainArgs::parse();
+    init_log(&args.verbosity)?;
+    log::debug!("Parsed argument: {:?}", args);
+
     match args.input_format.get() {
         InputFormat::Null => {
-            let results = run_query(&query, vec![Value::Null].into_iter(), &module_loader)
-                .map_err(|e| anyhow!("{:?}", e))
-                .with_context(|| "compile query")?;
-            for value in results {
-                output(value)?;
-            }
+            run_with_input(args, [Ok(Value::Null)].into_iter())?;
         }
         InputFormat::Json => {
             let stdin = stdin();
             let locked = stdin.lock();
-            let input: Vec<_> = serde_json::de::Deserializer::from_reader(locked)
+            let input = serde_json::de::Deserializer::from_reader(locked)
                 .into_iter::<Value>()
-                .collect::<Result<_, serde_json::Error>>()?;
-            let results = run_query(&query, input.into_iter(), &module_loader)
-                .map_err(|e| anyhow!("{:?}", e))
-                .with_context(|| "compile query")?;
-            for value in results {
-                output(value)?;
-            }
+                .map(|r| r.map_err(InputError::new));
+            run_with_input(args, input)?;
         }
         InputFormat::Yaml => {
             use serde::Deserialize;
             let stdin = stdin();
             let locked = stdin.lock();
-            let input: Vec<_> = serde_yaml::Deserializer::from_reader(locked)
+            let input = serde_yaml::Deserializer::from_reader(locked)
                 .into_iter()
                 .map(Value::deserialize)
-                .collect::<Result<_, serde_yaml::Error>>()?;
-            let results = run_query(&query, input.into_iter(), &module_loader)
-                .map_err(|e| anyhow!("{:?}", e))
-                .with_context(|| "compile query")?;
-            for value in results {
-                output(value)?;
-            }
+                .map(|r| r.map_err(InputError::new));
+            run_with_input(args, input)?;
         }
     }
     Ok(())
