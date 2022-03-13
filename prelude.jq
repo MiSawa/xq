@@ -91,7 +91,7 @@ def todateiso8601: strftime("%Y-%m-%dT%H:%M:%SZ");
 def fromdate: fromdateiso8601;
 def todate: todateiso8601;
 
-def match($r; $f): __match_impl($r; $f)[];
+def match($r; $f): __split_match_impl($r; $f) | .[] | objects;
 def match($r): if $r | type == "array" then match($r[0]; $r[1]) else match($r; null) end;
 def test($r; $f): isempty(match($r; $f)) | not;
 def test($r): if $r | type == "array" then test($r[0]; $r[1]) else test($r; null) end;
@@ -99,4 +99,13 @@ def capture($r; $f): match($r; $f) | [.captures[] | select(.name) | {key: .name,
 def capture($r): if $r | type == "array" then capture($r[0]; $r[1]) else capture($r; null) end;
 def scan($r; $f): match($r; $f + "g") | if .captures | length == 0 then .string else .captures | [.[].string] end;
 def scan($r): if $r | type == "array" then scan($r[0]; $r[1]) else scan($r; null) end;
+def splits($r; $f): __split_match_impl($r; $f + "g") | .[] | strings;
+def splits($r): splits($r; null);
+def split($r; $f): [splits($r; $f)];
+def sub($r; s; $f):
+    def combinations2: if length == 0 then [] else (.[-1].[] as $last | (.[:-1] | combinations2) + [$last]) end;
+    __split_match_impl($r; $f) | map(if type == "string" then [.] else [.captures[] | select(.name) | {key: .name, value: .string}] | from_entries | [s] end) | combinations2 | add;
+def sub($r; s): sub($r; s; null);
+def gsub($r; s; $f): sub($r; s; $f + "g");
+def gsub($r; s): gsub($r; s; null);
 

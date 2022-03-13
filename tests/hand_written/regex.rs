@@ -88,3 +88,64 @@ test!(
     "b-234"
     "#
 );
+
+test!(
+    split,
+    r#"
+    split("[ ]"; null)
+    "#,
+    r#"
+    "a-1 b-234 c"
+    "   a"
+    "#,
+    r#"
+    ["a-1", "b-234", "c"]
+    ["", "", "", "a"]
+    "#
+);
+
+test!(
+    splits,
+    r#"
+    splits("[ ]")
+    "#,
+    r#"
+    "a-1 b-234 c"
+    "#,
+    r#"
+    "a-1"
+    "b-234"
+    "c"
+    "#
+);
+
+test!(
+    gsub,
+    r#"
+    gsub("(?<a>.)-(?<b>.)(\\S*)"; "\(.a, .b)")
+    "#,
+    r#"
+    "a-1 b-234 c"
+    "#,
+    r#"
+    "a b c"
+    "1 b c"
+    "a 2 c"
+    "1 2 c"
+    "#
+);
+
+// I'd want this to return a-1 b-234 c but this is what jq does.
+test!(
+    gsub_unnamed,
+    r#"
+    gsub("(?:.)-(?:.)(?:\\S*)"; "\(.)")
+    "#,
+    r#"
+    "a-1 b-234 c"
+    "#,
+    r#"
+    "{} {} c"
+    "#
+);
+

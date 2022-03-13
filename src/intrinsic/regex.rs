@@ -38,7 +38,9 @@ fn compile_regex(pattern: &str, flags: &str) -> Result<(Regex, bool)> {
     ))
 }
 
-pub(crate) fn match_impl(context: Value, pattern: Value, flags: Value) -> Result<Value> {
+/// Returns an array consists of interleaving results of "splits" and "match".
+/// string between matches, match info, string between matches, match info, ..., string between matches
+pub(crate) fn split_match_impl(context: Value, pattern: Value, flags: Value) -> Result<Value> {
     let s = to_string("match", context)?;
     let pattern = to_string("match", pattern)?;
     let flags = if flags == Value::Null {
@@ -64,58 +66,63 @@ pub(crate) fn match_impl(context: Value, pattern: Value, flags: Value) -> Result
         }
         true
     });
-    let arr: Array = regex
+    let mut v = vec![];
+    let mut last_end = 0;
+    for c in regex
         .captures_iter(&s)
         .take(if global { usize::MAX } else { 1 })
-        .map(|c| {
-            let (start, end) = c.pos(0).unwrap();
-            let captures: Array = c
-                .iter_pos()
-                .enumerate()
-                .skip(1)
-                .map(|(i, g)| {
-                    let entries: Object = if let Some((start, end)) = g {
-                        [
-                            (Rc::new("offset".into()), Value::number(b2c[start])),
-                            (
-                                Rc::new("length".into()),
-                                Value::number(b2c[end] - b2c[start]),
-                            ),
-                            (
-                                Rc::new("string".into()),
-                                Value::string(s[start..end].into()),
-                            ),
-                            (Rc::new("name".into()), capture_names[i].clone()),
-                        ]
-                    } else {
-                        [
-                            (Rc::new("offset".into()), Value::number(-1)),
-                            (Rc::new("length".into()), Value::number(0)),
-                            (Rc::new("string".into()), Value::Null),
-                            (Rc::new("name".into()), capture_names[i].clone()),
-                        ]
-                    }
-                    .into_iter()
-                    .collect();
-                    entries.into()
-                })
+    {
+        let (start, end) = c.pos(0).unwrap();
+        v.push(Value::string(s[last_end..start].into()));
+        last_end = end;
+
+        let captures: Array = c
+            .iter_pos()
+            .enumerate()
+            .skip(1)
+            .map(|(i, g)| {
+                let entries: Object = if let Some((start, end)) = g {
+                    [
+                        (Rc::new("offset".into()), Value::number(b2c[start])),
+                        (
+                            Rc::new("length".into()),
+                            Value::number(b2c[end] - b2c[start]),
+                        ),
+                        (
+                            Rc::new("string".into()),
+                            Value::string(s[start..end].into()),
+                        ),
+                        (Rc::new("name".into()), capture_names[i].clone()),
+                    ]
+                } else {
+                    [
+                        (Rc::new("offset".into()), Value::number(-1)),
+                        (Rc::new("length".into()), Value::number(0)),
+                        (Rc::new("string".into()), Value::Null),
+                        (Rc::new("name".into()), capture_names[i].clone()),
+                    ]
+                }
+                .into_iter()
                 .collect();
-            let entries: Object = [
-                (Rc::new("offset".into()), Value::number(b2c[start])),
-                (
-                    Rc::new("length".into()),
-                    Value::number(b2c[end] - b2c[start]),
-                ),
-                (
-                    Rc::new("string".into()),
-                    Value::string(s[start..end].into()),
-                ),
-                (Rc::new("captures".into()), captures.into()),
-            ]
-            .into_iter()
+                entries.into()
+            })
             .collect();
-            entries.into()
-        })
+        let entries: Object = [
+            (Rc::new("offset".into()), Value::number(b2c[start])),
+            (
+                Rc::new("length".into()),
+                Value::number(b2c[end] - b2c[start]),
+            ),
+            (
+                Rc::new("string".into()),
+                Value::string(s[start..end].into()),
+            ),
+            (Rc::new("captures".into()), captures.into()),
+        ]
+        .into_iter()
         .collect();
-    Ok(arr.into())
+        v.push(entries.into());
+    }
+    v.push(Value::string(s[last_end..].into()));
+    Ok(Array::from_vec(v).into())
 }
