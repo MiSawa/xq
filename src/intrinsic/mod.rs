@@ -95,7 +95,7 @@ static INTRINSICS1: phf::Map<&'static str, NamedFn1> = phf_map! {
 };
 static INTRINSICS2: phf::Map<&'static str, NamedFn2> = phf_map! {
     "setpath" => NamedFn2 { name: "setpath", func: path::set_path },
-    "__match_impl" => NamedFn2 { name: "__match_impl", func: regex::match_impl },
+    "__split_match_impl" => NamedFn2 { name: "__split_match_impl", func: regex::split_match_impl },
 };
 
 pub(crate) fn lookup_intrinsic_fn(
