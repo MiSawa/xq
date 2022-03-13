@@ -1,5 +1,3 @@
-def sub($a; $b): def __unimplemented:.; "sub(\(.), \($a), \($b))";
-
 def not: if . then false else true end;
 def select(f): if f then . else empty end;
 def map(f): [.[] | f];
@@ -108,4 +106,6 @@ def sub($r; s; $f):
 def sub($r; s): sub($r; s; null);
 def gsub($r; s; $f): sub($r; s; $f + "g");
 def gsub($r; s): gsub($r; s; null);
+
+def inputs: try repeat(input) catch if . == "NoMoreInputError" then empty else error end;
 

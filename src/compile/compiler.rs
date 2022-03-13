@@ -480,6 +480,7 @@ impl Compiler {
         Some(match function {
             FunctionIdentifier(Identifier(name), 0) => match name.as_str() {
                 "empty" => FunctionLike::Intrinsic(ByteCode::Backtrack, vec![]),
+                "input" => FunctionLike::Intrinsic(ByteCode::Input, vec![]),
                 _ => return None,
             },
             FunctionIdentifier(Identifier(name), 1) => match name.as_str() {

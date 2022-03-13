@@ -900,6 +900,16 @@ fn run_code(
                     let value = state.pop();
                     return Some(Ok(value));
                 }
+                Input => match input.next() {
+                    Some(Err(e)) => {
+                        return Some(Err(e.into()));
+                    }
+                    Some(Ok(v)) => {
+                        state.pop();
+                        state.push(v.clone())
+                    }
+                    None => err = Some(QueryExecutionError::NoMoreInputError),
+                },
                 Intrinsic0(NamedFunction { name, func }) => {
                     let context = state.pop();
                     log::trace!("Calling function {} with context {:?}", name, context);
