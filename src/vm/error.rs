@@ -89,6 +89,8 @@ pub enum QueryExecutionError {
     InvalidRegexFlag(char),
     #[error("Input source gave an error")]
     InputError(#[from] InputError),
+    #[error("There's no more input")]
+    NoMoreInputError,
     #[error("{0:?}")]
     UserDefinedError(Value),
 }

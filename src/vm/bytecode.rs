@@ -170,6 +170,9 @@ pub(crate) enum ByteCode {
     /// # Panics
     /// Panics if the stack was empty.
     Output,
+    /// Pops a value from the stack
+    /// If there's no more input, produce a [QueryExecutionError::NoMoreInputError] instead.
+    Input,
 
     /// Pops a value `context` from the stack, invokes the function with the arg `context`, and pushes the resulting value to the stack.
     /// # Panics
