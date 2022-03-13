@@ -2,6 +2,7 @@ use crate::test;
 
 mod assignments;
 mod math;
+mod regex;
 
 test!(
     recursive,

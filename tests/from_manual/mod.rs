@@ -8,6 +8,7 @@ mod assignment;
 mod basic_filters;
 mod condition_and_comparison;
 mod functions;
+mod regex;
 mod string_format;
 mod time;
 mod types_and_values;

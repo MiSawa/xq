@@ -83,6 +83,10 @@ pub enum QueryExecutionError {
     IndeterminateOffset(#[from] time::error::IndeterminateOffset),
     #[error("Unable to determine local time zone")]
     TimeZoneLookupFailure(RcString),
+    #[error("Failed to compile regex: {0:?}")]
+    OnigurumaCompileError(#[from] onig::Error),
+    #[error("Invalid regex flag: {0}")]
+    InvalidRegexFlag(char),
     #[error("Input source gave an error")]
     InputError(#[from] InputError),
     #[error("{0:?}")]
