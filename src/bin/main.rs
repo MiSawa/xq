@@ -1,11 +1,16 @@
 use anyhow::{anyhow, Context, Result};
 use clap::{ArgEnum, Args, Parser, ValueHint};
 use clap_verbosity_flag::Verbosity;
+use cli::input::Input;
 use std::{
     io::{stdin, stdout, Write},
     path::PathBuf,
 };
-use xq::{module_loader::PreludeLoader, run_query, Array, InputError, Value};
+use xq::{module_loader::PreludeLoader, run_query, InputError, Value};
+
+use crate::cli::input::Tied;
+
+mod cli;
 
 #[derive(Parser, Debug)]
 #[clap(author, about, version)]
@@ -37,8 +42,7 @@ struct MainArgs {
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Debug, ArgEnum)]
-enum InputFormat {
-    Null,
+enum SerializationFormat {
     Json,
     Yaml,
 }
@@ -46,11 +50,8 @@ enum InputFormat {
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Debug, Args)]
 struct InputFormatArg {
     /// Specify input format
-    #[clap(group = "input", long, arg_enum, default_value_t = InputFormat::Json)]
-    input_format: InputFormat,
-    /// Use null as an input value
-    #[clap(group = "input", short = 'n', long)]
-    null_input: bool,
+    #[clap(group = "input", long, arg_enum, default_value_t = SerializationFormat::Json)]
+    input_format: SerializationFormat,
     /// Read input as json values
     #[clap(group = "input", long)]
     json_input: bool,
@@ -58,36 +59,32 @@ struct InputFormatArg {
     #[clap(group = "input", long)]
     yaml_input: bool,
 
+    /// Single null is supplied to the program.
+    /// The original input can still be read via input/0 and inputs/0.
+    #[clap(short, long)]
+    null_input: bool,
     /// Read input values into an array
     #[clap(short, long)]
     slurp: bool,
 }
 
 impl InputFormatArg {
-    fn get(&self) -> InputFormat {
-        if self.null_input {
-            InputFormat::Null
-        } else if self.json_input {
-            InputFormat::Json
+    fn get(&self) -> SerializationFormat {
+        if self.json_input {
+            SerializationFormat::Json
         } else if self.yaml_input {
-            InputFormat::Yaml
+            SerializationFormat::Yaml
         } else {
             self.input_format
         }
     }
 }
 
-#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Debug, ArgEnum)]
-enum OutputFormat {
-    Json,
-    Yaml,
-}
-
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Debug, Args)]
 struct OutputFormatArg {
     /// Specify output format
-    #[clap(group = "output", long, arg_enum, default_value_t = OutputFormat::Json)]
-    output_format: OutputFormat,
+    #[clap(group = "output", long, arg_enum, default_value_t = SerializationFormat::Json)]
+    output_format: SerializationFormat,
     /// Write output as json values
     #[clap(group = "output", long)]
     json_output: bool,
@@ -104,11 +101,11 @@ struct OutputFormatArg {
 }
 
 impl OutputFormatArg {
-    fn get(&self) -> OutputFormat {
+    fn get(&self) -> SerializationFormat {
         if self.json_output {
-            OutputFormat::Json
+            SerializationFormat::Json
         } else if self.yaml_output {
-            OutputFormat::Yaml
+            SerializationFormat::Yaml
         } else {
             self.output_format
         }
@@ -130,10 +127,7 @@ fn init_log(verbosity: &Verbosity) -> Result<()> {
     .with_context(|| "Unable to initialize logger")
 }
 
-fn run_with_input(
-    args: MainArgs,
-    input: impl Iterator<Item = Result<Value, InputError>>,
-) -> Result<()> {
+fn run_with_input(args: MainArgs, input: impl Input) -> Result<()> {
     let query = if let Some(path) = args.query_file {
         log::trace!("Read query from file {:?}", path);
         std::fs::read_to_string(path)?
@@ -146,13 +140,14 @@ fn run_with_input(
     };
     let module_loader = PreludeLoader();
 
-    let result_iterator = run_query(&query, input, &module_loader)
+    let (context, input) = input.into_iterators();
+    let result_iterator = run_query(&query, context, input, &module_loader)
         .map_err(|e| anyhow!("{:?}", e))
         .with_context(|| "compile query")?;
 
     let output_format = args.output_format.get();
     match output_format {
-        OutputFormat::Json => {
+        SerializationFormat::Json => {
             for value in result_iterator {
                 match value {
                     Ok(Value::String(s)) if args.output_format.raw_output => {
@@ -172,7 +167,7 @@ fn run_with_input(
                 }
             }
         }
-        OutputFormat::Yaml => {
+        SerializationFormat::Yaml => {
             for value in result_iterator {
                 match value {
                     Ok(value) => serde_yaml::to_writer::<_, Value>(stdout().lock(), &value)
@@ -185,29 +180,34 @@ fn run_with_input(
     Ok(())
 }
 
+fn run_with_raw_input<I: Iterator<Item = Result<Value, InputError>>>(
+    args: MainArgs,
+    i: I,
+) -> Result<()> {
+    let i = Tied::new(i);
+    match (args.input_format.slurp, args.input_format.null_input) {
+        (false, false) => run_with_input(args, i),
+        (false, true) => run_with_input(args, i.null_input()),
+        (true, false) => run_with_input(args, i.slurp()),
+        (true, true) => run_with_input(args, i.slurp().null_input()),
+    }
+}
+
 fn main() -> Result<()> {
     let args: MainArgs = MainArgs::parse();
     init_log(&args.verbosity)?;
     log::debug!("Parsed argument: {:?}", args);
 
     match args.input_format.get() {
-        InputFormat::Null => {
-            run_with_input(args, [Ok(Value::Null)].into_iter())?;
-        }
-        InputFormat::Json => {
+        SerializationFormat::Json => {
             let stdin = stdin();
             let locked = stdin.lock();
             let input = serde_json::de::Deserializer::from_reader(locked)
                 .into_iter::<Value>()
                 .map(|r| r.map_err(InputError::new));
-            if args.input_format.slurp {
-                let v: Array = input.collect::<Result<_, InputError>>()?;
-                run_with_input(args, [Ok(v.into())].into_iter())?;
-            } else {
-                run_with_input(args, input)?;
-            }
+            run_with_raw_input(args, input)
         }
-        InputFormat::Yaml => {
+        SerializationFormat::Yaml => {
             use serde::Deserialize;
             let stdin = stdin();
             let locked = stdin.lock();
@@ -215,13 +215,7 @@ fn main() -> Result<()> {
                 .into_iter()
                 .map(Value::deserialize)
                 .map(|r| r.map_err(InputError::new));
-            if args.input_format.slurp {
-                let v: Array = input.collect::<Result<_, InputError>>()?;
-                run_with_input(args, [Ok(v.into())].into_iter())?;
-            } else {
-                run_with_input(args, input)?;
-            }
+            run_with_raw_input(args, input)
         }
     }
-    Ok(())
 }

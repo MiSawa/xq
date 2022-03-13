@@ -4,7 +4,7 @@ mod intrinsic;
 pub mod lang;
 pub mod module_loader;
 mod number;
-mod util;
+pub mod util;
 mod value;
 pub mod vm;
 
@@ -34,12 +34,14 @@ pub enum XQError {
     QueryExecutionError(#[from] QueryExecutionError),
 }
 
-pub fn run_query<I, M>(
+pub fn run_query<C, I, M>(
     query: &str,
+    context: C,
     input: I,
     module_loader: &M,
-) -> Result<ResultIterator<I>, XQError>
+) -> Result<ResultIterator<C, I>, XQError>
 where
+    C: Iterator<Item = Result<Value, InputError>>,
     I: Iterator<Item = Result<Value, InputError>>,
     M: ModuleLoader,
 {
@@ -55,5 +57,5 @@ where
     // eprintln!("Compile: {:?}", now.elapsed());
 
     let mut vm = Machine::new(program);
-    Ok(vm.start(input))
+    Ok(vm.start(context, input))
 }
