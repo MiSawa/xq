@@ -159,14 +159,14 @@ enum OnFork {
     TryAlternative,
     CatchLabel(LabelId),
     Iterate,
-    IterateInput,
+    IterateContext,
 }
 
 impl Environment {
     fn new(state: <State as Undo>::UndoToken) -> Self {
         Self {
             next_label_id: 0,
-            forks: vec![(state, OnFork::IterateInput)],
+            forks: vec![(state, OnFork::IterateContext)],
         }
     }
 
@@ -431,29 +431,42 @@ impl Machine {
         }
     }
 
-    pub fn start<I: Iterator<Item = Result<Value, InputError>>>(
+    pub fn start<
+        C: Iterator<Item = Result<Value, InputError>>,
+        I: Iterator<Item = Result<Value, InputError>>,
+    >(
         &mut self,
+        context: C,
         input: I,
-    ) -> ResultIterator<I> {
+    ) -> ResultIterator<C, I> {
         let mut state = State::new(self.program.entry_point);
         let env = Environment::new(state.save());
         ResultIterator {
             program: self.program.clone(),
             env,
             state,
+            context: context.fuse(),
             input: input.fuse(),
         }
     }
 }
 
-pub struct ResultIterator<I: Iterator<Item = Result<Value, InputError>>> {
+pub struct ResultIterator<
+    C: Iterator<Item = Result<Value, InputError>>,
+    I: Iterator<Item = Result<Value, InputError>>,
+> {
     program: Rc<Program>,
     env: Environment,
     state: State,
+    context: Fuse<C>,
     input: Fuse<I>,
 }
 
-impl<I: Iterator<Item = Result<Value, InputError>>> Iterator for ResultIterator<I> {
+impl<
+        C: Iterator<Item = Result<Value, InputError>>,
+        I: Iterator<Item = Result<Value, InputError>>,
+    > Iterator for ResultIterator<C, I>
+{
     type Item = Result<Value>;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -461,6 +474,7 @@ impl<I: Iterator<Item = Result<Value, InputError>>> Iterator for ResultIterator<
             &self.program,
             &mut self.state,
             &mut self.env,
+            &mut self.context,
             &mut self.input,
         )
     }
@@ -470,6 +484,7 @@ fn run_code(
     program: &Program,
     state: &mut State,
     env: &mut Environment,
+    context: &mut impl Iterator<Item = Result<Value, InputError>>,
     input: &mut impl Iterator<Item = Result<Value, InputError>>,
 ) -> Option<Result<Value>> {
     let mut err: Option<QueryExecutionError> = None;
@@ -555,24 +570,24 @@ fn run_code(
                         }
                     }
                 }
-                (OnFork::IterateInput, None) => {
-                    match input.next() {
+                (OnFork::IterateContext, None) => {
+                    match context.next() {
                         None => return None,
                         Some(Err(e)) => {
                             // Don't push fork again so we don't infinitely see input errors
-                            // even when the input stream gave us infinite errors.
+                            // even when the context stream gave us infinite errors.
                             return Some(Err(e.into()));
                         }
                         Some(Ok(v)) => {
                             state.undo(token);
-                            env.push_fork(state, OnFork::IterateInput, state.pc);
+                            env.push_fork(state, OnFork::IterateContext, state.pc);
                             state.push(v);
                             break 'select_fork state.save();
                         }
                     }
                 }
-                (OnFork::IterateInput, Some(_e)) => {
-                    env.push_fork(state, OnFork::IterateInput, state.pc);
+                (OnFork::IterateContext, Some(_e)) => {
+                    env.push_fork(state, OnFork::IterateContext, state.pc);
                     return Some(Err(err.take().unwrap()));
                 }
                 (_, Some(_)) => continue 'select_fork,
