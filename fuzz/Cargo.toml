@@ -1,0 +1,39 @@
+[package]
+name = "xq-fuzz"
+version = "0.0.0"
+authors = ["mi_sawa <mi.sawa.1216+git@gmail.com>"]
+publish = false
+edition = "2021"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+serde_json = "1.0.79"
+
+[dependencies.xq]
+path = ".."
+
+# Prevent this from interfering with workspaces
+[workspace]
+members = ["."]
+
+[[bin]]
+name = "xq"
+path = "fuzz_targets/xq.rs"
+test = false
+doc = false
+
+[profile.release]
+opt-level = 3
+debug = true
+
+[profile.dev]
+opt-level = 3
+debug = true
+
+[profile.test]
+opt-level = 3
+debug = true
+
