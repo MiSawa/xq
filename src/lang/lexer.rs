@@ -132,6 +132,8 @@ pub enum LexicalError {
     UnmatchingOpenClose(OpenCloseType, OpenCloseType),
     #[error("Expected `{0}` but got `{1}`")]
     UnexpectedToken(String, String),
+    #[error("Encountered an unexpected escaped character `\\{0}`")]
+    InvalidEscape(char),
     #[error("Expected token `{0}`")]
     OrphanToken(String),
     #[error("No matching open for close {0:?}")]
@@ -548,16 +550,26 @@ lexer! {
         "\\\\" = Token::StringFragment(StringFragment::Char('\\')),
         "\\/" = Token::StringFragment(StringFragment::Char('/')),
         "\\\"" = Token::StringFragment(StringFragment::Char('"')),
-        "\\u" $hex_digit $hex_digit $hex_digit $hex_digit =? |lexer| {
-            // let value = u32::from_str_radix(&lexer.match_()[2..], 16).unwrap();
-            // TODO: This is not a proper fix for #122. It require the upstream (lexgen crate) change.
-            let m = &lexer.match_();
-            let value = u32::from_str_radix(&m[m.len()-4..], 16).unwrap();
-            match char::try_from(value) {
-                Ok(c) => {
+        "\\uD" ['8' '9' 'a' 'b' 'A' 'B'] $hex_digit $hex_digit "\\uD" ['c'-'f' 'C'-'F'] $hex_digit $hex_digit =? |lexer| {
+            let higher_surrogate = u32::from_str_radix(&lexer.match_()[2..6], 16).unwrap();
+            let lower_surrogate = u32::from_str_radix(&lexer.match_()[8..12], 16).unwrap();
+            assert!((0xD800..0xDC00).contains(&higher_surrogate));
+            assert!((0xDC00..=0xDFFF).contains(&lower_surrogate));
+            let value = (((higher_surrogate - 0xD800) as u32) << 10 | (lower_surrogate - 0xDC00) as u32) + 0x1_0000;
+            match char::from_u32(value) {
+                Some(c) => {
                     lexer.return_(Ok(Token::StringFragment(StringFragment::Char(c))))
                 }
-                Err(_) => lexer.return_(Err(LexicalError::InvalidUnicodeScalar(value)))
+                None => lexer.return_(Err(LexicalError::InvalidUnicodeScalar(value)))
+            }
+        },
+        "\\u" $hex_digit $hex_digit $hex_digit $hex_digit =? |lexer| {
+            let value = u32::from_str_radix(&lexer.match_()[2..], 16).unwrap();
+            match char::from_u32(value) {
+                Some(c) => {
+                    lexer.return_(Ok(Token::StringFragment(StringFragment::Char(c))))
+                }
+                None => lexer.return_(Err(LexicalError::InvalidUnicodeScalar(value)))
             }
         },
         "\\(" => |lexer| {
@@ -566,6 +578,9 @@ lexer! {
         },
         '"' => |lexer| {
             lexer.switch_and_return(LexerImplRule::Init, Token::StringEnd)
+        },
+        '\\' _ =? |lexer| {
+            lexer.return_(Err(LexicalError::InvalidEscape(lexer.match_().chars().nth(1).unwrap())))
         },
         (_ # ['\\' '"'])+ => |lexer| {
             lexer.return_(Token::StringFragment(StringFragment::String(lexer.match_())))
