@@ -9,7 +9,8 @@ fn main() {
         .output()
         .ok()
         .and_then(|o| String::from_utf8(o.stdout).ok())
-        .map(|s| s.trim().to_string());
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty());
     if let Some(git_revision) = git_revision {
         println!("cargo:rustc-env=LONG_VERSION={package_version}-{git_revision}");
     } else {
