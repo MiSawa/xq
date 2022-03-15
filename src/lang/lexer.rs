@@ -549,7 +549,10 @@ lexer! {
         "\\/" = Token::StringFragment(StringFragment::Char('/')),
         "\\\"" = Token::StringFragment(StringFragment::Char('"')),
         "\\u" $hex_digit $hex_digit $hex_digit $hex_digit =? |lexer| {
-            let value = u32::from_str_radix(&lexer.match_()[2..], 16).unwrap();
+            // let value = u32::from_str_radix(&lexer.match_()[2..], 16).unwrap();
+            // TODO: This is not a proper fix for #122. It require the upstream (lexgen crate) change.
+            let m = &lexer.match_();
+            let value = u32::from_str_radix(&m[m.len()-4..], 16).unwrap();
             match char::try_from(value) {
                 Ok(c) => {
                     lexer.return_(Ok(Token::StringFragment(StringFragment::Char(c))))

@@ -28,3 +28,23 @@ pub(crate) fn run_test(query: &str, input: &str, output: &str) -> Result<(), Box
     assert_eq!(expected, output);
     Ok(())
 }
+
+#[macro_export]
+macro_rules! test_no_panic {
+    ($name: ident, $query: expr, $input: expr) => {
+        #[test]
+        fn $name() {
+            crate::common::test_no_panic($query, $input).ok();
+        }
+    };
+}
+
+pub(crate) fn test_no_panic(query: &str, input: &str) -> Result<(), Box<dyn std::error::Error>> {
+    let input: SharedIterator<_> = serde_json::de::Deserializer::from_str(input)
+        .into_iter::<Value>()
+        .map(|r| r.map_err(InputError::new))
+        .into_iter()
+        .into();
+    run_query(query, input.clone(), input, &PreludeLoader())?.for_each(drop);
+    Ok(())
+}
