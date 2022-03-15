@@ -67,8 +67,8 @@ def max: max_by(.);
 def unique_by(f): def __yes_i_know_this_is_bad:.; [group_by(f)[] | .[0]];
 def unique: unique_by(.);
 
-def flatten: if type == "array" then [.[] | flatten] | reduce .[] as $v ([]; . + $v) else [.] end;
-def flatten($d): if ($d != -1) and (type == "array") then [.[] | flatten($d-1)] | reduce .[] as $v ([]; . + $v) else [.] end;
+def flatten: def impl: if type == "array" then map(impl) | reduce .[] as $v ([]; . + $v) else [.] end; map(impl) | reduce .[] as $v ([]; . + $v);
+def flatten($d): def impl($d): if ($d != -1) and (type == "array") then map(impl($d-1)) | reduce .[] as $v ([]; . + $v) else [.] end; if $d < 0 then error("arg of flatten/1 should be non-negative") else map(impl($d-1)) | reduce .[] as $v ([]; . + $v) end;
 
 def index($s): def __yes_i_know_this_is_bad:.; indices($s)[0];
 def rindex($s): def __yes_i_know_this_is_bad:.; indices($s)[-1];

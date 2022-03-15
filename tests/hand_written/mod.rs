@@ -734,6 +734,36 @@ test!(
 );
 
 test!(
+    flatten_toplevel_object,
+    r#"
+    {a: {b: {c: 1}}, d: [{e: 2}]} | (flatten, flatten(0), flatten(1), flatten(10))
+    "#,
+    r#"
+    null
+    "#,
+    r#"
+    [{"b":{"c":1}},{"e":2}]
+    [{"b":{"c":1}},[{"e":2}]]
+    [{"b":{"c":1}},{"e":2}]
+    [{"b":{"c":1}},{"e":2}]
+    "#
+);
+
+test!(
+    flatten_non_iterable,
+    r#"
+    (1, null) | try flatten catch "err"
+    "#,
+    r#"
+    null
+    "#,
+    r#"
+    "err"
+    "err"
+    "#
+);
+
+test!(
     surrogate_pair,
     r#"
     "\ud83d\ude04", "\uD83E\uDD14"
