@@ -8,7 +8,6 @@ test_no_panic!(
     r#""#
 );
 
-
 test_no_panic!(
     todate,
     r#"
@@ -19,4 +18,3 @@ test_no_panic!(
     e
     "#
 );
-

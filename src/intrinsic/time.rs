@@ -34,7 +34,7 @@ fn timestamp_to_time(timestamp: PrimitiveReal) -> Result<OffsetDateTime> {
     let seconds = timestamp.div_euclid(1.0) as i128;
     let nanos = (timestamp.rem_euclid(1.0) * 1e9) as i128;
     Ok(OffsetDateTime::from_unix_timestamp_nanos(
-        seconds.saturating_mul(1e9 as i128).saturating_add(nanos)
+        seconds.saturating_mul(1e9 as i128).saturating_add(nanos),
     )?)
 }
 
