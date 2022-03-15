@@ -1,0 +1,71 @@
+name: CD
+
+permissions:
+  contents: write
+
+on:
+  push:
+    tags: [ 'v[0-9]+.[0-9]+.[0-9]*' ]
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: full
+  RUSTFLAGS: -D warnings
+
+jobs:
+  create-release:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    - uses: actions-rs/toolchain@v1
+      with:
+        profile: minimal
+        toolchain: stable
+    - uses: Swatinem/rust-cache@v1
+    - name: Build
+      uses: actions-rs/cargo@v1
+      with:
+        command: build
+    - name: Create release
+      uses: taiki-e/create-gh-release-action@v1
+      with:
+        title: $version
+        branch: master|main
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  upload-assets:
+    name: ${{ matrix.target }}
+    needs:
+      - create-release
+    strategy:
+      matrix:
+        include:
+          - target: aarch64-unknown-linux-gnu
+          - target: aarch64-unknown-linux-musl
+          - target: x86_64-unknown-linux-gnu
+          - target: x86_64-unknown-linux-musl
+          - target: x86_64-apple-darwin
+            os: macos-10.15
+          - target: x86_64-pc-windows-msvc
+            os: windows-2019
+    runs-on: ${{ matrix.os || 'ubuntu-18.04' }}
+    steps:
+    - uses: actions/checkout@v3
+    - uses: actions-rs/toolchain@v1
+      with:
+        profile: minimal
+        toolchain: stable
+    - run: echo "RUSTFLAGS=${RUSTFLAGS} -C target-feature=+crt-static" >> "${GITHUB_ENV}"
+      if: endsWith(matrix.target, 'windows-msvc')
+    - uses: taiki-e/upload-rust-binary-action@v1
+      with:
+        bin: xq
+        target: ${{ matrix.target }}
+        tar: all
+        zip: windows
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        CARGO_PROFILE_RELEASE_CODEGEN_UNITS: 1
+        CARGO_PROFILE_RELEASE_LTO: true
+
