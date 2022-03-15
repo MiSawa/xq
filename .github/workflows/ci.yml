@@ -1,13 +1,17 @@
 name: CI
 
+permissions:
+  contents: read
+
 on:
   push:
     branches: [ master ]
   pull_request:
-    branches: [ master ]
 
 env:
   CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: full
+  RUSTFLAGS: -D warnings
 
 jobs:
   build:
@@ -23,9 +27,41 @@ jobs:
       uses: actions-rs/cargo@v1
       with:
         command: build
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    - uses: actions-rs/toolchain@v1
+      with:
+        profile: minimal
+        toolchain: stable
+    - uses: Swatinem/rust-cache@v1
     - name: Run tests
       uses: actions-rs/cargo@v1
       with:
         command: test
+        args: --verbose --all-features --workspace
+
+  tidy:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    - uses: actions-rs/toolchain@v1
+      with:
+        profile: minimal
+        toolchain: nightly
+        components: rustfmt, clippy
+        override: true
+    - uses: Swatinem/rust-cache@v1
+    - name: Run fmt
+      uses: actions-rs/cargo@v1
+      with:
+        command: fmt
+        args: --all --check
+    - name: Run clippy
+      uses: actions-rs/cargo@v1
+      with:
+        command: clippy
         args: --verbose --all-features --workspace
 
