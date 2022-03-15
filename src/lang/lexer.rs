@@ -550,7 +550,7 @@ lexer! {
         "\\\\" = Token::StringFragment(StringFragment::Char('\\')),
         "\\/" = Token::StringFragment(StringFragment::Char('/')),
         "\\\"" = Token::StringFragment(StringFragment::Char('"')),
-        "\\uD" ['8' '9' 'a' 'b' 'A' 'B'] $hex_digit $hex_digit "\\uD" ['c'-'f' 'C'-'F'] $hex_digit $hex_digit =? |lexer| {
+        "\\u" ['d' 'D'] ['8' '9' 'a' 'b' 'A' 'B'] $hex_digit $hex_digit "\\u" ['d' 'D'] ['c'-'f' 'C'-'F'] $hex_digit $hex_digit =? |lexer| {
             let higher_surrogate = u32::from_str_radix(&lexer.match_()[2..6], 16).unwrap();
             let lower_surrogate = u32::from_str_radix(&lexer.match_()[8..12], 16).unwrap();
             assert!((0xD800..0xDC00).contains(&higher_surrogate));
