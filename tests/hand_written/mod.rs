@@ -732,3 +732,16 @@ test!(
     []
     "#
 );
+
+test!(
+    surrogate_pair,
+    r#"
+    "\uD83E\uDD14"
+    "#,
+    r#"
+    null
+    "#,
+    r#"
+    "🤔"
+    "#
+);
