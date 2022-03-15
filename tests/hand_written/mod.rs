@@ -717,3 +717,16 @@ test!(
     [1, 2, 3, 4]
     "#
 );
+
+test!(
+    flatten_fractional,
+    r#"
+    flatten(1.1)
+    "#,
+    r#"
+    [[[]]]
+    "#,
+    r#"
+    []
+    "#
+);
