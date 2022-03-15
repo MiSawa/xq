@@ -736,12 +736,13 @@ test!(
 test!(
     surrogate_pair,
     r#"
-    "\uD83E\uDD14"
+    "\uD83E\uDD14", "\ud83e\udd14"
     "#,
     r#"
     null
     "#,
     r#"
+    "🤔"
     "🤔"
     "#
 );
