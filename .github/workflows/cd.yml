@@ -29,7 +29,6 @@ jobs:
     - name: Create release
       uses: taiki-e/create-gh-release-action@v1
       with:
-        title: $version
         branch: master|main
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -46,10 +45,10 @@ jobs:
           - target: x86_64-unknown-linux-gnu
           - target: x86_64-unknown-linux-musl
           - target: x86_64-apple-darwin
-            os: macos-10.15
+            os: macos-latest
           - target: x86_64-pc-windows-msvc
-            os: windows-2019
-    runs-on: ${{ matrix.os || 'ubuntu-18.04' }}
+            os: windows-latest
+    runs-on: ${{ matrix.os || 'ubuntu-latest' }}
     steps:
     - uses: actions/checkout@v3
     - uses: actions-rs/toolchain@v1
