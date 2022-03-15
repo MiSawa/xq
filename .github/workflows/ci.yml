@@ -52,6 +52,7 @@ jobs:
         profile: minimal
         toolchain: nightly
         components: rustfmt, clippy
+        override: true
     - uses: Swatinem/rust-cache@v1
     - name: Run fmt
       uses: actions-rs/cargo@v1
