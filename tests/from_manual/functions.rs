@@ -568,6 +568,19 @@ test!(
 );
 
 test!(
+    flatten4,
+    r#"
+    flatten
+    "#,
+    r#"
+    [{"foo": "bar"}, [{"foo": "baz"}]]
+    "#,
+    r#"
+    [{"foo": "bar"}, {"foo": "baz"}]
+    "#
+);
+
+test!(
     range1,
     r#"
     range(2;4)
