@@ -1,3 +1,5 @@
 pre-release-commit-message = "Release {{version}}"
 tag-message = ""
 allow-branch = ["master"]
+pre-release-hook = ["cargo", "update", "--manifest-path", "./fuzz/Cargo.toml", "-p", "xq"]
+
