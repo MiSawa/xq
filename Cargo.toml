@@ -9,6 +9,9 @@ repository = "https://github.com/MiSawa/xq"
 readme = "README.md"
 exclude = [".github"]
 
+[workspace]
+members = [ "crates/xq-lang" ]
+
 [[bin]]
 name = "xq"
 path = "src/bin/main.rs"

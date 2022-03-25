@@ -7,10 +7,6 @@ description = "Lexer, parser and AST of jq."
 repository = "https://github.com/MiSawa/xq"
 publish = false
 
-# Prevent this from interfering with workspaces
-[workspace]
-members = ["."]
-
 [dependencies]
 thiserror = "1.0.30"
 derive_more = "0.99.17"
