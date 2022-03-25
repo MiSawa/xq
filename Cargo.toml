@@ -19,9 +19,9 @@ default = ["build-binary"]
 build-binary = ["anyhow", "clap", "clap-verbosity-flag", "simplelog", "serde_yaml"]
 
 [dependencies]
+xq-lang = { path = "./crates/xq-lang" }
 thiserror = "1.0.30"
 log = "0.4.14"
-nom = "7.1.0"
 imbl = "1.0.1"
 sized-chunks = "0.6.5"
 num = "0.4.0"
@@ -38,9 +38,6 @@ html-escape = "0.2.9"
 shell-escape = "0.1.5"
 urlencoding = "2.1.0"
 base64 = "0.13.0"
-lalrpop-util = "0.19.7"
-lexgen = "0.10.0"
-lexgen_util = "0.10.0"
 time = { version = "0.3.7", features = ["local-offset"] }
 time-fmt = "0.3.4"
 time-tz = { version = "0.5.2", features = ["system", "posix-tz"] }
@@ -52,5 +49,3 @@ anyhow = { version = "1.0.56", optional = true }
 simplelog = { version = "0.11.2", optional = true }
 serde_yaml = { version = "0.8.23", optional = true }
 
-[build-dependencies]
-lalrpop = "0.19.7"

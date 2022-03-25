@@ -1,11 +1,13 @@
+use std::collections::HashSet;
+
+use num::{Float, ToPrimitive, Zero};
+use xq_lang::ast::BinaryArithmeticOp;
+
 use crate::{
     intrinsic::string,
-    lang::ast::BinaryArithmeticOp,
     vm::{bytecode::NamedFn1, QueryExecutionError},
     Number, Value,
 };
-use num::{Float, ToPrimitive, Zero};
-use std::collections::HashSet;
 
 pub(crate) fn binary(operator: &BinaryArithmeticOp) -> NamedFn1 {
     // NOTE: Because of the evaluation order, lhs and rhs are flipped here.

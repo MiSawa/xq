@@ -1,4 +1,3 @@
-use itertools::Itertools;
 use std::{
     cell::RefCell,
     collections::{HashMap, HashSet},
@@ -6,22 +5,24 @@ use std::{
     rc::Rc,
     slice::from_ref,
 };
+
+use itertools::Itertools;
 use thiserror::Error;
+use xq_lang::ast::{
+    self, BinaryArithmeticOp, BinaryOp, BindPattern, ConstantPrimitive, FuncArg, FuncDef,
+    Identifier, ObjectBindPatternEntry, Query, StringFragment, Suffix, Term, UpdateOp,
+};
 
 use crate::{
     data_structure::PHashMap,
     intrinsic,
-    lang::ast::{
-        self, BinaryArithmeticOp, BinaryOp, BindPattern, FuncArg, FuncDef, Identifier,
-        ObjectBindPatternEntry, Query, StringFragment, Suffix, Term, UpdateOp,
-    },
     module_loader::{ModuleLoadError, ModuleLoader},
     value::Array,
     vm::{
         bytecode::{ClosureAddress, NamedFn0, NamedFn1, NamedFn2},
         Address, ByteCode, Program, ScopeId, ScopedSlot,
     },
-    Value,
+    Number, Value,
 };
 
 /// # Function calling convention
@@ -178,6 +179,19 @@ impl CodeEmitter {
     fn emit_terminal_op(&mut self, code: ByteCode) -> Address {
         self.code.push(code);
         self.address()
+    }
+
+    fn emit_constant_primitive<V>(&mut self, value: V, next: Address) -> Address
+    where
+        V: Into<ConstantPrimitive>,
+    {
+        match value.into() {
+            ConstantPrimitive::Null => self.emit_constant(Value::Null, next),
+            ConstantPrimitive::False => self.emit_constant(false, next),
+            ConstantPrimitive::True => self.emit_constant(true, next),
+            ConstantPrimitive::Number(v) => self.emit_constant(Number::from(v.0), next),
+            ConstantPrimitive::String(s) => self.emit_constant(s, next),
+        }
     }
 
     fn emit_constant<V>(&mut self, value: V, next: Address) -> Address
@@ -342,6 +356,12 @@ struct SavedScope(Scope);
 
 trait Compile {
     fn compile(&self, compiler: &mut Compiler, next: Address) -> Result<Address>;
+}
+
+impl Compile for Value {
+    fn compile(&self, compiler: &mut Compiler, next: Address) -> Result<Address> {
+        Ok(compiler.emitter.emit_constant(self.clone(), next))
+    }
 }
 
 impl Compile for Query {
@@ -884,9 +904,11 @@ impl Compiler {
                 _ => self.compile_try::<_, Query>(term, None, next),
             },
             Suffix::Iterate => self.compile_iterate(term, next),
-            Suffix::Index(ident) => {
-                self.compile_index(term, &Term::Constant(Value::string(ident.0.clone())), next)
-            }
+            Suffix::Index(ident) => self.compile_index(
+                term,
+                &Term::Constant(ConstantPrimitive::String(ident.0.clone())),
+                next,
+            ),
             Suffix::Query(q) => self.compile_index(term, q, next),
             Suffix::Slice(start, end) => {
                 self.compile_slice(term, start.as_ref(), end.as_ref(), next)
@@ -1168,7 +1190,7 @@ impl Compiler {
     /// Consumes a value from the stack, and produces a single value onto the stack.
     fn compile_term(&mut self, term: &ast::Term, next: Address) -> Result<Address> {
         let ret = match term {
-            Term::Constant(value) => self.emitter.emit_constant(value.clone(), next),
+            Term::Constant(value) => self.emitter.emit_constant_primitive(value.clone(), next),
             Term::String(s) => self.compile_string(
                 s,
                 |compiler: &mut Compiler, next| {
@@ -1382,22 +1404,22 @@ impl Compiler {
                     &|compiler: &mut Compiler, next| {
                         compiler.compile_if(
                             rhs,
-                            &Term::Constant(true.into()),
-                            Some(&Term::Constant(false.into())),
+                            &Value::from(true),
+                            Some(&Value::from(false)),
                             next,
                         )
                     },
-                    Some(&Term::Constant(false.into())),
+                    Some(&Value::from(false)),
                     next,
                 )?,
                 BinaryOp::Or => self.compile_if(
                     lhs,
-                    &Term::Constant(true.into()),
+                    &Value::from(true),
                     Some(&|compiler: &mut Compiler, next| {
                         compiler.compile_if(
                             rhs,
-                            &Term::Constant(true.into()),
-                            Some(&Term::Constant(false.into())),
+                            &Value::from(true),
+                            Some(&Value::from(false)),
                             next,
                         )
                     }),

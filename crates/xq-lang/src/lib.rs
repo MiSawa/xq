@@ -3,10 +3,12 @@ pub mod ast;
 pub mod lexer;
 
 use lalrpop_util::lalrpop_mod;
+use ordered_float::OrderedFloat;
 use thiserror::Error;
 
-lalrpop_mod!(#[allow(clippy::all, unused_imports)] pub parser, "/lang/jq.rs");
+lalrpop_mod!(#[allow(clippy::all, unused_imports)] pub parser, "/jq.rs");
 
+pub(crate) type Number = OrderedFloat<f64>;
 pub type ParseResult<T> = Result<T, ParseError>;
 type Loc = lexer::Loc;
 

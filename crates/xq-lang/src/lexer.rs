@@ -654,9 +654,9 @@ mod test {
         assert_lex(
             r#"2 12 1e3 1.5 .2 .3e-1"#,
             &[
-                Token::Number(2.into()),
-                Token::Number(12.into()),
-                Token::Number(1000.into()),
+                Token::Number(2.0.into()),
+                Token::Number(12.0.into()),
+                Token::Number(1000.0.into()),
                 Token::Number(1.5.into()),
                 Token::Number(0.2.into()),
                 Token::Number(0.03.into()),
@@ -675,9 +675,9 @@ mod test {
             &[
                 Token::StringStart,
                 Token::InterpolationStart,
-                Token::Number(1.into()),
+                Token::Number(1.0.into()),
                 Token::Plus,
-                Token::Number(2.into()),
+                Token::Number(2.0.into()),
                 Token::InterpolationEnd,
                 Token::StringEnd,
             ],

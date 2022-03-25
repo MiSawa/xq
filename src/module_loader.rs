@@ -1,9 +1,7 @@
-use crate::{
-    lang::{ast::Program, parse_program, ParseError},
-    module_loader::ModuleLoadError::NotFoundError,
-    Value,
-};
 use thiserror::Error;
+use xq_lang::{ast::Program, parse_program, ParseError};
+
+use crate::{module_loader::ModuleLoadError::NotFoundError, Value};
 
 #[derive(Debug, Error)]
 pub enum ModuleLoadError {
