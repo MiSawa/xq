@@ -50,7 +50,7 @@ jobs:
     - uses: actions-rs/toolchain@v1
       with:
         profile: minimal
-        toolchain: nightly
+        toolchain: nightly # Using nightly for (a) unstable features of rustfmt and (b) faster clippy redundant_clone lint
         components: rustfmt, clippy
         override: true
     - uses: Swatinem/rust-cache@v1
