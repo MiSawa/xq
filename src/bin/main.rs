@@ -1,11 +1,12 @@
-use anyhow::{anyhow, Context, Result};
-use clap::{ArgEnum, Args, Parser, ValueHint};
-use clap_verbosity_flag::Verbosity;
-use cli::input::Input;
 use std::{
     io::{stdin, stdout, Write},
     path::PathBuf,
 };
+
+use anyhow::{anyhow, Context, Result};
+use clap::{ArgEnum, Args, Parser, ValueHint};
+use clap_verbosity_flag::Verbosity;
+use cli::input::Input;
 use xq::{module_loader::PreludeLoader, run_query, InputError, Value};
 
 use crate::cli::input::Tied;

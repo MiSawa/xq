@@ -1,4 +1,3 @@
-use crate::Value;
 use super::{
     ast::{
         BinaryArithmeticOp, BinaryOp, BindPattern, Comparator, ConstantArray,
@@ -203,10 +202,10 @@ ObjectTermEntry: (Query, Option<Query>) = {
 }
 
 TermInner: Term = {
-    "null" => Term::Constant(Value::Null),
-    "false" => Term::Constant(Value::Boolean(false)),
-    "true" => Term::Constant(Value::Boolean(true)),
-    Number => Term::Constant(Value::Number(<>)),
+    "null" => Term::Constant(ConstantPrimitive::Null),
+    "false" => Term::Constant(ConstantPrimitive::False),
+    "true" => Term::Constant(ConstantPrimitive::True),
+    Number => Term::Constant(ConstantPrimitive::Number(<>)),
     StringMayBeInterpolated => Term::String(<>),
     "(" <Query> ")" => <>.into(),
     "[" <Boxed<Query>?> "]" => Term::Array(<>),

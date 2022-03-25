@@ -1,8 +1,9 @@
+use std::{fmt::Formatter, ops::Neg, str::FromStr};
+
 use cast::i32;
 use derive_more::{DebugCustom, Display};
 use ordered_float::OrderedFloat;
 use serde::{serde_if_integer128, Deserialize, Deserializer, Serialize, Serializer};
-use std::{fmt::Formatter, ops::Neg, str::FromStr};
 
 pub(crate) type PrimitiveReal = f64;
 

@@ -1,3 +1,17 @@
+use std::rc::Rc;
+
+use itertools::Itertools;
+use num::{Float, ToPrimitive};
+use phf::phf_map;
+
+pub(crate) use self::{
+    binary::binary,
+    comparator::comparator,
+    index::{index, slice},
+    path::{del_paths, get_path, set_path},
+    string::{stringifier, text},
+    unary::unary,
+};
 use crate::{
     compile::compiler::{ArgType, FunctionIdentifier},
     util::make_owned,
@@ -7,19 +21,6 @@ use crate::{
         ByteCode, QueryExecutionError,
     },
     Array, Value,
-};
-use itertools::Itertools;
-use num::{Float, ToPrimitive};
-use phf::phf_map;
-use std::rc::Rc;
-
-pub(crate) use self::{
-    binary::binary,
-    comparator::comparator,
-    index::{index, slice},
-    path::{del_paths, get_path, set_path},
-    string::{stringifier, text},
-    unary::unary,
 };
 
 mod binary;

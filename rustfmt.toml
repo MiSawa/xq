@@ -1,4 +1,7 @@
-# TODO: nightly...
-# unstable_features = true
-# imports_granularity = "Crate"
 newline_style = "Unix"
+
+# TODO: nightly...
+unstable_features = true
+imports_granularity = "Crate"
+group_imports = "StdExternalCrate"
+

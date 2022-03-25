@@ -1,26 +1,25 @@
 mod compile;
 mod data_structure;
 mod intrinsic;
-pub mod lang;
 pub mod module_loader;
 mod number;
 pub mod util;
 mod value;
 pub mod vm;
 
+use thiserror::Error;
+use vm::machine::ResultIterator;
+use xq_lang::ParseError;
+
+use crate::{
+    compile::compiler::{CompileError, Compiler},
+    module_loader::ModuleLoader,
+    vm::{machine::Machine, QueryExecutionError},
+};
 pub use crate::{
     number::Number,
     value::{Array, Object, Value},
 };
-
-use crate::{
-    compile::compiler::{CompileError, Compiler},
-    lang::ParseError,
-    module_loader::ModuleLoader,
-    vm::{machine::Machine, QueryExecutionError},
-};
-use thiserror::Error;
-use vm::machine::ResultIterator;
 
 pub type InputError = vm::error::InputError;
 
@@ -46,7 +45,7 @@ where
     M: ModuleLoader,
 {
     // let now = std::time::Instant::now();
-    let parsed = lang::parse_program(query)?;
+    let parsed = xq_lang::parse_program(query)?;
     log::info!("Parsed query = {:?}", parsed);
     // eprintln!("Parse: {:?}", now.elapsed());
     // let now = std::time::Instant::now();

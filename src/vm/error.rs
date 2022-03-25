@@ -1,7 +1,8 @@
 use std::rc::Rc;
 
-use crate::{value::RcString, vm::machine::LabelId, Number, Value};
 use thiserror::Error;
+
+use crate::{value::RcString, vm::machine::LabelId, Number, Value};
 
 pub type Result<T, E = QueryExecutionError> = std::result::Result<T, E>;
 

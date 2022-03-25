@@ -1,5 +1,6 @@
+use xq_lang::ast::UnaryOp;
+
 use crate::{
-    lang::ast::UnaryOp,
     vm::{bytecode::NamedFn0, QueryExecutionError},
     Value,
 };

@@ -1,8 +1,6 @@
 use std::process::Command;
 
 fn main() {
-    lalrpop::process_root().unwrap();
-
     let package_version = env!("CARGO_PKG_VERSION");
     let git_revision = Command::new("git")
         .args(&["rev-parse", "HEAD"])

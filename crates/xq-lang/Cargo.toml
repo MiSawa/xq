@@ -1,0 +1,19 @@
+[package]
+name = "xq-lang"
+version = "0.0.0"
+authors = ["mi_sawa <mi.sawa.1216+git@gmail.com>"]
+edition = "2021"
+description = "Lexer, parser and AST of jq."
+repository = "https://github.com/MiSawa/xq"
+publish = false
+
+[dependencies]
+thiserror = "1.0.30"
+derive_more = "0.99.17"
+ordered-float = "2.10.0"
+lexgen = "0.10.0"
+lexgen_util = "0.10.0"
+lalrpop-util = "0.19.7"
+
+[build-dependencies]
+lalrpop = "0.19.7"

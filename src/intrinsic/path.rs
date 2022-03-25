@@ -1,12 +1,14 @@
+use std::{ops::Range, rc::Rc};
+
+use itertools::{repeat_n, Itertools};
+use num::ToPrimitive;
+
 use crate::{
     util::make_owned,
     value::RcString,
     vm::{error::Result, QueryExecutionError},
     Array, Object, Value,
 };
-use itertools::{repeat_n, Itertools};
-use num::ToPrimitive;
-use std::{ops::Range, rc::Rc};
 
 pub(crate) fn get_path(context: Value, path: Value) -> Result<Value> {
     match path {

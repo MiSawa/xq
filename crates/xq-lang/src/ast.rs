@@ -1,5 +1,8 @@
-use crate::{Number, Value};
 use std::fmt::{Display, Formatter};
+
+use derive_more::From;
+
+use crate::Number;
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub struct Identifier(pub String);
@@ -107,7 +110,7 @@ pub struct FuncDef {
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum Term {
     /// `'null' | 'true' | 'false' | <number>`
-    Constant(Value),
+    Constant(ConstantPrimitive),
     /// `<string>`
     String(Vec<StringFragment>),
 
@@ -220,17 +223,17 @@ pub enum ConstantPrimitive {
     String(String),
 }
 
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Debug, Clone, Eq, PartialEq, From)]
 pub enum ConstantValue {
     Primitive(ConstantPrimitive),
     Array(ConstantArray),
     Object(ConstantObject),
 }
 
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Debug, Clone, Eq, PartialEq, Default)]
 pub struct ConstantArray(pub Vec<ConstantValue>);
 
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Debug, Clone, Eq, PartialEq, Default)]
 pub struct ConstantObject(pub Vec<(String, ConstantValue)>);
 
 #[derive(Debug, Clone, Eq, PartialEq)]

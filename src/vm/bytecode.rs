@@ -1,8 +1,9 @@
+use std::fmt::{Debug, Formatter};
+
 use crate::{
     vm::{Address, Result, ScopeId, ScopedSlot},
     Value,
 };
-use std::fmt::{Debug, Formatter};
 
 #[derive(Clone, Eq, PartialEq)]
 pub struct NamedFunction<F: Clone + ?Sized> {

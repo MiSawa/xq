@@ -1,11 +1,13 @@
-use crate::{
-    vm::{error::Result, machine::PathElement, QueryExecutionError},
-    Array, Number, Object, Value,
-};
-use num::{ToPrimitive, Zero};
 use std::{
     ops::{Bound, Range},
     rc::Rc,
+};
+
+use num::{ToPrimitive, Zero};
+
+use crate::{
+    vm::{error::Result, machine::PathElement, QueryExecutionError},
+    Array, Number, Object, Value,
 };
 
 fn number_to_isize(n: Number) -> isize {
