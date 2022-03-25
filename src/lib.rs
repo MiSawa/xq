@@ -11,15 +11,14 @@ use thiserror::Error;
 use vm::machine::ResultIterator;
 use xq_lang::ParseError;
 
-pub use crate::{
-    number::Number,
-    value::{Array, Object, Value},
-};
-
 use crate::{
     compile::compiler::{CompileError, Compiler},
     module_loader::ModuleLoader,
     vm::{machine::Machine, QueryExecutionError},
+};
+pub use crate::{
+    number::Number,
+    value::{Array, Object, Value},
 };
 
 pub type InputError = vm::error::InputError;

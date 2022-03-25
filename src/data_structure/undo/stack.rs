@@ -1,6 +1,7 @@
-use crate::data_structure::undo::Undo;
 use derive_more::Display;
 use itertools::Itertools;
+
+use crate::data_structure::undo::Undo;
 
 #[derive(Debug, Eq, PartialEq)]
 pub struct UStackToken(usize);

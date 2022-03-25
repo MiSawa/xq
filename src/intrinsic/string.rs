@@ -1,12 +1,13 @@
+use std::{borrow::Cow, rc::Rc};
+
+use itertools::Itertools;
+use num::{Float, ToPrimitive};
+
 use crate::{
     util::make_owned,
     vm::{bytecode::NamedFn0, QueryExecutionError, Result},
     Array, Number, Value,
 };
-use itertools::Itertools;
-use num::Float;
-use num::ToPrimitive;
-use std::{borrow::Cow, rc::Rc};
 
 pub(crate) fn to_number(value: Value) -> Result<Value> {
     match value {

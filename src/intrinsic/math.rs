@@ -1,5 +1,6 @@
-use crate::{vm::Result, Number, Value};
 use num::Float;
+
+use crate::{vm::Result, Number, Value};
 
 macro_rules! as_math_fn {
     ($name: ident) => {

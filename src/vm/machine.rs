@@ -1,3 +1,12 @@
+use std::{
+    cell::{RefCell, RefMut},
+    iter::Fuse,
+    rc::Rc,
+};
+
+use itertools::Itertools;
+use thiserror::Error;
+
 use crate::{
     data_structure::{
         undo::{
@@ -15,13 +24,6 @@ use crate::{
     },
     Array, InputError,
 };
-use itertools::Itertools;
-use std::{
-    cell::{RefCell, RefMut},
-    iter::Fuse,
-    rc::Rc,
-};
-use thiserror::Error;
 
 #[derive(Debug, Clone, Eq, PartialEq, Error)]
 pub(crate) enum ProgramError {

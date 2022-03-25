@@ -1,6 +1,8 @@
-use crate::Number;
-use derive_more::From;
 use std::fmt::{Display, Formatter};
+
+use derive_more::From;
+
+use crate::Number;
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub struct Identifier(pub String);

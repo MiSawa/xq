@@ -1,12 +1,3 @@
-use crate::Number;
-use derive_more::{DebugCustom, Display, Index, IndexMut, IntoIterator, IsVariant, Unwrap};
-use itertools::Itertools;
-use num::Float;
-use serde::{
-    de::{Error, MapAccess, SeqAccess, Visitor},
-    ser::{SerializeMap, SerializeSeq},
-    serde_if_integer128, Deserialize, Deserializer, Serialize, Serializer,
-};
 use std::{
     borrow::Borrow,
     cmp::Ordering,
@@ -18,6 +9,17 @@ use std::{
     rc::Rc,
     slice::SliceIndex,
 };
+
+use derive_more::{DebugCustom, Display, Index, IndexMut, IntoIterator, IsVariant, Unwrap};
+use itertools::Itertools;
+use num::Float;
+use serde::{
+    de::{Error, MapAccess, SeqAccess, Visitor},
+    ser::{SerializeMap, SerializeSeq},
+    serde_if_integer128, Deserialize, Deserializer, Serialize, Serializer,
+};
+
+use crate::Number;
 
 type Vector = Vec<Value>;
 type Map = HashMap<RcString, Value>;
