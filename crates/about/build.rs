@@ -38,7 +38,7 @@ fn main() -> Result<()> {
         .zip(resolved.iter())
         .filter_map(|(l, r)| r.as_ref().map(|r| (l, r)))
     {
-        for diagnostic in &resolved.diagnostics {
+        if let Some(diagnostic) = resolved.diagnostics.get(0) {
             bail!(
                 "Diagnostics about license of crate {}: {}",
                 krate.krate,
