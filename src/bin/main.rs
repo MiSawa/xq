@@ -42,7 +42,7 @@ struct MainArgs {
     verbosity: Verbosity,
 
     /// Show license text of dependencies
-    #[cfg(feature="about")]
+    #[cfg(feature = "about")]
     #[clap(long)]
     about: bool,
 }
@@ -204,10 +204,10 @@ fn main() -> Result<()> {
     init_log(&args.verbosity)?;
     log::debug!("Parsed argument: {:?}", args);
 
-    #[cfg(feature="about")]
+    #[cfg(feature = "about")]
     if args.about {
         println!("{}", xq_about::get_about_text());
-        return Ok(())
+        return Ok(());
     }
 
     match args.input_format.get() {
