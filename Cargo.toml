@@ -10,8 +10,7 @@ readme = "README.md"
 exclude = [".github"]
 
 [workspace]
-members = [ "crates/lang" ]
-exclude = [ "crates/about" ]
+members = [ "crates/*" ]
 
 [[bin]]
 name = "xq"
@@ -22,6 +21,9 @@ required-features = ["build-binary"]
 default = ["build-binary"]
 about = ["xq-about"]
 build-binary = ["anyhow", "clap", "clap-verbosity-flag", "simplelog", "serde_yaml"]
+
+[profile.dev.build-override]
+opt-level = 3
 
 [dependencies]
 xq-lang = { path = "./crates/lang" }
