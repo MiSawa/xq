@@ -40,6 +40,11 @@ struct MainArgs {
 
     #[clap(flatten)]
     verbosity: Verbosity,
+
+    /// Show license text of dependencies
+    #[cfg(feature="about")]
+    #[clap(long)]
+    about: bool,
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Debug, ArgEnum)]
@@ -198,6 +203,12 @@ fn main() -> Result<()> {
     let args: MainArgs = MainArgs::parse();
     init_log(&args.verbosity)?;
     log::debug!("Parsed argument: {:?}", args);
+
+    #[cfg(feature="about")]
+    if args.about {
+        println!("{}", xq_about::get_about_text());
+        return Ok(())
+    }
 
     match args.input_format.get() {
         SerializationFormat::Json => {

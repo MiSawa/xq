@@ -1,0 +1,23 @@
+[package]
+name = "xq-about"
+version = "0.0.0"
+authors = ["mi_sawa <mi.sawa.1216+git@gmail.com>"]
+edition = "2021"
+description = "License of dependencies of xq."
+repository = "https://github.com/MiSawa/xq"
+publish = false
+
+[workspace]
+members = ["."]
+
+[build-dependencies]
+anyhow = "1.0.56"
+cargo-about = "0.5.0"
+cd = "0.2.1"
+krates = "0.10.1"
+spdx = { version = "0.8", features = ["text"] }
+toml = "0.5.8"
+
+[profile.dev.build-override]
+opt-level = 3
+
