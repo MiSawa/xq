@@ -1,0 +1,7 @@
+args = [ "--about" ]
+
+stdout = """
+Here is the list of licenses of the projects XQ uses.
+
+...
+"""
