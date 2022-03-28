@@ -1,4 +1,4 @@
-args = [ "-r", "--yaml-output", "." ]
+args = [ "-r", "--yaml-output" ]
 status = "failed"
 
 stdin = """

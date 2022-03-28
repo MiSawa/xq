@@ -1,4 +1,4 @@
-args = [ "-c", "--yaml-input", "." ]
+args = [ "-c", "--yaml-input" ]
 
 stdin = """
 ---
