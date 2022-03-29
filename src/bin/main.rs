@@ -75,7 +75,7 @@ struct InputFormatArg {
 }
 
 impl InputFormatArg {
-    fn get(&self) -> SerializationFormat {
+    fn get(self) -> SerializationFormat {
         if self.json_input {
             SerializationFormat::Json
         } else if self.yaml_input {
@@ -107,7 +107,7 @@ struct OutputFormatArg {
 }
 
 impl OutputFormatArg {
-    fn get(&self) -> SerializationFormat {
+    fn get(self) -> SerializationFormat {
         if self.json_output {
             SerializationFormat::Json
         } else if self.yaml_output {

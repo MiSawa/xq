@@ -30,30 +30,31 @@ pub enum Keyword {
     Foreach,
 }
 impl Keyword {
-    pub fn to_str(&self) -> &'static str {
+    #[must_use]
+    pub const fn to_str(&self) -> &'static str {
         match self {
-            Keyword::Or => "or",
-            Keyword::And => "and",
-            Keyword::Module => "module",
-            Keyword::Import => "import",
-            Keyword::Include => "include",
-            Keyword::Def => "def",
-            Keyword::As => "as",
-            Keyword::Label => "label",
-            Keyword::Break => "break",
-            Keyword::Null => "null",
-            Keyword::False => "false",
-            Keyword::True => "true",
-            Keyword::If => "if",
-            Keyword::Then => "then",
-            Keyword::Elif => "elif",
-            Keyword::Else => "else",
-            Keyword::End => "end",
-            Keyword::Try => "try",
-            Keyword::TryNoCatch => "try",
-            Keyword::Catch => "catch",
-            Keyword::Reduce => "reduce",
-            Keyword::Foreach => "foreach",
+            Self::Or => "or",
+            Self::And => "and",
+            Self::Module => "module",
+            Self::Import => "import",
+            Self::Include => "include",
+            Self::Def => "def",
+            Self::As => "as",
+            Self::Label => "label",
+            Self::Break => "break",
+            Self::Null => "null",
+            Self::False => "false",
+            Self::True => "true",
+            Self::If => "if",
+            Self::Then => "then",
+            Self::Elif => "elif",
+            Self::Else => "else",
+            Self::End => "end",
+            Self::Try => "try",
+            Self::TryNoCatch => "try",
+            Self::Catch => "catch",
+            Self::Reduce => "reduce",
+            Self::Foreach => "foreach",
         }
     }
 }
@@ -159,7 +160,8 @@ pub struct Lexer<'input> {
 }
 
 impl<'input> Lexer<'input> {
-    pub fn new(input: &'input str) -> Self {
+    #[must_use]
+    pub const fn new(input: &'input str) -> Self {
         Self { input }
     }
 }
