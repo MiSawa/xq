@@ -62,6 +62,7 @@ jobs:
         bin: xq
         features: about
         target: ${{ matrix.target }}
+        archive: $bin-$tag-$target
         tar: all
         zip: windows
       env:
