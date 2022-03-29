@@ -741,7 +741,7 @@ fn run_code(
                             let sorted_elements = map
                                 .iter()
                                 .map(|(k, v)| (k.clone(), v.clone())) // TODO: Is there a better way?
-                                .sorted_by(|(lhs, _), (rhs, _)| Ord::cmp(lhs, rhs))
+                                .sorted_unstable_by(|(lhs, _), (rhs, _)| Ord::cmp(lhs, rhs))
                                 .collect();
                             PathValueIterator::Object {
                                 sorted_elements: Rc::new(sorted_elements),

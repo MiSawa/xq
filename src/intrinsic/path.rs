@@ -52,7 +52,7 @@ pub(crate) fn del_paths(context: Value, paths: Value) -> Result<Value> {
                 non_slice_len + last_slice
             }
             // We delete from deeper ones so we can raise errors.
-            paths.sort_by_key(|p| std::cmp::Reverse(depth(p)));
+            paths.sort_unstable_by_key(|p| std::cmp::Reverse(depth(p)));
             let mut value = context.clone();
             for path in paths {
                 value =
