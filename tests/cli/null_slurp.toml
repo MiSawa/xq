@@ -1,0 +1,11 @@
+args = [ "-c", "-n", "-s", "., inputs" ]
+
+stdin = """
+1
+["a", null]
+"""
+
+stdout = """
+null
+[1,["a",null]]
+"""
