@@ -1,5 +1,6 @@
 pre-release-commit-message = "Release {{version}}"
 tag-message = ""
 allow-branch = ["master"]
-pre-release-hook = ["cargo", "update", "--manifest-path", "./fuzz/Cargo.toml", "-p", "xq"]
-
+consolidate-commits = true
+consolidate-pushes = true
+tag = false # Enable only on the root crate

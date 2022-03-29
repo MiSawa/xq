@@ -1252,12 +1252,7 @@ dependencies = [
  "html-escape",
  "imbl",
  "itertools",
- "lalrpop",
- "lalrpop-util",
- "lexgen",
- "lexgen_util",
  "log",
- "nom",
  "num",
  "num-derive",
  "num-traits",
@@ -1275,6 +1270,7 @@ dependencies = [
  "time-fmt",
  "time-tz",
  "urlencoding",
+ "xq-lang",
 ]
 
 [[package]]
@@ -1284,6 +1280,19 @@ dependencies = [
  "libfuzzer-sys",
  "serde_json",
  "xq",
+]
+
+[[package]]
+name = "xq-lang"
+version = "0.0.0"
+dependencies = [
+ "derive_more",
+ "lalrpop",
+ "lalrpop-util",
+ "lexgen",
+ "lexgen_util",
+ "ordered-float",
+ "thiserror",
 ]
 
 [[package]]
