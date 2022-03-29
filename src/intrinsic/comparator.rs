@@ -59,8 +59,8 @@ impl<'a> PartialEq<Self> for PartialValue<'a> {
                 if lhs.len() != rhs.len() {
                     return false;
                 }
-                let lhs_keys = lhs.keys().sorted().collect_vec();
-                let rhs_keys = rhs.keys().sorted().collect_vec();
+                let lhs_keys = lhs.keys().sorted_unstable().collect_vec();
+                let rhs_keys = rhs.keys().sorted_unstable().collect_vec();
                 if lhs_keys != rhs_keys {
                     return false;
                 }
@@ -110,8 +110,8 @@ impl<'a> PartialOrd<Self> for PartialValue<'a> {
                 )
             }
             (Object(lhs), Object(rhs)) => {
-                let lhs_keys = lhs.keys().sorted().collect_vec();
-                let rhs_keys = rhs.keys().sorted().collect_vec();
+                let lhs_keys = lhs.keys().sorted_unstable().collect_vec();
+                let rhs_keys = rhs.keys().sorted_unstable().collect_vec();
                 if let res @ (Less | Greater) = Iterator::cmp(lhs_keys.iter(), rhs_keys.iter()) {
                     return Some(res);
                 }

@@ -40,7 +40,7 @@ pub struct Object(#[into_iterator(owned, ref, ref_mut)] Map);
 #[allow(clippy::derive_hash_xor_eq)] // HashMap::eq is implemented properly.
 impl Hash for Object {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        for (key, value) in self.0.iter().sorted_by_key(|e| e.0) {
+        for (key, value) in self.0.iter().sorted_unstable_by_key(|e| e.0) {
             key.hash(state);
             value.hash(state);
         }
@@ -458,8 +458,8 @@ impl Ord for Value {
             (String(lhs), String(rhs)) => Ord::cmp(&lhs, &rhs),
             (Array(lhs), Array(rhs)) => return Iterator::cmp(lhs.iter(), rhs.iter()),
             (Object(lhs), Object(rhs)) => {
-                let lhs_keys = lhs.keys().sorted().collect_vec();
-                let rhs_keys = rhs.keys().sorted().collect_vec();
+                let lhs_keys = lhs.keys().sorted_unstable().collect_vec();
+                let rhs_keys = rhs.keys().sorted_unstable().collect_vec();
                 if let res @ (Less | Greater) = Iterator::cmp(lhs_keys.iter(), rhs_keys.iter()) {
                     return res;
                 }

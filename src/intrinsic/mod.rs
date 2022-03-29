@@ -186,7 +186,7 @@ fn keys(context: Value) -> Result<Value> {
         Value::Array(arr) => Ok((0..arr.len()).map(Value::number).collect::<Array>().into()),
         Value::Object(obj) => Ok(obj
             .keys()
-            .sorted()
+            .sorted_unstable()
             .map(|k| k.to_string().into())
             .collect::<Array>()
             .into()),
