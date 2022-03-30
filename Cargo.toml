@@ -1,6 +1,6 @@
 [package]
 name = "xq"
-version = "0.2.27"
+version = "0.2.28"
 authors = ["mi_sawa <mi.sawa.1216+git@gmail.com>"]
 edition = "2021"
 description = "A reimplementation of jq."
@@ -36,7 +36,7 @@ build-binary = ["anyhow", "clap", "clap-verbosity-flag", "simplelog", "serde_yam
 opt-level = 3
 
 [dependencies]
-xq-lang = { path = "./crates/lang", version = "0.0.0" }
+xq-lang = { path = "./crates/lang", version = "0.0.1" }
 thiserror = "1.0.30"
 log = "0.4.14"
 imbl = "1.0.1"

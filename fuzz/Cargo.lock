@@ -1241,7 +1241,7 @@ checksum = "d2d7d3948613f75c98fd9328cfdcc45acc4d360655289d0a7d4ec931392200a3"
 
 [[package]]
 name = "xq"
-version = "0.2.27"
+version = "0.2.28"
 dependencies = [
  "anyhow",
  "base64",
@@ -1284,7 +1284,7 @@ dependencies = [
 
 [[package]]
 name = "xq-lang"
-version = "0.0.0"
+version = "0.0.1"
 dependencies = [
  "derive_more",
  "lalrpop",
