@@ -18,7 +18,6 @@ pkg-fmt = "zip"
 
 [package.metadata.release]
 pre-release-hook = ["cargo", "update", "--manifest-path", "./fuzz/Cargo.toml", "-p", "xq"]
-tag = true
 
 [workspace]
 members = [ "crates/*" ]
