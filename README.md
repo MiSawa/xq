@@ -54,7 +54,9 @@ Are you sure you want to use this??? It's not a daily-usable stage. Though if yo
 $ cargo install xq
 $ cat whatever.json | xq 'query goes here'
 ```
-. Or to get the latest version, please clone this repository to your local, and run
+. If you'd rather want to download a pre-built binary, either download it manually from [the latest release](https://github.com/MiSawa/xq/releases/latest), or use [cargo-binstall](https://github.com/ryankurte/cargo-binstall).
+
+You can also clone this repository to your local and run
 ```shell
 $ cargo install --path path-to-cloned-dir
 $ cat whatever.json | xq 'query goes here'
