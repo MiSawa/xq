@@ -14,6 +14,7 @@ env:
 
 jobs:
   create-release:
+    name: Create release
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v3
@@ -30,12 +31,11 @@ jobs:
       uses: taiki-e/create-gh-release-action@v1
       with:
         branch: master|main
-        draft: true
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  upload-assets:
-    name: Build release for ${{ matrix.target }}
+  release-artifacts:
+    name: Build and release artifact for ${{ matrix.target }}
     needs:
       - create-release
     strategy:
@@ -58,6 +58,7 @@ jobs:
     steps:
 
     - uses: actions/checkout@v3
+    - uses: Swatinem/rust-cache@v1
     - name: Install cargo-about
       uses: baptiste0928/cargo-install@v1
       with:
@@ -68,7 +69,6 @@ jobs:
         profile: minimal
         toolchain: stable
         override: true
-    - uses: Swatinem/rust-cache@v1
 
     - name: Prepare environment variables
       shell: bash
@@ -80,7 +80,7 @@ jobs:
         fi
         readonly tag="${GITHUB_REF#refs/tags/}"
         echo "TAG=${tag}" >> "${GITHUB_ENV}"
-        echo "ARTIFACT_DIR='xq-${tag}-${{ matrix.target }}'" >> "${GITHUB_ENV}"
+        echo "ARTIFACT_DIR=xq-${tag}-${{ matrix.target }}" >> "${GITHUB_ENV}"
         if [[ "${{ matrix.target }}" == *"windiws-msvc" ]]; then
           echo "BINARY_EXT=.exe" >> "${GITHUB_ENV}"
           echo "RUSTFLAGS=${RUSTFLAGS} -C target-feature=+crt-static" >> "${GITHUB_ENV}"
@@ -95,7 +95,7 @@ jobs:
     - name: Build
       uses: actions-rs/cargo@v1
       with:
-        use-cross: ${{ matrix.cross }}
+        use-cross: ${{ matrix.cross || true }}
         command: build
         args: --package xq --release --locked --target ${{ matrix.target }}
 
@@ -109,7 +109,7 @@ jobs:
         cp "about.html" "${ARTIFACT_DIR}/"
         cp "${binary}" "${ARTIFACT_DIR}/"
         cp "README.md" "${ARTIFACT_DIR}/"
-        cp "LISENCE" "${ARTIFACT_DIR}/"
+        cp "LICENSE" "${ARTIFACT_DIR}/"
         if [[ "${{ matrix.target }}" == *"windiws-msvc" ]]; then
           readonly artifact="${ARTIFACT_DIR}.zip"
           7z a "${artifact}" "${ARTIFACT_DIR}"
@@ -118,10 +118,11 @@ jobs:
           tar cavf "${artifact}" "${ARTIFACT_DIR}"
         fi
 
-    - uses: actions/upload-artifact@v3
+    - uses: softprops/action-gh-release@v1
       with:
-        path: |
+        files: |
           xq-*.tar.gz
           xq-*.zip
-        if-no-files-found: error
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
