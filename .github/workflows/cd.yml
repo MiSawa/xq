@@ -80,7 +80,7 @@ jobs:
         fi
         readonly tag="${GITHUB_REF#refs/tags/}"
         echo "TAG=${tag}" >> "${GITHUB_ENV}"
-        echo "ARTIFACT_DIR='xq-${tag}-${{ matrix.target }}'" >> "${GITHUB_ENV}"
+        echo "ARTIFACT_DIR=xq-${tag}-${{ matrix.target }}" >> "${GITHUB_ENV}"
         if [[ "${{ matrix.target }}" == *"windiws-msvc" ]]; then
           echo "BINARY_EXT=.exe" >> "${GITHUB_ENV}"
           echo "RUSTFLAGS=${RUSTFLAGS} -C target-feature=+crt-static" >> "${GITHUB_ENV}"
