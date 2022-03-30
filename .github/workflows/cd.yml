@@ -58,7 +58,6 @@ jobs:
     steps:
 
     - uses: actions/checkout@v3
-    - uses: Swatinem/rust-cache@v1
     - name: Install cargo-about
       uses: baptiste0928/cargo-install@v1
       with:
@@ -69,6 +68,7 @@ jobs:
         profile: minimal
         toolchain: stable
         override: true
+    - uses: Swatinem/rust-cache@v1
 
     - name: Prepare environment variables
       shell: bash
