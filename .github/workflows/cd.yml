@@ -14,6 +14,7 @@ env:
 
 jobs:
   create-release:
+    name: Create release
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v3
@@ -34,8 +35,8 @@ jobs:
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  upload-assets:
-    name: Build release for ${{ matrix.target }}
+  release-artifacts:
+    name: Build and release artifact for ${{ matrix.target }}
     needs:
       - create-release
     strategy:
@@ -118,10 +119,20 @@ jobs:
           tar cavf "${artifact}" "${ARTIFACT_DIR}"
         fi
 
-    - uses: actions/upload-artifact@v3
+    - uses: softprops/action-gh-release@v1
       with:
-        path: |
+        files: |
           xq-*.tar.gz
           xq-*.zip
-        if-no-files-found: error
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    # - uses: actions/upload-artifact@v3
+    #   with:
+    #     path: |
+    #       xq-*.tar.gz
+    #       xq-*.zip
+    #     if-no-files-found: error
+    # - uses: actions/download-artifact@v2
+    #   with:
 
