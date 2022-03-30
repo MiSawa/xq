@@ -11,7 +11,8 @@ exclude = [".github"]
 
 [package.metadata.binstall]
 pkg-url = "{ repo }/releases/download/v{ version }/{ name }-v{ version }-{ target }.{ archive-format }"
-bin-dir = "{ bin }{ binary-ext }"
+bin-dir = "{ name }-v{ version }-{ target }.{ archive-format }/{ bin }{ binary-ext }"
+pkg-fmt = "tar.gz"
 [package.metadata.binstall.overrides.x86_64-pc-windows-msvc]
 pkg-fmt = "zip"
 
