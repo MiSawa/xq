@@ -78,7 +78,7 @@ jobs:
           echo "::error::GITHUB_REF should start with 'refs/tags/'"
           exit 1
         fi
-        readonly tag = "${GITHUB_REF#refs/tags/}"
+        readonly tag="${GITHUB_REF#refs/tags/}"
         echo "TAG=${tag}" >> "${GITHUB_ENV}"
         echo "ARTIFACT_DIR='xq-${tag}-${{ matrix.target }}'" >> "${GITHUB_ENV}"
         if [[ "${{ matrix.target }}" == *"windiws-msvc" ]]; then
