@@ -32,9 +32,8 @@ jobs:
       with:
         command: build
     - name: Try generating about.html
-      uses: actions-rs/cargo@v1
-      with:
-        command: about generate about.hbs
+      shell: bash
+      run: cargo about generate about.hbs
 
   test:
     runs-on: ubuntu-latest
