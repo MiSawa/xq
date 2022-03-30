@@ -74,7 +74,7 @@ jobs:
       shell: bash
       run: |
         set -euxo pipefail
-        if [[ "${GITHUB_REF:}" != "refs/tags/"* ]]; then
+        if [[ "${GITHUB_REF:?}" != "refs/tags/"* ]]; then
           echo "::error::GITHUB_REF should start with 'refs/tags/'"
           exit 1
         fi
