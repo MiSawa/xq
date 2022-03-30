@@ -80,7 +80,7 @@ $ git switch master                 # make sure you're on the master branch
 $ cargo release patch               # to dry-run the release
 $ cargo release patch --execute     # to actually execute the release
 ```
-
+Pass `--workspace` to publish workspace members as well.
 
 ## Acknowledgements
 - Although this isn't a direct translation at all, I referred to [jq](https://stedolan.github.io/jq/manual/) built by [Stephen Dolan](https://github.com/stedolan) and [gojq](https://github.com/itchyny/gojq/) built by [itchyny](https://github.com/itchyny). Thank you for the interesting product!
