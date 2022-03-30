@@ -30,8 +30,7 @@ jobs:
     - name: Create release
       uses: taiki-e/create-gh-release-action@v1
       with:
-        branch: master|main|cd-test
-        draft: true
+        branch: master|main
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -59,6 +58,7 @@ jobs:
     steps:
 
     - uses: actions/checkout@v3
+    - uses: Swatinem/rust-cache@v1
     - name: Install cargo-about
       uses: baptiste0928/cargo-install@v1
       with:
@@ -69,7 +69,6 @@ jobs:
         profile: minimal
         toolchain: stable
         override: true
-    - uses: Swatinem/rust-cache@v1
 
     - name: Prepare environment variables
       shell: bash
@@ -126,13 +125,4 @@ jobs:
           xq-*.zip
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-    # - uses: actions/upload-artifact@v3
-    #   with:
-    #     path: |
-    #       xq-*.tar.gz
-    #       xq-*.zip
-    #     if-no-files-found: error
-    # - uses: actions/download-artifact@v2
-    #   with:
 
