@@ -10,9 +10,11 @@ readme = "README.md"
 exclude = [".github"]
 
 [package.metadata.binstall]
-pkg-url = "{ repo }/releases/download/v{ version }/{ name }-v{ version }-{ target }.{ archive-format }"
+pkg-url = "{ repo }/releases/download/v{ version }/{ name }-v{ version }-{ target }.tar.gz"
 bin-dir = "{ name }-v{ version }-{ target }.{ archive-format }/{ bin }{ binary-ext }"
+pkg-fmt = "tgz"
 [package.metadata.binstall.overrides.x86_64-pc-windows-msvc]
+pkg-url = "{ repo }/releases/download/v{ version }/{ name }-v{ version }-{ target }.{ archive-format }"
 pkg-fmt = "zip"
 
 [package.metadata.release]
