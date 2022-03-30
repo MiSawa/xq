@@ -29,7 +29,7 @@ jobs:
     - name: Create release
       uses: taiki-e/create-gh-release-action@v1
       with:
-        branch: master|main
+        branch: master|main|cd-test
         draft: true
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -95,7 +95,7 @@ jobs:
     - name: Build
       uses: actions-rs/cargo@v1
       with:
-        use-cross: ${{ matrix.cross }}
+        use-cross: ${{ matrix.cross || true }}
         command: build
         args: --package xq --release --locked --target ${{ matrix.target }}
 
