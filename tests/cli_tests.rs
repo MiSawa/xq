@@ -4,9 +4,6 @@ fn cli_test() {
     t.default_bin_name("xq");
 
     t.case("tests/cli/*.toml");
-
-    #[cfg(not(feature = "about"))]
-    t.skip("tests/cli/about.toml");
 }
 
 mod verify_tests {
@@ -27,8 +24,6 @@ mod verify_tests {
             t.default_bin_name("jq");
             t.case("tests/cli/*.toml");
 
-            // This is only for xq
-            t.skip("tests/cli/about.toml");
             // No yaml functionality in jq
             t.skip("tests/cli/*yaml*");
         }
@@ -43,8 +38,6 @@ mod verify_tests {
             t.default_bin_name("gojq");
             t.case("tests/cli/*.toml");
 
-            // This is only for xq
-            t.skip("tests/cli/about.toml");
             // Yaml serialization format is different
             t.skip("tests/cli/*yaml_output.toml");
         }

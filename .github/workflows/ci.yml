@@ -23,10 +23,18 @@ jobs:
         profile: minimal
         toolchain: stable
     - uses: Swatinem/rust-cache@v1
+    - name: Install cargo-about
+      uses: baptiste0928/cargo-install@v1
+      with:
+        crate: cargo-about
     - name: Build
       uses: actions-rs/cargo@v1
       with:
         command: build
+    - name: Try generating about.html
+      uses: actions-rs/cargo@v1
+      with:
+        command: about generate about.hbs
 
   test:
     runs-on: ubuntu-latest

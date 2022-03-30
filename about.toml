@@ -1,10 +1,20 @@
 accepted = [
     "Apache-2.0",
     "MIT",
-    "MPL-2.0",
-    "BSD-3-Clause",
 ]
 ignore-build-dependencies = true
 ignore-dev-dependencies = true
 no-clearly-defined = true
+
+[bitmaps]
+accepted = ["MPL-2.0"]
+
+[imbl]
+accepted = ["MPL-2.0"]
+
+[sized-chunks]
+accepted = ["MPL-2.0"]
+
+[time-tz]
+accepted = ["BSD-3-Clause"]
 

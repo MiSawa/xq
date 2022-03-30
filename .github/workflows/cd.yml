@@ -30,43 +30,98 @@ jobs:
       uses: taiki-e/create-gh-release-action@v1
       with:
         branch: master|main
+        draft: true
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   upload-assets:
-    name: ${{ matrix.target }}
+    name: Build release for ${{ matrix.target }}
     needs:
       - create-release
     strategy:
       matrix:
         include:
-          - target: aarch64-unknown-linux-gnu
+          - target: x86_64-unknown-linux-musl
           - target: aarch64-unknown-linux-musl
           - target: x86_64-unknown-linux-gnu
-          - target: x86_64-unknown-linux-musl
+          - target: aarch64-unknown-linux-gnu
           - target: x86_64-apple-darwin
             os: macos-latest
+            cross: false
+          - target: aarch64-apple-darwin
+            os: macos-latest
+            cross: false
           - target: x86_64-pc-windows-msvc
             os: windows-latest
+            cross: false
     runs-on: ${{ matrix.os || 'ubuntu-latest' }}
     steps:
+
     - uses: actions/checkout@v3
+    - name: Install cargo-about
+      uses: baptiste0928/cargo-install@v1
+      with:
+        crate: cargo-about
     - uses: actions-rs/toolchain@v1
       with:
+        target: ${{ matrix.target }}
         profile: minimal
         toolchain: stable
-    - run: echo "RUSTFLAGS=${RUSTFLAGS} -C target-feature=+crt-static" >> "${GITHUB_ENV}"
-      if: endsWith(matrix.target, 'windows-msvc')
-    - uses: taiki-e/upload-rust-binary-action@v1
+        override: true
+    - uses: Swatinem/rust-cache@v1
+
+    - name: Prepare environment variables
+      shell: bash
+      run: |
+        set -euxo pipefail
+        if [[ "${GITHUB_REF:}" != "refs/tags/"* ]]; then
+          echo "::error::GITHUB_REF should start with 'refs/tags/'"
+          exit 1
+        fi
+        readonly tag = "${GITHUB_REF#refs/tags/}"
+        echo "TAG=${tag}" >> "${GITHUB_ENV}"
+        echo "ARTIFACT_DIR='xq-${tag}-${{ matrix.target }}'" >> "${GITHUB_ENV}"
+        if [[ "${{ matrix.target }}" == *"windiws-msvc" ]]; then
+          echo "BINARY_EXT=.exe" >> "${GITHUB_ENV}"
+          echo "RUSTFLAGS=${RUSTFLAGS} -C target-feature=+crt-static" >> "${GITHUB_ENV}"
+        else
+          echo "BINARY_EXT=" >> "${GITHUB_ENV}"
+        fi
+
+    - name: Write about.html
+      shell: bash
+      run: cargo about generate about.hbs > about.html
+
+    - name: Build
+      uses: actions-rs/cargo@v1
       with:
-        bin: xq
-        features: about
-        target: ${{ matrix.target }}
-        archive: $bin-$tag-$target
-        tar: all
-        zip: windows
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        CARGO_PROFILE_RELEASE_CODEGEN_UNITS: 1
-        CARGO_PROFILE_RELEASE_LTO: true
+        use-cross: ${{ matrix.cross }}
+        command: build
+        args: --package xq --release --locked --target ${{ matrix.target }}
+
+    - name: Create artifact
+      shell: bash
+      run: |
+        set -euxo pipefail
+        readonly binary="target/${{ matrix.target }}/release/xq${BINARY_EXT}"
+
+        mkdir -p "${ARTIFACT_DIR}"
+        cp "about.html" "${ARTIFACT_DIR}/"
+        cp "${binary}" "${ARTIFACT_DIR}/"
+        cp "README.md" "${ARTIFACT_DIR}/"
+        cp "LISENCE" "${ARTIFACT_DIR}/"
+        if [[ "${{ matrix.target }}" == *"windiws-msvc" ]]; then
+          readonly artifact="${ARTIFACT_DIR}.zip"
+          7z a "${artifact}" "${ARTIFACT_DIR}"
+        else
+          readonly artifact="${ARTIFACT_DIR}.tar.gz"
+          tar cavf "${artifact}" "${ARTIFACT_DIR}"
+        fi
+
+    - uses: actions/upload-artifact@v3
+      with:
+        path: |
+          xq-*.tar.gz
+          xq-*.zip
+        if-no-files-found: error
 
