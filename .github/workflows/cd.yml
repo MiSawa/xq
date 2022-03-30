@@ -109,7 +109,7 @@ jobs:
         cp "about.html" "${ARTIFACT_DIR}/"
         cp "${binary}" "${ARTIFACT_DIR}/"
         cp "README.md" "${ARTIFACT_DIR}/"
-        cp "LISENCE" "${ARTIFACT_DIR}/"
+        cp "LICENSE" "${ARTIFACT_DIR}/"
         if [[ "${{ matrix.target }}" == *"windiws-msvc" ]]; then
           readonly artifact="${ARTIFACT_DIR}.zip"
           7z a "${artifact}" "${ARTIFACT_DIR}"
