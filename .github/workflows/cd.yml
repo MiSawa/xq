@@ -23,10 +23,10 @@ jobs:
         profile: minimal
         toolchain: stable
     - uses: Swatinem/rust-cache@v1
-    - name: Build
+    - name: Make sure it build
       uses: actions-rs/cargo@v1
       with:
-        command: build
+        command: build --release
     - name: Create release
       uses: taiki-e/create-gh-release-action@v1
       with:
