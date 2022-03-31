@@ -32,6 +32,11 @@ required-features = ["build-binary"]
 default = ["build-binary"]
 build-binary = ["anyhow", "clap", "clap-verbosity-flag", "simplelog", "serde_yaml"]
 
+[profile.release]
+strip = "symbols"
+lto = true
+codegen-units = 1
+
 [profile.dev.build-override]
 opt-level = 3
 
