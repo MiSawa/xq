@@ -54,7 +54,7 @@ Are you sure you want to use this??? It's not a daily-usable stage. Though if yo
 $ cargo install xq
 $ cat whatever.json | xq 'query goes here'
 ```
-. If you'd rather want to download a pre-built binary, either download it manually from [the latest release](https://github.com/MiSawa/xq/releases/latest), or use [cargo-binstall](https://github.com/ryankurte/cargo-binstall).
+. If you'd rather want to download a pre-built binary, either download it manually from [the latest release](https://github.com/MiSawa/xq/releases/latest), or use [cargo-binstall](https://github.com/ryankurte/cargo-binstall). Either way, the license texts of the dependencies are in `about.html` file in the downloaded archive.
 
 You can also clone this repository to your local and run
 ```shell
