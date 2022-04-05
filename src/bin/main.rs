@@ -1,5 +1,5 @@
 use std::{
-    io::{stdin, stdout, Write},
+    io::{stdin, stdout, BufRead, Read, Write},
     path::PathBuf,
 };
 
@@ -67,6 +67,17 @@ struct InputFormatArg {
     /// Read input values into an array
     #[clap(short, long)]
     slurp: bool,
+    /// Treat each line of input will be supplied to the filter as a string.
+    /// When used with --slurp, the whole input text will be supplied to the filter as a single
+    /// string.
+    #[clap(
+        short = 'R',
+        long,
+        conflicts_with = "input",
+        conflicts_with = "json-input",
+        conflicts_with = "yaml-input"
+    )]
+    raw_input: bool,
 }
 
 impl InputFormatArg {
@@ -94,10 +105,22 @@ struct OutputFormatArg {
     yaml_output: bool,
 
     /// Compact output
-    #[clap(short, long, conflicts_with = "yaml-output")]
+    #[clap(
+        short,
+        long,
+        conflicts_with = "output",
+        conflicts_with = "json-output",
+        conflicts_with = "yaml-output"
+    )]
     compact_output: bool,
     /// Output raw string if the output value was a string
-    #[clap(short, long, conflicts_with = "yaml-output")]
+    #[clap(
+        short,
+        long,
+        conflicts_with = "output",
+        conflicts_with = "json-output",
+        conflicts_with = "yaml-output"
+    )]
     raw_output: bool,
 }
 
@@ -181,16 +204,22 @@ fn run_with_input(args: MainArgs, input: impl Input) -> Result<()> {
     Ok(())
 }
 
-fn run_with_raw_input<I: Iterator<Item = Result<Value, InputError>>>(
+fn run_with_maybe_null_input(args: MainArgs, input: impl Input) -> Result<()> {
+    if args.input_format.null_input {
+        run_with_input(args, input.null_input())
+    } else {
+        run_with_input(args, input)
+    }
+}
+
+fn run_with_maybe_slurp_null_input<I: Iterator<Item = Result<Value, InputError>>>(
     args: MainArgs,
-    i: I,
+    input: Tied<I>,
 ) -> Result<()> {
-    let i = Tied::new(i);
-    match (args.input_format.slurp, args.input_format.null_input) {
-        (false, false) => run_with_input(args, i),
-        (false, true) => run_with_input(args, i.null_input()),
-        (true, false) => run_with_input(args, i.slurp()),
-        (true, true) => run_with_input(args, i.slurp().null_input()),
+    if args.input_format.slurp {
+        run_with_maybe_null_input(args, input.slurp())
+    } else {
+        run_with_maybe_null_input(args, input)
     }
 }
 
@@ -199,24 +228,36 @@ fn main() -> Result<()> {
     init_log(&args.verbosity)?;
     log::debug!("Parsed argument: {:?}", args);
 
-    match args.input_format.get() {
-        SerializationFormat::Json => {
-            let stdin = stdin();
-            let locked = stdin.lock();
-            let input = serde_json::de::Deserializer::from_reader(locked)
-                .into_iter::<Value>()
-                .map(|r| r.map_err(InputError::new));
-            run_with_raw_input(args, input)
+    let stdin = stdin();
+    let mut locked = stdin.lock();
+
+    if args.input_format.raw_input {
+        if args.input_format.slurp {
+            let mut input = String::new();
+            locked.read_to_string(&mut input)?;
+            run_with_maybe_null_input(args, Tied::new(std::iter::once(Ok(Value::from(input)))))
+        } else {
+            let input = locked
+                .lines()
+                .map(|l| l.map(Value::from).map_err(InputError::new));
+            run_with_maybe_null_input(args, Tied::new(input))
         }
-        SerializationFormat::Yaml => {
-            use serde::Deserialize;
-            let stdin = stdin();
-            let locked = stdin.lock();
-            let input = serde_yaml::Deserializer::from_reader(locked)
-                .into_iter()
-                .map(Value::deserialize)
-                .map(|r| r.map_err(InputError::new));
-            run_with_raw_input(args, input)
+    } else {
+        match args.input_format.get() {
+            SerializationFormat::Json => {
+                let input = serde_json::de::Deserializer::from_reader(locked)
+                    .into_iter::<Value>()
+                    .map(|r| r.map_err(InputError::new));
+                run_with_maybe_slurp_null_input(args, Tied::new(input))
+            }
+            SerializationFormat::Yaml => {
+                use serde::Deserialize;
+                let input = serde_yaml::Deserializer::from_reader(locked)
+                    .into_iter()
+                    .map(Value::deserialize)
+                    .map(|r| r.map_err(InputError::new));
+                run_with_maybe_slurp_null_input(args, Tied::new(input))
+            }
         }
     }
 }

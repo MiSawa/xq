@@ -1,0 +1,8 @@
+args = [ "-R", "--json-input" ]
+status = "failed"
+
+stdin = '''
+1
+"a"
+["a", "b"]
+'''
