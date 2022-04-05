@@ -1,0 +1,14 @@
+args = [ "-R" ]
+
+stdin = '''
+1
+"a"
+["a", "b"]
+'''
+
+# TODO: Disable path normalization when/if that become a thing. https://github.com/assert-rs/trycmd/issues/91
+stdout = '''
+"1"
+"/"a/""
+"[/"a/", /"b/"]"
+'''
