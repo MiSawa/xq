@@ -1,6 +1,6 @@
 args = [ "-c", "--yaml-input" ]
 
-stdin = """
+stdin = '''
 ---
 1
 ---
@@ -12,12 +12,12 @@ stdin = """
 []
 ---
 {}
-"""
+'''
 
-stdout = """
+stdout = '''
 1
 null
 ["a",2]
 []
 {}
-"""
+'''

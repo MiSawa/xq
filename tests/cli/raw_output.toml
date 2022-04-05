@@ -1,16 +1,16 @@
 args = [ "-r" ]
 
-stdin = """
+stdin = '''
 1
 "a"
 ["a", "b"]
-"""
+'''
 
-stdout = """
+stdout = '''
 1
 a
 [
   "a",
   "b"
 ]
-"""
+'''

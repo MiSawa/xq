@@ -1,13 +1,13 @@
 args = [ "-c", "--yaml-output" ]
 status = "failed"
 
-stdin = """
+stdin = '''
 1
 "a"
 ["a", "b"]
-"""
+'''
 
-stderr = """
+stderr = '''
 error: [..]
 ...
-"""
+'''

@@ -1,11 +1,11 @@
 args = [ "-c", "-n", "-s", "., inputs" ]
 
-stdin = """
+stdin = '''
 1
 ["a", null]
-"""
+'''
 
-stdout = """
+stdout = '''
 null
 [1,["a",null]]
-"""
+'''
