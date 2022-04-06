@@ -26,7 +26,8 @@ jobs:
     - name: Make sure it build
       uses: actions-rs/cargo@v1
       with:
-        command: build --release
+        command: build
+        args: --release
     - name: Create release
       uses: taiki-e/create-gh-release-action@v1
       with:
