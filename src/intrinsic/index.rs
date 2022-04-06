@@ -1,7 +1,4 @@
-use std::{
-    ops::{Bound, Range},
-    rc::Rc,
-};
+use std::{ops::Range, rc::Rc};
 
 use num::{ToPrimitive, Zero};
 
@@ -97,52 +94,21 @@ pub(crate) fn calculate_slice_index(
     if start.is_none() && end.is_none() {
         return Err(QueryExecutionError::UnboundedRange);
     }
-    let end = if let Some(end) = end {
-        let shifted = parse_and_shift_index(length, end, QueryExecutionError::SliceByNonInt)?;
-        if let Some(i) = shifted {
-            if i < length {
-                Bound::Excluded(i)
-            } else {
-                // e.g. [:99999]
-                Bound::Unbounded
-            }
-        } else {
-            Bound::Excluded(0) // e.g. [:-99999]
-        }
-    } else {
-        Bound::Unbounded
-    };
     let start = if let Some(start) = start {
-        let shifted = parse_and_shift_index(length, start, QueryExecutionError::SliceByNonInt)?;
-        if let Some(i) = shifted {
-            if i < length {
-                Bound::Included(i)
-            } else {
-                // e.g. [99999:]
-                Bound::Included(length)
-            }
-        } else {
-            // e.g. [-99999:]
-            Bound::Unbounded
-        }
+        parse_and_shift_index(length, start, QueryExecutionError::SliceByNonInt)?
+            .unwrap_or(0)
+            .clamp(0, length)
     } else {
-        Bound::Unbounded
+        0
     };
-    let start = match start {
-        Bound::Included(i) => i,
-        Bound::Excluded(i) => i + 1,
-        Bound::Unbounded => 0,
-    };
-    let end = match end {
-        Bound::Included(i) => i + 1,
-        Bound::Excluded(i) => i,
-        Bound::Unbounded => length,
-    };
-    Ok(if start <= end {
-        start..end
+    let end = if let Some(end) = end {
+        parse_and_shift_index(length, end, QueryExecutionError::SliceByNonInt)?
+            .unwrap_or(0)
+            .clamp(start, length)
     } else {
-        start..start
-    })
+        length
+    };
+    Ok(start..end)
 }
 
 pub(crate) fn slice(
