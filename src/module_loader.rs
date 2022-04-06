@@ -13,7 +13,7 @@ pub enum ModuleLoadError {
     IOError(#[from] std::io::Error),
 }
 
-type Result<T> = std::result::Result<T, ModuleLoadError>;
+pub type Result<T> = std::result::Result<T, ModuleLoadError>;
 
 pub trait ModuleLoader {
     fn prelude(&self) -> Result<Vec<Program>>;

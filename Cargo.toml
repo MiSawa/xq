@@ -28,6 +28,10 @@ name = "xq"
 path = "src/bin/main.rs"
 required-features = ["build-binary"]
 
+[[bench]]
+name = "prelude"
+harness = false
+
 [features]
 default = ["build-binary"]
 build-binary = ["anyhow", "clap", "clap-verbosity-flag", "simplelog", "serde_yaml"]
@@ -72,5 +76,6 @@ simplelog = { version = "0.11.2", optional = true }
 serde_yaml = { version = "0.8.23", optional = true }
 
 [dev-dependencies]
+criterion = "0.3.5"
 trycmd = "0.13.3"
 

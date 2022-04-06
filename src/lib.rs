@@ -1,4 +1,4 @@
-mod compile;
+pub mod compile;
 mod data_structure;
 mod intrinsic;
 pub mod module_loader;
