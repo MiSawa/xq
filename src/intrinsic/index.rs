@@ -64,7 +64,7 @@ pub(crate) fn index(value: Value, index: Value) -> Result<(Value, PathElement)> 
                 Ok((
                     idx.and_then(|i| s.chars().nth(i))
                         .map(|c| Value::string(String::from(c)))
-                        .unwrap_or_else(|| Value::string("".to_string())),
+                        .unwrap_or_else(|| Value::Null),
                     PathElement::Any(index),
                 ))
             }
