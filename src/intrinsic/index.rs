@@ -51,28 +51,59 @@ pub(crate) fn index(value: Value, index: Value) -> Result<(Value, PathElement)> 
         value @ (Value::Null | Value::Boolean(_) | Value::Number(_)) => {
             Err(QueryExecutionError::IndexOnNonIndexable(value))
         }
-        Value::String(s) => {
-            let len = s.chars().count();
-            let idx = parse_and_shift_index(len, &index, QueryExecutionError::ArrayIndexByNonInt)?;
-            Ok((
-                idx.and_then(|i| s.chars().nth(i))
-                    .map(|c| Value::string(String::from(c)))
-                    .unwrap_or_else(|| Value::string("".to_string())),
-                PathElement::Any(index),
-            ))
-        }
-        Value::Array(array) => {
-            let idx = parse_and_shift_index(
-                array.len(),
-                &index,
-                QueryExecutionError::ArrayIndexByNonInt,
-            )?;
-            Ok((
-                idx.and_then(|i| array.get(i).cloned())
-                    .unwrap_or(Value::Null),
-                PathElement::Any(index),
-            ))
-        }
+        Value::String(s) => match index {
+            Value::Object(rhs) => slice(
+                Value::String(s),
+                rhs.get(&"start".to_string()).cloned(),
+                rhs.get(&"end".to_string()).cloned(),
+            ),
+            index => {
+                let len = s.chars().count();
+                let idx =
+                    parse_and_shift_index(len, &index, QueryExecutionError::ArrayIndexByNonInt)?;
+                Ok((
+                    idx.and_then(|i| s.chars().nth(i))
+                        .map(|c| Value::string(String::from(c)))
+                        .unwrap_or_else(|| Value::string("".to_string())),
+                    PathElement::Any(index),
+                ))
+            }
+        },
+        Value::Array(array) => match index {
+            Value::Array(rhs) => {
+                Ok((
+                    Array::from_vec(if rhs.is_empty() {
+                        vec![]
+                    } else {
+                        array
+                            .windows(rhs.len())
+                            .enumerate()
+                            .filter(|(_, lhs)| lhs.iter().eq(rhs.iter())) // TODO: NaN
+                            .map(|(pos, _)| Value::Number(pos.into()))
+                            .collect()
+                    })
+                    .into(),
+                    PathElement::Any(Value::Array(rhs)),
+                ))
+            }
+            Value::Object(rhs) => slice(
+                Value::Array(array),
+                rhs.get(&"start".to_string()).cloned(),
+                rhs.get(&"end".to_string()).cloned(),
+            ),
+            index => {
+                let idx = parse_and_shift_index(
+                    array.len(),
+                    &index,
+                    QueryExecutionError::ArrayIndexByNonInt,
+                )?;
+                Ok((
+                    idx.and_then(|i| array.get(i).cloned())
+                        .unwrap_or(Value::Null),
+                    PathElement::Any(index),
+                ))
+            }
+        },
         Value::Object(map) => {
             let i = match index {
                 Value::String(i) => i,
@@ -94,14 +125,14 @@ pub(crate) fn calculate_slice_index(
     if start.is_none() && end.is_none() {
         return Err(QueryExecutionError::UnboundedRange);
     }
-    let start = if let Some(start) = start {
+    let start = if let Some(start) = start.filter(|&value| value.ne(&Value::Null)) {
         parse_and_shift_index(length, start, QueryExecutionError::SliceByNonInt)?
             .unwrap_or(0)
             .clamp(0, length)
     } else {
         0
     };
-    let end = if let Some(end) = end {
+    let end = if let Some(end) = end.filter(|&value| value.ne(&Value::Null)) {
         parse_and_shift_index(length, end, QueryExecutionError::SliceByNonInt)?
             .unwrap_or(0)
             .clamp(start, length)

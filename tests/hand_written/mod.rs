@@ -320,6 +320,78 @@ test!(
 );
 
 test!(
+    index_array_by_object,
+    r#"
+    .[{start:(null,range(3)), end:(null,range(3))}]
+    "#,
+    r#"
+    [1,2,3]
+    "#,
+    r#"
+    [1,2,3]
+    []
+    [1]
+    [1,2]
+    [1,2,3]
+    []
+    [1]
+    [1,2]
+    [2,3]
+    []
+    []
+    [2]
+    [3]
+    []
+    []
+    []
+    "#
+);
+
+test!(
+    index_string_by_object,
+    r#"
+    .[{start:(null,range(3)), end:(null,range(3))}]
+    "#,
+    r#"
+    "abc"
+    "#,
+    r#"
+    "abc"
+    ""
+    "a"
+    "ab"
+    "abc"
+    ""
+    "a"
+    "ab"
+    "bc"
+    ""
+    ""
+    "b"
+    "c"
+    ""
+    ""
+    ""
+    "#
+);
+
+test!(
+    index_array_by_array,
+    r#"
+    .[[], [1], [2,3], [4]]
+    "#,
+    r#"
+    [1,2,3,2,1]
+    "#,
+    r#"
+    []
+    [0,4]
+    [1]
+    []
+    "#
+);
+
+test!(
     binding_after_comma,
     r#"
     [1, 2 as $x | $x + 1, $x + 2]
