@@ -224,7 +224,7 @@ fn replace_tombstone_rec(context: Value, path: &[Value], placeholder: Value) -> 
                     .to_isize()
                     .ok_or_else(|| QueryExecutionError::InvalidIndex(index.clone()))?;
                 if i + (arr.len() as isize) < 0 {
-                    return Err(QueryExecutionError::InvalidIndex(index.clone()));
+                    return Ok(arr.into());
                 }
                 let i = if i < 0 {
                     (i + arr.len() as isize) as usize

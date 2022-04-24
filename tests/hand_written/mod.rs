@@ -669,6 +669,19 @@ test!(
 test!(
     delete3,
     r#"
+    {x:[1]} | del(.x[-2,-1,2])
+    "#,
+    r#"
+    null
+    "#,
+    r#"
+    {"x":[]}
+    "#
+);
+
+test!(
+    delete4,
+    r#"
     try ({x:[1]} | del(.x.y, .x[0], .x)) catch "err"
     "#,
     r#"
@@ -680,7 +693,7 @@ test!(
 );
 
 test!(
-    delete4,
+    delete5,
     r#"
     try ({x:[1]} | del(.x[0], .x.y, .x)) catch "err"
     "#,
