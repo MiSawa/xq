@@ -320,6 +320,22 @@ test!(
 );
 
 test!(
+    index_string,
+    r#"
+    .[0, 3, 5, -3]
+    "#,
+    r#"
+    "０１２３４"
+    "#,
+    r#"
+    "０"
+    "３"
+    null
+    "２"
+    "#
+);
+
+test!(
     index_array_by_object,
     r#"
     .[{start:(null,range(3)), end:(null,range(3))}]
