@@ -86,6 +86,7 @@ static INTRINSICS1: phf::Map<&'static str, NamedFn1> = phf_map! {
     "startswith" => NamedFn1 { name: "startswith", func: starts_with },
     "endswith" => NamedFn1 { name: "endswith", func: ends_with },
     "split" => NamedFn1 { name: "split", func: split1 },
+    "_group_by" => NamedFn1 { name: "_group_by", func: group_by },
     "delpaths" => NamedFn1 { name: "delpaths", func: path::del_paths },
     "bsearch" => NamedFn1 { name: "bsearch", func: binary_search },
     "format" => NamedFn1 { name: "format", func: format },
@@ -255,39 +256,31 @@ fn reverse(context: Value) -> Result<Value> {
     Ok(Array::from_vec(arr).into())
 }
 
-/// Receives `[ [ group key, original value ] ]`.
-pub(crate) fn group_by(context: Value) -> Result<Value> {
+pub(crate) fn group_by(context: Value, keys: Value) -> Result<Value> {
     let arr = match context {
         Value::Array(arr) => make_owned(arr),
         _ => return Err(QueryExecutionError::InvalidArgType("group_by", context)),
     };
-    let mut arr: Vec<(Value, Value)> = arr
-        .into_iter()
-        .map(|v| match v {
-            Value::Array(v) => {
-                let mut v = make_owned(v).to_vec();
-                assert_eq!(v.len(), 2);
-                let original = v.pop().unwrap();
-                let group = v.pop().unwrap();
-                Ok((group, original))
-            }
-            _ => Err(QueryExecutionError::InvalidArgType("group_by", v)),
-        })
-        .collect::<Result<Vec<_>>>()?;
+    let keys = match keys {
+        Value::Array(arr) => make_owned(arr),
+        _ => return Err(QueryExecutionError::InvalidArgType("group_by", keys)),
+    };
+    if arr.len() != keys.len() {
+        return Err(QueryExecutionError::LengthMismatch("group_by"));
+    }
+    let mut arr: Vec<(Value, Value)> = keys.into_iter().zip(arr).collect();
     arr.sort_by(|(lhs, _), (rhs, _)| lhs.cmp(rhs));
     let arr = arr
         .into_iter()
         .fold::<(Option<Value>, Vec<Vec<Value>>), _>(
             (None, Vec::new()),
-            |(current_group, mut groups), (grp, value)| {
-                if let Some(current_group) = current_group {
-                    if current_group == grp {
-                        groups.last_mut().expect("Shouldn't be empty").push(value);
-                        return (Some(current_group), groups);
-                    }
+            |(prev_key, mut groups), (key, value)| {
+                if prev_key.map_or(false, |prev_key| prev_key == key) {
+                    groups.last_mut().expect("Shouldn't be empty").push(value);
+                } else {
+                    groups.push(vec![value]);
                 }
-                groups.push(vec![value]);
-                (Some(grp), groups)
+                (Some(key), groups)
             },
         )
         .1
