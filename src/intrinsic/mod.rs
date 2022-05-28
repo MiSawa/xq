@@ -87,6 +87,7 @@ static INTRINSICS1: phf::Map<&'static str, NamedFn1> = phf_map! {
     "endswith" => NamedFn1 { name: "endswith", func: ends_with },
     "split" => NamedFn1 { name: "split", func: split1 },
     "_min_by" => NamedFn1 { name: "_min_by", func: min_by },
+    "_max_by" => NamedFn1 { name: "_max_by", func: max_by },
     "_group_by" => NamedFn1 { name: "_group_by", func: group_by },
     "_unique_by" => NamedFn1 { name: "_unique_by", func: unique_by },
     "delpaths" => NamedFn1 { name: "delpaths", func: path::del_paths },
@@ -274,6 +275,25 @@ pub(crate) fn min_by(context: Value, keys: Value) -> Result<Value> {
         .into_iter()
         .zip(arr)
         .min_by(|(lhs, _), (rhs, _)| lhs.cmp(rhs))
+        .map_or(Value::Null, |(_, v)| v))
+}
+
+pub(crate) fn max_by(context: Value, keys: Value) -> Result<Value> {
+    let arr = match context {
+        Value::Array(arr) => make_owned(arr),
+        _ => return Err(QueryExecutionError::InvalidArgType("max_by", context)),
+    };
+    let keys = match keys {
+        Value::Array(arr) => make_owned(arr),
+        _ => return Err(QueryExecutionError::InvalidArgType("max_by", keys)),
+    };
+    if arr.len() != keys.len() {
+        return Err(QueryExecutionError::LengthMismatch("max_by"));
+    }
+    Ok(keys
+        .into_iter()
+        .zip(arr)
+        .max_by(|(lhs, _), (rhs, _)| lhs.cmp(rhs))
         .map_or(Value::Null, |(_, v)| v))
 }
 
