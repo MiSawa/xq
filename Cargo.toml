@@ -1,6 +1,6 @@
 [package]
 name = "xq"
-version = "0.2.37"
+version = "0.2.38"
 authors = ["mi_sawa <mi.sawa.1216+git@gmail.com>"]
 edition = "2021"
 description = "A reimplementation of jq."
