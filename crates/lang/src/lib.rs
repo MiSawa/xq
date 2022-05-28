@@ -6,7 +6,7 @@ use lalrpop_util::lalrpop_mod;
 use ordered_float::OrderedFloat;
 use thiserror::Error;
 
-lalrpop_mod!(#[allow(clippy::all, clippy::pedantic, clippy::restriction, clippy::nursery, clippy::deprecated, unused_imports)] pub parser, "/jq.rs");
+lalrpop_mod!(#[allow(clippy::all, clippy::pedantic, clippy::restriction, clippy::nursery, unused_imports)] pub parser, "/jq.rs");
 
 pub(crate) type Number = OrderedFloat<f64>;
 pub type ParseResult<T> = Result<T, ParseError>;
