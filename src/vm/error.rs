@@ -72,6 +72,8 @@ pub enum QueryExecutionError {
     InvalidStringToNumber(RcString),
     #[error("Given string was invalid as a json `{0:}`")]
     InvalidJson(RcString),
+    #[error("Length mismatch for `{0:?}`")]
+    LengthMismatch(&'static str),
     #[error("Unknown string formatter `{0:?}`")]
     UnknownStringFormatter(RcString),
     #[error("Unable to parse date time")]
