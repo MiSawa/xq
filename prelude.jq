@@ -65,7 +65,7 @@ def max_by(f): reduce (.[] | [[f], .]) as [$cmp, $val] (null; if . == null or .[
 def min: min_by(.);
 def max: max_by(.);
 def group_by(f): _group_by(map([f]));
-def unique_by(f): def __yes_i_know_this_is_bad:.; [group_by(f)[] | .[0]];
+def unique_by(f): _unique_by(map([f]));
 def unique: unique_by(.);
 
 def flatten: def impl: if type == "array" then map(impl) | reduce .[] as $v ([]; . + $v) else [.] end; map(impl) | reduce .[] as $v ([]; . + $v);
