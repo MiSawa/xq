@@ -60,7 +60,7 @@ def all(f): all(.[]; f);
 def all: all(.);
 
 def sort_by(f): [keys[] as $i | [[.[$i] | f], $i, .[$i]]] | sort | map(.[2]);
-def min_by(f): reduce (.[] | [[f], .]) as [$cmp, $val] (null; if . == null or .[0] >  $cmp then [$cmp, $val] end) | .[1];
+def min_by(f): _min_by(map([f]));
 def max_by(f): reduce (.[] | [[f], .]) as [$cmp, $val] (null; if . == null or .[0] <= $cmp then [$cmp, $val] end) | .[1];
 def min: min_by(.);
 def max: max_by(.);
