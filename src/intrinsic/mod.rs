@@ -87,6 +87,7 @@ static INTRINSICS1: phf::Map<&'static str, NamedFn1> = phf_map! {
     "endswith" => NamedFn1 { name: "endswith", func: ends_with },
     "split" => NamedFn1 { name: "split", func: split1 },
     "_group_by" => NamedFn1 { name: "_group_by", func: group_by },
+    "_unique_by" => NamedFn1 { name: "_unique_by", func: unique_by },
     "delpaths" => NamedFn1 { name: "delpaths", func: path::del_paths },
     "bsearch" => NamedFn1 { name: "bsearch", func: binary_search },
     "format" => NamedFn1 { name: "format", func: format },
@@ -286,6 +287,38 @@ pub(crate) fn group_by(context: Value, keys: Value) -> Result<Value> {
         .1
         .into_iter()
         .map(Array::from_vec)
+        .map(Into::into)
+        .collect_vec();
+    Ok(Array::from_vec(arr).into())
+}
+
+pub(crate) fn unique_by(context: Value, keys: Value) -> Result<Value> {
+    let arr = match context {
+        Value::Array(arr) => make_owned(arr),
+        _ => return Err(QueryExecutionError::InvalidArgType("unique_by", context)),
+    };
+    let keys = match keys {
+        Value::Array(arr) => make_owned(arr),
+        _ => return Err(QueryExecutionError::InvalidArgType("unique_by", keys)),
+    };
+    if arr.len() != keys.len() {
+        return Err(QueryExecutionError::LengthMismatch("unique_by"));
+    }
+    let mut arr: Vec<(Value, Value)> = keys.into_iter().zip(arr).collect();
+    arr.sort_by(|(lhs, _), (rhs, _)| lhs.cmp(rhs));
+    let arr = arr
+        .into_iter()
+        .fold::<(Option<Value>, Vec<Value>), _>(
+            (None, Vec::new()),
+            |(prev_key, mut values), (key, value)| {
+                if !prev_key.map_or(false, |prev_key| prev_key == key) {
+                    values.push(value);
+                }
+                (Some(key), values)
+            },
+        )
+        .1
+        .into_iter()
         .map(Into::into)
         .collect_vec();
     Ok(Array::from_vec(arr).into())
