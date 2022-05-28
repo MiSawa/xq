@@ -1,4 +1,4 @@
-use std::{borrow::Cow, rc::Rc};
+use std::{borrow::Cow, fmt::Write, rc::Rc};
 
 use itertools::Itertools;
 use num::{Float, ToPrimitive};
@@ -169,7 +169,7 @@ where
             Value::Boolean(v) => ret.push_str(if *v { "true" } else { "false" }),
             Value::Number(v) => {
                 if !v.is_nan() {
-                    ret.push_str(&format!("{}", v))
+                    write!(ret, "{v}").ok();
                 }
             }
             Value::String(s) => add_string(&mut ret, s),
