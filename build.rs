@@ -3,7 +3,7 @@ use std::process::Command;
 fn main() {
     let package_version = env!("CARGO_PKG_VERSION");
     let git_revision = Command::new("git")
-        .args(&["rev-parse", "HEAD"])
+        .args(["rev-parse", "HEAD"])
         .output()
         .ok()
         .and_then(|o| String::from_utf8(o.stdout).ok())
