@@ -877,3 +877,16 @@ test!(
     "🤔"
     "#
 );
+
+test!(
+    path_value_argument,
+    r#"
+    def f($x): .y; path(f(.x))
+    "#,
+    r#"
+    null
+    "#,
+    r#"
+    ["y"]
+    "#
+);

@@ -663,6 +663,9 @@ impl Compiler {
                         .emit_normal_op(ByteCode::PushClosure(closure), next);
                 }
                 ArgType::Value => {
+                    next = self
+                        .emitter
+                        .emit_normal_op(ByteCode::ExitNonPathTracking, next);
                     if require_context {
                         next = self.emitter.emit_normal_op(ByteCode::Swap, next);
                     }
@@ -672,6 +675,9 @@ impl Compiler {
                     } else {
                         require_context = true;
                     }
+                    next = self
+                        .emitter
+                        .emit_normal_op(ByteCode::EnterNonPathTracking, next);
                 }
             }
         }
