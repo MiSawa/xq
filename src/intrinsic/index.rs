@@ -180,7 +180,7 @@ pub(crate) fn slice(
             path_element,
         )),
         Value::Array(array) => Ok((
-            (&array[range]).iter().cloned().collect::<Array>().into(),
+            array[range].iter().cloned().collect::<Array>().into(),
             path_element,
         )),
         _ => unreachable!(),

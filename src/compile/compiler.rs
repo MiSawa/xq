@@ -1193,7 +1193,7 @@ impl Compiler {
                 match str {
                     Some(s) => self.compile_string(
                         s,
-                        &|compiler: &mut Compiler, next| {
+                        |compiler: &mut Compiler, next| {
                             Ok(compiler
                                 .emitter
                                 .emit_normal_op(ByteCode::Intrinsic0(stringifier.clone()), next))
