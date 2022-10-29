@@ -120,3 +120,16 @@ test!(
     [1,2,null,null,5,3]
     "#
 );
+
+test!(
+    overlapping_update,
+    r#"
+    (.foo,.foo,.foo) |= . + 1
+    "#,
+    r#"
+    null
+    "#,
+    r#"
+    {"foo":3}
+    "#
+);
