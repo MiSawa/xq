@@ -1411,7 +1411,7 @@ impl Compiler {
                     next: Address,
                 ) -> Result<Address> {
                     let slot = compiler.allocate_variable();
-                    let tmp_slot = compiler.allocate_variable();
+                    let path_slot = compiler.allocate_variable();
                     let del_slot = compiler.allocate_variable();
                     let label_slot = compiler.current_scope_mut().allocate_label();
 
@@ -1453,22 +1453,31 @@ impl Compiler {
                     );
                     let next = modification.compile(compiler, next)?;
                     let next = compiler.emitter.emit_fork(on_empty, next);
-                    // value, path, indexed value
+                    let next = compiler.emitter.emit_normal_op(
+                        ByteCode::Intrinsic1(NamedFn1 {
+                            name: "getpath",
+                            func: intrinsic::get_path,
+                        }),
+                        next,
+                    );
                     let next = compiler
                         .emitter
-                        .emit_normal_op(ByteCode::Load(tmp_slot), next);
-                    let next = compiler.emitter.emit_normal_op(ByteCode::Swap, next);
+                        .emit_normal_op(ByteCode::Load(path_slot), next);
                     let next = compiler.emitter.emit_normal_op(ByteCode::Load(slot), next);
                     let next = compiler
                         .emitter
-                        .emit_normal_op(ByteCode::ExitPathTracking, next);
-                    let next = compiler
-                        .emitter
-                        .emit_normal_op(ByteCode::Store(tmp_slot), next);
-                    let next = compiler.emitter.emit_normal_op(ByteCode::Dup, next);
+                        .emit_normal_op(ByteCode::Load(path_slot), next);
+                    let next = compiler.emitter.emit_fork(on_empty, next);
+                    let next = compiler.emitter.emit_normal_op(ByteCode::Load(slot), next);
                     let next = compiler
                         .emitter
                         .emit_normal_op(ByteCode::ForkLabel(label_slot), next);
+                    let next = compiler
+                        .emitter
+                        .emit_normal_op(ByteCode::Store(path_slot), next);
+                    let next = compiler
+                        .emitter
+                        .emit_normal_op(ByteCode::ExitPathTracking, next);
                     let next = compiler.compile_query(path_expression, next)?;
                     let next = compiler
                         .emitter
