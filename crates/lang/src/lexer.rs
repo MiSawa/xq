@@ -557,7 +557,7 @@ lexer! {
             let lower_surrogate = u32::from_str_radix(&lexer.match_()[8..12], 16).unwrap();
             assert!((0xD800..0xDC00).contains(&higher_surrogate));
             assert!((0xDC00..=0xDFFF).contains(&lower_surrogate));
-            let value = (((higher_surrogate - 0xD800) as u32) << 10 | (lower_surrogate - 0xDC00) as u32) + 0x1_0000;
+            let value = ((higher_surrogate - 0xD800) << 10 | (lower_surrogate - 0xDC00)) + 0x1_0000;
             match char::from_u32(value) {
                 Some(c) => {
                     lexer.return_(Ok(Token::StringFragment(StringFragment::Char(c))))
