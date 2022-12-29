@@ -263,7 +263,7 @@ impl State {
         match self.paths.pop() {
             Some(Some((value, _, path))) => (value, path),
             x => {
-                panic!("Expected a path tracking thing but got {:?}", x);
+                panic!("Expected a path tracking thing but got {x:?}");
             }
         }
     }
@@ -544,7 +544,7 @@ fn run_code(
                             }
                             Some(e) => {
                                 state.undo(token);
-                                state.push(Value::string(format!("{:?}", e)));
+                                state.push(Value::string(format!("{e:?}")));
                                 break 'select_fork state.save();
                             }
                         }

@@ -26,8 +26,8 @@ pub(crate) type PrimitiveReal = f64;
     num_derive::Num,
     num_derive::Float,
 )]
-#[debug(fmt = "{}", _0)]
-#[display(fmt = "{}", _0)]
+#[debug(fmt = "{_0}")]
+#[display(fmt = "{_0}")]
 pub struct Number(OrderedFloat<PrimitiveReal>);
 
 impl Number {

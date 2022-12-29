@@ -28,13 +28,13 @@ pub type RcString = Rc<String>;
 #[derive(
     Clone, Eq, PartialEq, Hash, Default, DebugCustom, Display, IntoIterator, Index, IndexMut,
 )]
-#[debug(fmt = "{:?}", _0)]
-#[display(fmt = "{:?}", _0)]
+#[debug(fmt = "{_0:?}")]
+#[display(fmt = "{_0:?}")]
 pub struct Array(#[into_iterator(owned, ref, ref_mut)] Vector);
 
 #[derive(Clone, Eq, PartialEq, Default, DebugCustom, Display, IntoIterator, Index, IndexMut)]
-#[debug(fmt = "{:?}", _0)]
-#[display(fmt = "{:?}", _0)]
+#[debug(fmt = "{_0:?}")]
+#[display(fmt = "{_0:?}")]
 pub struct Object(#[into_iterator(owned, ref, ref_mut)] Map);
 
 #[allow(clippy::derive_hash_xor_eq)] // HashMap::eq is implemented properly.
@@ -212,9 +212,9 @@ impl Debug for Value {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             Value::Null => f.write_str("null"),
-            Value::Boolean(v) => f.write_fmt(format_args!("{:?}", v)),
-            Value::Number(v) => f.write_fmt(format_args!("{:?}", v)),
-            Value::String(v) => f.write_fmt(format_args!("{:?}", v)),
+            Value::Boolean(v) => f.write_fmt(format_args!("{v:?}")),
+            Value::Number(v) => f.write_fmt(format_args!("{v:?}")),
+            Value::String(v) => f.write_fmt(format_args!("{v:?}")),
             Value::Array(v) => f.write_fmt(format_args!("{:?}", v.as_ref())),
             Value::Object(v) => f.write_fmt(format_args!("{:?}", v.as_ref())),
         }
@@ -224,9 +224,9 @@ impl Display for Value {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             Value::Null => f.write_str("null"),
-            Value::Boolean(v) => f.write_fmt(format_args!("{:?}", v)),
-            Value::Number(v) => f.write_fmt(format_args!("{:?}", v)),
-            Value::String(v) => f.write_fmt(format_args!("{:?}", v)),
+            Value::Boolean(v) => f.write_fmt(format_args!("{v:?}")),
+            Value::Number(v) => f.write_fmt(format_args!("{v:?}")),
+            Value::String(v) => f.write_fmt(format_args!("{v:?}")),
             Value::Array(arr) => {
                 f.write_str("[")?;
                 let mut first = true;
@@ -249,7 +249,7 @@ impl Display for Value {
                     } else {
                         f.write_str(", ")?;
                     }
-                    f.write_fmt(format_args!("{}: {}", k, v))?;
+                    f.write_fmt(format_args!("{k}: {v}"))?;
                 }
                 f.write_str("}")
             }

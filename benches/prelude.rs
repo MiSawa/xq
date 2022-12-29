@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use criterion::{criterion_group, criterion_main, BatchSize, Criterion};
 
-const PRELUDE: &'static str = include_str!("../prelude.jq");
+const PRELUDE: &str = include_str!("../prelude.jq");
 
 struct NullModuleLoader;
 impl xq::module_loader::ModuleLoader for NullModuleLoader {

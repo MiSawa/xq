@@ -7,7 +7,7 @@ macro_rules! test {
     ($name: ident, $query: expr, $input: expr, $output: expr) => {
         #[test]
         fn $name() -> Result<(), Box<dyn std::error::Error>> {
-            crate::common::run_test($query, $input, $output)
+            $crate::common::run_test($query, $input, $output)
         }
     };
 }
@@ -24,7 +24,7 @@ pub(crate) fn run_test(query: &str, input: &str, output: &str) -> Result<(), Box
     let output = run_query(query, input.clone(), input, &PreludeLoader())?
         .collect::<Result<Vec<Value>, _>>()?;
     if expected != output {
-        eprintln!("{:?} {:?}", expected, output);
+        eprintln!("{expected:?} {output:?}");
     }
     assert_eq!(expected, output);
     Ok(())
@@ -35,7 +35,7 @@ macro_rules! test_no_panic {
     ($name: ident, $query: expr, $input: expr) => {
         #[test]
         fn $name() {
-            crate::common::test_no_panic($query, $input).ok();
+            $crate::common::test_no_panic($query, $input).ok();
         }
     };
 }
