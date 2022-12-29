@@ -16,6 +16,7 @@ use crate::{
         PStack, PVector,
     },
     intrinsic,
+    prelude::*,
     util::make_owned,
     vm::{
         bytecode::{ClosureAddress, NamedFunction},
@@ -490,9 +491,9 @@ fn run_code(
     input: &mut impl Iterator<Item = Result<Value, InputError>>,
 ) -> Option<Result<Value>> {
     let mut err: Option<QueryExecutionError> = None;
-    log::trace!("Start from environment {:?}", env);
+    trace!("Start from environment {:?}", env);
     'backtrack: loop {
-        log::trace!(
+        trace!(
             "Fork stack: {:?}",
             env.forks.iter().map(|(_, f)| f).collect_vec()
         );
@@ -503,7 +504,7 @@ fn run_code(
             } else {
                 return err.map(Err);
             };
-            log::trace!(
+            trace!(
                 "On fork {:?} with err {:?} and token {:?}",
                 on_fork,
                 err,
@@ -601,13 +602,13 @@ fn run_code(
         let mut context_frame: Option<Frames> = None;
         let mut chain_ret = false;
 
-        log::trace!("Start fork with state {:?}", state);
+        trace!("Start fork with state {:?}", state);
         'cycle: loop {
             if err.is_some() {
                 continue 'backtrack;
             }
             let code = program.fetch_code(state.pc)?;
-            log::trace!(
+            trace!(
                 "Execute code {:?} on stack = {:?}, slots = {:?}",
                 code,
                 state.stack,
@@ -929,7 +930,7 @@ fn run_code(
                 },
                 Intrinsic0(NamedFunction { name, func }) => {
                     let context = state.pop();
-                    log::trace!("Calling function {} with context {:?}", name, context);
+                    trace!("Calling function {} with context {:?}", name, context);
                     match func(context) {
                         Ok(value) => state.push(value),
                         Err(QueryExecutionError::UserDefinedError(Value::Null)) => {
@@ -941,7 +942,7 @@ fn run_code(
                 Intrinsic1(NamedFunction { name, func }) => {
                     let arg1 = state.pop();
                     let context = state.pop();
-                    log::trace!(
+                    trace!(
                         "Calling function {} with context {:?} and arg {:?}",
                         name,
                         context,
@@ -959,7 +960,7 @@ fn run_code(
                     let arg2 = state.pop();
                     let arg1 = state.pop();
                     let context = state.pop();
-                    log::trace!(
+                    trace!(
                         "Calling function {} with context {:?} and arg1 {:?} and arg2 {:?}",
                         name,
                         context,

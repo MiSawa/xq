@@ -5,11 +5,10 @@ use std::{
 
 use anyhow::{anyhow, Context, Result};
 use clap::{ArgEnum, Args, Parser, ValueHint};
-use clap_verbosity_flag::Verbosity;
-use cli::input::Input;
+use tracing::*;
 use xq::{module_loader::PreludeLoader, run_query, InputError, Value};
 
-use crate::cli::input::Tied;
+use crate::cli::input::{Input, Tied};
 
 mod cli;
 
@@ -39,7 +38,7 @@ struct MainArgs {
     output_format: OutputFormatArg,
 
     #[clap(flatten)]
-    verbosity: Verbosity,
+    verbosity: cli::Verbosity,
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Debug, ArgEnum)]
@@ -136,27 +135,12 @@ impl OutputFormatArg {
     }
 }
 
-fn init_log(verbosity: &Verbosity) -> Result<()> {
-    use simplelog::{ColorChoice, CombinedLogger, Config, TermLogger, TerminalMode};
-    let filter = match verbosity.log_level() {
-        Some(l) => l.to_level_filter(),
-        None => log::LevelFilter::Off,
-    };
-    CombinedLogger::init(vec![TermLogger::new(
-        filter,
-        Config::default(),
-        TerminalMode::Mixed,
-        ColorChoice::Auto,
-    )])
-    .with_context(|| "Unable to initialize logger")
-}
-
 fn run_with_input(args: MainArgs, input: impl Input) -> Result<()> {
     let query = if let Some(path) = args.query_file {
-        log::trace!("Read query from file {:?}", path);
+        trace!("Read query from file {:?}", path);
         std::fs::read_to_string(path)?
     } else {
-        log::trace!(
+        trace!(
             "Read from query in arg (if it wasn't the default value): `{}`",
             args.query
         );
@@ -225,8 +209,13 @@ fn run_with_maybe_slurp_null_input<I: Iterator<Item = Result<Value, InputError>>
 
 fn main() -> Result<()> {
     let args: MainArgs = MainArgs::parse();
-    init_log(&args.verbosity)?;
-    log::debug!("Parsed argument: {:?}", args);
+    args.verbosity.configure();
+    debug!(
+        query = args.query,
+        input_format = ?args.input_format,
+        output_format = ?args.output_format,
+        "Parsed CLI arguments"
+    );
 
     let stdin = stdin();
     let mut locked = stdin.lock();
