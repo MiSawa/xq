@@ -76,7 +76,7 @@ time-fmt = "0.3.4"
 time-tz = { version = "0.5.2", features = ["system", "posix-tz"] }
 onig = { version = "6.3.1", default-features = false }
 
-clap = { version = "3.1.6", features = ["derive"], optional = true }
+clap = { version = "4", features = ["derive"], optional = true }
 anyhow = { version = "1", optional = true }
 tracing-subscriber = { version = "0, >= 0.3", optional = true, features = [
     "registry",
