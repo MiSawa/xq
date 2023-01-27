@@ -18,10 +18,17 @@ pkg-url = "{ repo }/releases/download/v{ version }/{ name }-v{ version }-{ targe
 pkg-fmt = "zip"
 
 [package.metadata.release]
-pre-release-hook = ["cargo", "update", "--manifest-path", "./fuzz/Cargo.toml", "-p", "xq"]
+pre-release-hook = [
+    "cargo",
+    "update",
+    "--manifest-path",
+    "./fuzz/Cargo.toml",
+    "-p",
+    "xq",
+]
 
 [workspace]
-members = [ "crates/*" ]
+members = ["crates/*"]
 
 [[bin]]
 name = "xq"
@@ -34,7 +41,7 @@ harness = false
 
 [features]
 default = ["build-binary"]
-build-binary = ["anyhow", "clap", "clap-verbosity-flag", "simplelog", "serde_yaml"]
+build-binary = ["anyhow", "clap", "tracing-subscriber", "serde_yaml"]
 
 [profile.release]
 strip = "symbols"
@@ -47,7 +54,7 @@ opt-level = 3
 [dependencies]
 xq-lang = { path = "./crates/lang", version = "0.0.1" }
 thiserror = "1.0.30"
-log = "0.4.14"
+tracing = "0, >= 0.1"
 imbl = "1.0.1"
 sized-chunks = "0.6.5"
 num = "0.4.0"
@@ -69,13 +76,13 @@ time-fmt = "0.3.4"
 time-tz = { version = "0.5.2", features = ["system", "posix-tz"] }
 onig = { version = "6.3.1", default-features = false }
 
-clap = { version = "3.1.6", features = ["derive"], optional = true }
-clap-verbosity-flag = { version = "1.0.0", optional = true }
-anyhow = { version = "1.0.56", optional = true }
-simplelog = { version = "0.11.2", optional = true }
+clap = { version = "4", features = ["derive"], optional = true }
+anyhow = { version = "1", optional = true }
+tracing-subscriber = { version = "0, >= 0.3", optional = true, features = [
+    "registry",
+] }
 serde_yaml = { version = "0.8.23", optional = true }
 
 [dev-dependencies]
 criterion = "0.3.5"
 trycmd = "0.13.3"
-

@@ -1,3 +1,4 @@
+#![allow(clippy::uninlined_format_args)]
 use derive_more::Display;
 use itertools::Itertools;
 

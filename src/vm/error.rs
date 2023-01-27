@@ -100,24 +100,24 @@ pub enum QueryExecutionError {
 
 impl From<time_fmt::parse::ParseError> for QueryExecutionError {
     fn from(e: time_fmt::parse::ParseError) -> Self {
-        Self::DateTimeParseError(Rc::new(format!("{}", e)))
+        Self::DateTimeParseError(Rc::new(format!("{e}")))
     }
 }
 
 impl From<time_fmt::format::FormatError> for QueryExecutionError {
     fn from(e: time_fmt::format::FormatError) -> Self {
-        Self::DateTimeParseError(Rc::new(format!("{}", e)))
+        Self::DateTimeParseError(Rc::new(format!("{e}")))
     }
 }
 
 impl From<time::error::Parse> for QueryExecutionError {
     fn from(e: time::error::Parse) -> Self {
-        Self::DateTimeParseError(Rc::new(format!("{}", e)))
+        Self::DateTimeParseError(Rc::new(format!("{e}")))
     }
 }
 
 impl From<time_tz::system::Error> for QueryExecutionError {
     fn from(e: time_tz::system::Error) -> Self {
-        Self::TimeZoneLookupFailure(Rc::new(format!("{}", e)))
+        Self::TimeZoneLookupFailure(Rc::new(format!("{e}")))
     }
 }

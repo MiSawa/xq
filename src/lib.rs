@@ -3,6 +3,7 @@ mod data_structure;
 mod intrinsic;
 pub mod module_loader;
 mod number;
+mod prelude;
 pub mod util;
 mod value;
 pub mod vm;
@@ -14,6 +15,7 @@ use xq_lang::ParseError;
 use crate::{
     compile::compiler::{CompileError, Compiler},
     module_loader::ModuleLoader,
+    prelude::*,
     vm::{machine::Machine, QueryExecutionError},
 };
 pub use crate::{
@@ -44,16 +46,12 @@ where
     I: Iterator<Item = Result<Value, InputError>>,
     M: ModuleLoader,
 {
-    // let now = std::time::Instant::now();
     let parsed = xq_lang::parse_program(query)?;
-    log::info!("Parsed query = {:?}", parsed);
-    // eprintln!("Parse: {:?}", now.elapsed());
-    // let now = std::time::Instant::now();
+    trace!("Parsed query = {:?}", parsed);
 
     let mut compiler = Compiler::new();
     let program = compiler.compile(&parsed, module_loader)?;
-    log::info!("Compiled program = {:?}", program);
-    // eprintln!("Compile: {:?}", now.elapsed());
+    trace!("Compiled program = {:?}", program);
 
     let mut vm = Machine::new(program);
     Ok(vm.start(context, input))
