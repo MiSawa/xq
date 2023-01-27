@@ -18,3 +18,5 @@ accepted = ["MPL-2.0"]
 [time-tz]
 accepted = ["BSD-3-Clause"]
 
+[unicode-ident]
+accepted = ["Unicode-DFS-2016"]
