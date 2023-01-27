@@ -41,16 +41,11 @@ struct Cli {
     verbosity: Verbosity,
 }
 
-#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Debug, clap::ValueEnum)]
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Debug, Default, clap::ValueEnum)]
 enum SerializationFormat {
+    #[default]
     Json,
     Yaml,
-}
-
-impl Default for SerializationFormat {
-    fn default() -> Self {
-        SerializationFormat::Json
-    }
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Debug, clap::Args)]
@@ -247,7 +242,6 @@ fn main() -> Result<()> {
             SerializationFormat::Yaml => {
                 use serde::Deserialize;
                 let input = serde_yaml::Deserializer::from_reader(locked)
-                    .into_iter()
                     .map(Value::deserialize)
                     .map(|r| r.map_err(InputError::new));
                 run_with_maybe_slurp_null_input(cli, Tied::new(input))
