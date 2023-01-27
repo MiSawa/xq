@@ -37,7 +37,7 @@ pub struct Array(#[into_iterator(owned, ref, ref_mut)] Vector);
 #[display(fmt = "{_0:?}")]
 pub struct Object(#[into_iterator(owned, ref, ref_mut)] Map);
 
-#[allow(clippy::derive_hash_xor_eq)] // HashMap::eq is implemented properly.
+#[allow(clippy::derived_hash_with_manual_eq)] // HashMap::eq is implemented properly.
 impl Hash for Object {
     fn hash<H: Hasher>(&self, state: &mut H) {
         for (key, value) in self.0.iter().sorted_unstable_by_key(|e| e.0) {

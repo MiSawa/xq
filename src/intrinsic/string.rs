@@ -106,7 +106,6 @@ pub(crate) fn split(lhs: &str, rhs: &str) -> Value {
             .into()
     } else {
         lhs.split(rhs)
-            .into_iter()
             .map(|s| s.to_string().into())
             .collect::<Array>()
             .into()
