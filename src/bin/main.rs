@@ -5,10 +5,11 @@ use std::{
 
 use anyhow::{anyhow, Context, Result};
 use clap::Parser;
-use tracing::*;
+use clap_verbosity_flag::Verbosity;
+use cli::input::Input;
 use xq::{module_loader::PreludeLoader, run_query, InputError, Value};
 
-use crate::cli::input::{Input, Tied};
+use crate::cli::input::Tied;
 
 mod cli;
 
@@ -37,7 +38,7 @@ struct Cli {
     output_format: OutputFormatArg,
 
     #[clap(flatten)]
-    verbosity: cli::Verbosity,
+    verbosity: Verbosity,
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Debug, clap::ValueEnum)]
@@ -129,12 +130,27 @@ impl OutputFormatArg {
     }
 }
 
+fn init_log(verbosity: &Verbosity) -> Result<()> {
+    use simplelog::{ColorChoice, CombinedLogger, Config, TermLogger, TerminalMode};
+    let filter = match verbosity.log_level() {
+        Some(l) => l.to_level_filter(),
+        None => log::LevelFilter::Off,
+    };
+    CombinedLogger::init(vec![TermLogger::new(
+        filter,
+        Config::default(),
+        TerminalMode::Mixed,
+        ColorChoice::Auto,
+    )])
+    .with_context(|| "Unable to initialize logger")
+}
+
 fn run_with_input(cli: Cli, input: impl Input) -> Result<()> {
     let query = if let Some(path) = cli.query_file {
-        trace!("Read query from file {:?}", path);
+        log::trace!("Read query from file {path:?}");
         std::fs::read_to_string(path)?
     } else {
-        trace!(
+        log::trace!(
             "Read from query in arg (if it wasn't the default value): `{}`",
             cli.query
         );
@@ -203,13 +219,8 @@ fn run_with_maybe_slurp_null_input<I: Iterator<Item = Result<Value, InputError>>
 
 fn main() -> Result<()> {
     let cli: Cli = Cli::parse();
-    cli.verbosity.configure();
-    debug!(
-        query = cli.query,
-        input_format = ?cli.input_format,
-        output_format = ?cli.output_format,
-        "Parsed CLI arguments"
-    );
+    init_log(&cli.verbosity)?;
+    log::debug!("Parsed argument: {cli:?}");
 
     let stdin = stdin();
     let mut locked = stdin.lock();

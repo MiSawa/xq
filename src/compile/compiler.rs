@@ -731,6 +731,7 @@ impl Compiler {
                 if matches!(self.emitter.get_next_op(next), ByteCode::Ret)
                     && !self.current_scope().has_slot_leaked_scope()
                 {
+                    // log::info!("Tail call closure for slot {:?}", slot);
                     self.emitter
                         .emit_terminal_op(ByteCode::TailCallClosure(slot))
                 } else {
