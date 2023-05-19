@@ -7,6 +7,7 @@ use anyhow::{anyhow, Context, Result};
 use clap::Parser;
 use clap_verbosity_flag::Verbosity;
 use cli::input::Input;
+use is_terminal::IsTerminal;
 use xq::{module_loader::PreludeLoader, run_query, InputError, Value};
 
 use crate::cli::input::Tied;
@@ -111,6 +112,14 @@ struct OutputFormatArg {
     /// Compact output
     #[clap(short, long, conflicts_with = "output-format")]
     compact_output: bool,
+
+    /// Colorize output where possible (currently only JSON is supported)
+    #[clap(short = 'C', long, group = "output-color")]
+    color_output: bool,
+
+    /// Do not colorize output
+    #[clap(short = 'M', long, group = "output-color")]
+    monochrome_output: bool,
 }
 
 impl OutputFormatArg {
@@ -161,6 +170,14 @@ fn run_with_input(cli: Cli, input: impl Input) -> Result<()> {
     let output_format = cli.output_format.get();
     match output_format {
         SerializationFormat::Json => {
+            let is_stdout_terminal = stdout().is_terminal();
+            let should_colorize_output = cli.output_format.color_output
+                || (is_stdout_terminal && !cli.output_format.monochrome_output);
+            let color_styler = should_colorize_output.then(|| colored_json::Styler {
+                nil_value: colored_json::Style::new(colored_json::Color::Default).dimmed(),
+                ..Default::default()
+            });
+
             for value in result_iterator {
                 match value {
                     Ok(Value::String(s)) if cli.output_format.raw_output => {
@@ -169,7 +186,31 @@ fn run_with_input(cli: Cli, input: impl Input) -> Result<()> {
                     }
                     Ok(value) => {
                         if cli.output_format.compact_output {
-                            serde_json::ser::to_writer::<_, Value>(stdout().lock(), &value)?;
+                            if let Some(styler) = color_styler {
+                                let formatter = colored_json::ColoredFormatter::with_styler(
+                                    colored_json::CompactFormatter,
+                                    styler,
+                                );
+                                formatter.write_colored_json(
+                                    &serde_json::to_value(&value)?,
+                                    &mut stdout().lock(),
+                                    colored_json::ColorMode::On,
+                                )?;
+                                println!();
+                            } else {
+                                serde_json::ser::to_writer::<_, Value>(stdout().lock(), &value)?;
+                                println!();
+                            }
+                        } else if let Some(styler) = color_styler {
+                            let formatter = colored_json::ColoredFormatter::with_styler(
+                                colored_json::PrettyFormatter::default(),
+                                styler,
+                            );
+                            formatter.write_colored_json(
+                                &serde_json::to_value(&value)?,
+                                &mut stdout().lock(),
+                                colored_json::ColorMode::On,
+                            )?;
                             println!();
                         } else {
                             serde_json::ser::to_writer_pretty::<_, Value>(stdout().lock(), &value)?;
