@@ -20,3 +20,6 @@ accepted = ["BSD-3-Clause"]
 
 [unicode-ident]
 accepted = ["Unicode-DFS-2016"]
+
+[colored_json]
+accepted = ["EPL-2.0"]
