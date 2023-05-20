@@ -1995,7 +1995,7 @@ checksum = "1690519550bfa95525229b9ca2350c63043a4857b3b0013811b2ccf4a2420b01"
 
 [[package]]
 name = "xq"
-version = "0.2.42"
+version = "0.2.43"
 dependencies = [
  "anyhow",
  "base64",
