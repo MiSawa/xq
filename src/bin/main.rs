@@ -149,6 +149,65 @@ fn init_log(verbosity: &Verbosity) -> Result<()> {
     .with_context(|| "Unable to initialize logger")
 }
 
+fn get_json_style() -> colored_json::Styler {
+    fn set_env_colors(styler: &mut colored_json::Styler) -> Result<()> {
+        if let Ok(env_colors) = std::env::var("XQ_COLORS").or_else(|_| std::env::var("JQ_COLORS")) {
+            let env_colors = env_colors.split(':');
+            for (i, env_color) in env_colors.enumerate().take(7) {
+                let styles = match i {
+                    0 => vec![&mut styler.nil_value],
+                    1 => vec![&mut styler.bool_value],
+                    2 => continue, // cannot easily separate true/false values, so apply false style to both
+                    3 => vec![&mut styler.integer_value, &mut styler.float_value],
+                    4 => vec![&mut styler.string_value],
+                    5 => vec![&mut styler.array_brackets],
+                    6 => vec![&mut styler.object_brackets],
+                    _ => continue,
+                };
+
+                let (modifier, color) = env_color.split_once(';').unwrap_or(("0", env_color));
+                let modifier: i32 = modifier.parse()?;
+                let color: i32 = color.parse()?;
+
+                let color = match color {
+                    30 => colored_json::Color::Black,
+                    31 => colored_json::Color::Red,
+                    32 => colored_json::Color::Green,
+                    33 => colored_json::Color::Yellow,
+                    34 => colored_json::Color::Blue,
+                    35 => colored_json::Color::Magenta,
+                    36 => colored_json::Color::Cyan,
+                    37 => colored_json::Color::White,
+                    _ => colored_json::Color::Default,
+                };
+
+                for style in styles {
+                    *style = colored_json::Style::new(color);
+
+                    match modifier {
+                        1 => {}
+                        2 => *style = style.dimmed(),
+                        4 => *style = style.underline(),
+                        5 => *style = style.blink(),
+                        7 => *style = style.invert(),
+                        8 => *style = style.hidden(),
+                        _ => {}
+                    }
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    let mut styler = colored_json::Styler {
+        nil_value: colored_json::Style::new(colored_json::Color::Default).dimmed(),
+        ..Default::default()
+    };
+    set_env_colors(&mut styler).unwrap_or_else(|_| eprintln!("Failed to set $JQ_COLORS"));
+    styler
+}
+
 fn run_with_input(cli: Cli, input: impl Input) -> Result<()> {
     let query = if let Some(path) = cli.query_file {
         log::trace!("Read query from file {path:?}");
@@ -173,10 +232,7 @@ fn run_with_input(cli: Cli, input: impl Input) -> Result<()> {
             let is_stdout_terminal = stdout().is_terminal();
             let should_colorize_output = cli.output_format.color_output
                 || (is_stdout_terminal && !cli.output_format.monochrome_output);
-            let color_styler = should_colorize_output.then(|| colored_json::Styler {
-                nil_value: colored_json::Style::new(colored_json::Color::Default).dimmed(),
-                ..Default::default()
-            });
+            let color_styler = should_colorize_output.then(get_json_style);
 
             for value in result_iterator {
                 match value {
