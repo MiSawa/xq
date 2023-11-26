@@ -6,11 +6,11 @@
 
 
 ## Caution
-This program is under development. You probably want to use the original implementation of [jq](https://stedolan.github.io/jq/), or pure Go implementation of it called [gojq](https://github.com/itchyny/gojq/) built by [itchyny](https://github.com/itchyny) instead.
+This program is under development. You probably want to use the original implementation of [jq](https://jqlang.github.io/jq/), or pure Go implementation of it called [gojq](https://github.com/itchyny/gojq/) built by [itchyny](https://github.com/itchyny) instead, or another Rust implementation called [jaq](https://github.com/01mf02/jaq).
 
 
 ## Current state
-- Most of the jq components that require syntactical support are, hmm, implemented and tested against queries taken from the [jq user manual](https://stedolan.github.io/jq/manual/).
+- Most of the jq components that require syntactical support are, hmm, implemented and tested against queries taken from the [jq user manual](https://jqlang.github.io/jq/manual/).
   Exceptions are imports and module headers.
 - Many builtin functions are missing, include those require intrinsic implementation.
 - Need more unit tests. Most of the CLI options are missing.
@@ -85,11 +85,11 @@ $ cargo release patch --execute     # to actually execute the release
 Pass `--workspace` to publish workspace members as well.
 
 ## Acknowledgements
-- Although this isn't a direct translation at all, I referred to [jq](https://stedolan.github.io/jq/manual/) built by [Stephen Dolan](https://github.com/stedolan) and [gojq](https://github.com/itchyny/gojq/) built by [itchyny](https://github.com/itchyny). Thank you for the interesting product!
+- Although this isn't a direct translation at all, I referred to [jq](https://jqlang.github.io/jq/) built by [Stephen Dolan](https://github.com/stedolan) and [gojq](https://github.com/itchyny/gojq/) built by [itchyny](https://github.com/itchyny). Thank you for the interesting product!
 
 
 ## Credits
-- Test cases in [tests/from_manual](./tests/from_manual) are taken from the [jq user manual](https://stedolan.github.io/jq/manual/), distributed under [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/), Copyright (C) 2012 Stephen Dolan. Please refer to [mod.rs](./tests/from_manual/mod.rs) there for more detail.
+- Test cases in [tests/from_manual](./tests/from_manual) are taken from the [jq user manual](https://jqlang.github.io/jq/manual/), distributed under [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/), Copyright (C) 2012 Stephen Dolan. Please refer to [mod.rs](./tests/from_manual/mod.rs) there for more detail.
 
 
 ## Author
