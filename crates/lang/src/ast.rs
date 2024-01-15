@@ -88,7 +88,7 @@ pub enum ObjectBindPatternEntry {
 pub enum BindPattern {
     /// `<variable>`
     Variable(Identifier),
-    /// `'[' <patten> (',' <pattern>)* ']'`
+    /// `'[' <pattern> (',' <pattern>)* ']'`
     Array(Vec<BindPattern>),
     /// `'{' <object pattern elem> (',' <object pattern elem>)* '}'`
     Object(Vec<ObjectBindPatternEntry>),
