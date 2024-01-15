@@ -269,7 +269,7 @@ fn replace_tombstone_rec(context: Value, path: &[Value], placeholder: Value) -> 
                         before
                             .iter()
                             .cloned()
-                            .chain(make_owned(middle).into_iter())
+                            .chain(make_owned(middle))
                             .chain(after.iter().cloned())
                             .collect::<Array>()
                             .into()

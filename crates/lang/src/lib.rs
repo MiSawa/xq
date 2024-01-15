@@ -51,7 +51,7 @@ impl<'a> From<lalrpop_util::ParseError<lexgen_util::Loc, lexer::Token<'a>, lexer
 pub fn parse_program(input: &str) -> ParseResult<ast::Program> {
     let lexer = lexer::Lexer::new(input);
     parser::ProgramParser::new()
-        .parse(input, lexer.into_iter())
+        .parse(input, lexer)
         .map_err(|e| e.into())
 }
 
