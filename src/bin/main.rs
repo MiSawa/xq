@@ -151,7 +151,7 @@ fn init_log(verbosity: &Verbosity) -> Result<()> {
 
 fn get_json_style() -> colored_json::Styler {
     fn set_env_colors(styler: &mut colored_json::Styler) -> Result<()> {
-        if let Ok(env_colors) = std::env::var("XQ_COLORS").or_else(|_| std::env::var("JQ_COLORS")) {
+        if let Ok(env_colors) = std::env::var("XQ_COLORS") {
             let env_colors = env_colors.split(':');
             for (i, env_color) in env_colors.enumerate().take(7) {
                 let styles = match i {
@@ -204,7 +204,8 @@ fn get_json_style() -> colored_json::Styler {
         nil_value: colored_json::Style::new(colored_json::Color::Default).dimmed(),
         ..Default::default()
     };
-    set_env_colors(&mut styler).unwrap_or_else(|_| eprintln!("Failed to set $JQ_COLORS"));
+    set_env_colors(&mut styler)
+        .unwrap_or_else(|_| eprintln!("Failed to set colors from $XQ_COLORS"));
     styler
 }
 
