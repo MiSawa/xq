@@ -416,7 +416,7 @@ lexer! {
     type Error = LexicalError;
 
     let ws = [' ' '\t' '\n'] | "\r\n";
-    let comment = '#' (_ # ['\r' '\n'])*;
+    let comment = '#' (_ # ['\\' '\r' '\n'] | '\\' (_ # '\r' | "\r\n"))*;
     let ident_start = ['a'-'z' 'A'-'Z' '_'];
     let digit = ['0'-'9'];
     let hex_digit = $digit | ['a'-'f' 'A'-'F'];
@@ -671,7 +671,8 @@ mod test {
         assert_lex(
             r#""\(
             1# This
-            + # is
+            + # is \
+            test
             2  #
             )"  # comment"#,
             &[
