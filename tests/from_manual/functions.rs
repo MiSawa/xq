@@ -265,6 +265,19 @@ test!(
 );
 
 test!(
+    pick1,
+    r#"
+    pick(.x, .y[2], .y[0], .z)
+    "#,
+    r#"
+    {"x":1,"y":[1,2,3]}
+    "#,
+    r#"
+    {"x":1,"y":[1,null,3],"z":null}
+    "#
+);
+
+test!(
     entries1,
     r#"
     to_entries
