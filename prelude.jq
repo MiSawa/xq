@@ -41,6 +41,7 @@ def nth($n): .[$n];
 
 def del(f): delpaths([path(f)]);
 def setpath($paths; $v): getpath($paths) |= $v;
+def pick(f): . as $v | reduce path(f) as $p (null; setpath($p; $v | getpath($p)));
 
 def to_entries: [keys[] as $key | {$key, value: .[$key]}];
 def from_entries: reduce .[] as $entry ({}; .[$entry.key]=$entry.value);
