@@ -4,7 +4,6 @@ use std::{
     collections::HashMap,
     fmt::{Debug, Display, Formatter},
     hash::{Hash, Hasher},
-    iter::FromIterator,
     ops::Deref,
     rc::Rc,
     slice::SliceIndex,
