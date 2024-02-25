@@ -640,6 +640,22 @@ test!(
 );
 
 test!(
+    modulo_nan,
+    r#"
+    (1, nan) % (1, nan) | isnan
+    "#,
+    r#"
+    null
+    "#,
+    r#"
+    false
+    true
+    true
+    true
+    "#
+);
+
+test!(
     delete1,
     r#"
     [1,2,3] | (del(.[1:2][0]), del(.[1:2][1], .[1]))
