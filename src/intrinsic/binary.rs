@@ -142,6 +142,9 @@ fn modulo(lhs: Value, rhs: Value) -> Result<Value, QueryExecutionError> {
     use Value::*;
     Ok(match (lhs, rhs) {
         (Number(lhs), Number(rhs)) => {
+            if lhs.is_nan() || rhs.is_nan() {
+                return Ok(Value::number(f64::NAN));
+            }
             let rhs = number_to_i64(rhs);
             if rhs == 0 {
                 return Err(QueryExecutionError::DivModByZero);
