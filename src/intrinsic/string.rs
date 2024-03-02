@@ -81,14 +81,10 @@ pub(crate) fn implode(value: Value) -> Result<Value> {
             let s = s
                 .iter()
                 .map(|c| match c {
-                    Value::Number(c) => {
-                        let c = c
-                            .to_u32()
-                            .ok_or(QueryExecutionError::InvalidNumberAsChar(*c))?;
-                        let c = char::try_from(c)
-                            .map_err(|_| QueryExecutionError::InvalidNumberAsChar(c.into()))?;
-                        Ok(c)
-                    }
+                    Value::Number(c) => Ok(c
+                        .to_u32()
+                        .and_then(|c| char::try_from(c).ok())
+                        .unwrap_or(char::REPLACEMENT_CHARACTER)),
                     _ => Err(QueryExecutionError::InvalidArgType("implode", c.clone())),
                 })
                 .collect::<Result<String>>()?;

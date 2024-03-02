@@ -1191,6 +1191,19 @@ test!(
 );
 
 test!(
+    implode2,
+    r#"
+    implode
+    "#,
+    r#"
+    [-1, 0, 1, 1114111, 1114112]
+    "#,
+    r#"
+    "\ufffd\u0000\u0001\udbff\udfff\ufffd"
+    "#
+);
+
+test!(
     split1,
     r#"
     split(", ")
