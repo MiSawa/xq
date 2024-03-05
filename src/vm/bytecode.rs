@@ -17,6 +17,7 @@ pub(crate) struct ClosureAddress(pub(crate) Address);
 pub type NamedFn0 = NamedFunction<fn(Value) -> Result<Value>>;
 pub type NamedFn1 = NamedFunction<fn(Value, Value) -> Result<Value>>;
 pub type NamedFn2 = NamedFunction<fn(Value, Value, Value) -> Result<Value>>;
+pub type NamedFn3 = NamedFunction<fn(Value, Value, Value, Value) -> Result<Value>>;
 
 impl<F: Clone> Debug for NamedFunction<F> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
@@ -189,6 +190,12 @@ pub(crate) enum ByteCode {
     /// # Panics
     /// Panics if the stack had less than 3 elements, or the invoked function panicked.
     Intrinsic2(NamedFn2),
+    /// Pops a value `arg3` from the stack, pops another value `arg2` from the stack, pops another value `arg1` from the stack,
+    /// and another value `context` from the stack, and invokes the function with the arg `context, arg1, arg2, arg3`,
+    /// and pushes the resulting value to the stack.
+    /// # Panics
+    /// Panics if the stack had less than 4 elements, or the invoked function panicked.
+    Intrinsic3(NamedFn3),
 }
 
 #[derive(Debug, Clone)]

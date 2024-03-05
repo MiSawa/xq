@@ -971,6 +971,24 @@ fn run_code(
                         Err(e) => err = Some(e),
                     }
                 }
+                Intrinsic3(NamedFunction { name, func }) => {
+                    let arg3 = state.pop();
+                    let arg2 = state.pop();
+                    let arg1 = state.pop();
+                    let context = state.pop();
+                    log::trace!(
+                        "Calling function {} with context {:?} and arg1 {:?} and arg2 {:?} and arg3 {:?}",
+                        name,
+                        context,
+                        arg1,
+                        arg2,
+                        arg3
+                    );
+                    match func(context, arg1, arg2, arg3) {
+                        Ok(value) => state.push(value),
+                        Err(e) => err = Some(e),
+                    }
+                }
             }
             state.pc.next();
         }

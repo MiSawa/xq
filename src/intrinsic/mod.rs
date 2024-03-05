@@ -16,7 +16,7 @@ use crate::{
     compile::compiler::{ArgType, FunctionIdentifier},
     util::make_owned,
     vm::{
-        bytecode::{NamedFn0, NamedFn1, NamedFn2},
+        bytecode::{NamedFn0, NamedFn1, NamedFn2, NamedFn3},
         error::Result,
         ByteCode, QueryExecutionError,
     },
@@ -62,7 +62,12 @@ static INTRINSICS0: phf::Map<&'static str, NamedFn0> = phf_map! {
     "isnormal" => as_math_fn!(is_normal),
     "isinfinite" => as_math_fn!(is_infinite),
     "floor" => as_math_fn!(floor),
+    "round" => as_math_fn!(round),
+    "ceil" => as_math_fn!(ceil),
+    "trunc" => as_math_fn!(trunc),
+    "fabs" => as_math_fn!(abs),
     "sqrt" => as_math_fn!(sqrt),
+    "cbrt" => as_math_fn!(cbrt),
     "sin" => as_math_fn!(sin),
     "cos" => as_math_fn!(cos),
     "tan" => as_math_fn!(tan),
@@ -75,6 +80,13 @@ static INTRINSICS0: phf::Map<&'static str, NamedFn0> = phf_map! {
     "asinh" => as_math_fn!(asinh),
     "acosh" => as_math_fn!(acosh),
     "atanh" => as_math_fn!(atanh),
+    "exp" => as_math_fn!(exp),
+    "exp2" => as_math_fn!(exp2),
+    "exp10" => as_math_fn!(exp10),
+    "expm1" => as_math_fn!(exp_m1),
+    "log" => as_math_fn!(ln),
+    "log2" => as_math_fn!(log2),
+    "log10" => as_math_fn!(log10),
 };
 static INTRINSICS1: phf::Map<&'static str, NamedFn1> = phf_map! {
     "error" => NamedFn1 { name: "error", func: error1 },
@@ -101,6 +113,16 @@ static INTRINSICS1: phf::Map<&'static str, NamedFn1> = phf_map! {
 static INTRINSICS2: phf::Map<&'static str, NamedFn2> = phf_map! {
     "setpath" => NamedFn2 { name: "setpath", func: path::set_path },
     "__split_match_impl" => NamedFn2 { name: "__split_match_impl", func: regex::split_match_impl },
+
+    "fmax" => as_math_fn2!(fmax),
+    "fmin" => as_math_fn2!(fmin),
+    "copysign" => as_math_fn2!(copysign),
+    "atan2" => as_math_fn2!(atan2),
+    "hypot" => as_math_fn2!(hypot),
+    "pow" => as_math_fn2!(powf),
+};
+static INTRINSICS3: phf::Map<&'static str, NamedFn3> = phf_map! {
+    "fma" => as_math_fn3!(fma),
 };
 
 pub(crate) fn lookup_intrinsic_fn(
@@ -121,6 +143,13 @@ pub(crate) fn lookup_intrinsic_fn(
             (
                 ByteCode::Intrinsic2(f),
                 vec![ArgType::Value, ArgType::Value],
+            )
+        })
+    } else if *n_args == 3 {
+        INTRINSICS3.get(&ident.0).cloned().map(|f| {
+            (
+                ByteCode::Intrinsic3(f),
+                vec![ArgType::Value, ArgType::Value, ArgType::Value],
             )
         })
     } else {
