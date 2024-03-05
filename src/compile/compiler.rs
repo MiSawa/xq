@@ -984,6 +984,7 @@ impl Compiler {
         }
 
         /// Consumes a value from the stack
+        #[allow(unknown_lints, non_local_definitions)] // Here is the best place to have this piece of the code.
         impl Compile for BindPattern {
             fn compile(&self, compiler: &mut Compiler, next: Address) -> Result<Address> {
                 let next = match self {
