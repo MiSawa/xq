@@ -2,6 +2,7 @@ def not: if . then false else true end;
 def select(f): if f then . else empty end;
 def map(f): [.[] | f];
 def map_values(f): .[] |= f;
+def abs: if . < 0 then - . else . end;
 
 def isfinite: isinfinite | not;
 def nulls: select(type == "null");

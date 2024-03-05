@@ -1,6 +1,19 @@
 use crate::test;
 
 test!(
+    abs1,
+    r#"
+    map(abs)
+    "#,
+    r#"
+    [-10, -1.1, -1e-1]
+    "#,
+    r#"
+    [10,1.1,1e-1]
+    "#
+);
+
+test!(
     length1,
     r#"
     .[] | length
