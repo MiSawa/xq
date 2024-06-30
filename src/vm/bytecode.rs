@@ -6,7 +6,7 @@ use crate::{
 };
 
 #[derive(Clone, Eq, PartialEq)]
-pub struct NamedFunction<F: Clone + ?Sized> {
+pub struct NamedFunction<F: Clone> {
     pub name: &'static str,
     pub func: F,
 }
