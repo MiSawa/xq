@@ -231,8 +231,11 @@ fn run_with_input(cli: Cli, input: impl Input) -> Result<()> {
     match output_format {
         SerializationFormat::Json => {
             let is_stdout_terminal = stdout().is_terminal();
+            let no_color_from_env = || std::env::var("NO_COLOR").is_ok_and(|s| !s.is_empty());
             let should_colorize_output = cli.output_format.color_output
-                || (is_stdout_terminal && !cli.output_format.monochrome_output);
+                || (is_stdout_terminal
+                    && !cli.output_format.monochrome_output
+                    && !no_color_from_env());
             let color_styler = should_colorize_output.then(get_json_style);
 
             for value in result_iterator {

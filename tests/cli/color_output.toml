@@ -1,0 +1,9 @@
+args = [ "-C" ]
+
+stdin = '''
+1
+"a"
+["a", "b"]
+'''
+
+# stdout in .stdout file

@@ -1,0 +1,12 @@
+args = [ "-C" ]
+
+[env.add]
+NO_COLOR = "1"
+
+stdin = '''
+1
+"a"
+["a", "b"]
+'''
+
+# stdout in .stdout file
