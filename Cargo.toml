@@ -64,7 +64,7 @@ html-escape = "0.2.9"
 shell-escape = "0.1.5"
 urlencoding = "2.1.0"
 base64 = "0.13.0"
-time = { version = "0.3.7", features = ["local-offset"] }
+time = { version = "0.3.47", features = ["local-offset"] }
 time-fmt = "0.3.4"
 time-tz = { version = "0.5.2", features = ["system", "posix-tz"] }
 onig = { version = "6.3.1", default-features = false }
