@@ -55,7 +55,7 @@
           devshells.default = {
             commands = [
               {
-                name = "cargo-release";
+                name = "release";
                 category = "development";
                 help = "release to crates.io";
                 command = ''nix shell 'nixpkgs#cargo-release' --command 'cargo' 'release' "$@"'';
