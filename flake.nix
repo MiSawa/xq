@@ -8,7 +8,7 @@
     };
     systems.url = "github:nix-systems/default";
     fenix = {
-      url = "github:nix-community/fenix";
+      url = "github:nix-community/fenix/monthly";
       inputs.nixpkgs.follows = "nixpkgs";
     };
     devshell = {
@@ -28,7 +28,11 @@
           ...
         }:
         let
-          toolchain = pkgs.fenix.stable.minimalToolchain;
+          toolchain = pkgs.fenix.complete.toolchain;
+          minimalToolchain = pkgs.fenix.complete.withComponents [
+            "rustc"
+            "cargo"
+          ];
         in
         {
           _module.args.pkgs = import inputs.nixpkgs {
@@ -39,8 +43,8 @@
           };
           packages.default =
             (pkgs.makeRustPlatform {
-              cargo = toolchain;
-              rustc = toolchain;
+              cargo = minimalToolchain;
+              rustc = minimalToolchain;
             }).buildRustPackage
               {
                 pname = "xq";

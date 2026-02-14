@@ -294,7 +294,7 @@ impl State {
         self.iterators.top_mut()
     }
 
-    fn slot(&mut self, scoped_slot: &ScopedSlot) -> RefMut<Option<Value>> {
+    fn slot(&mut self, scoped_slot: &ScopedSlot) -> RefMut<'_, Option<Value>> {
         let frame = self
             .frames
             .get_mut(scoped_slot.0 .0)
@@ -309,7 +309,7 @@ impl State {
         })
     }
 
-    fn closure_slot(&mut self, scoped_slot: &ScopedSlot) -> RefMut<Option<Closure>> {
+    fn closure_slot(&mut self, scoped_slot: &ScopedSlot) -> RefMut<'_, Option<Closure>> {
         let frame = self
             .frames
             .get_mut(scoped_slot.0 .0)
@@ -324,7 +324,7 @@ impl State {
         })
     }
 
-    fn label_slot(&mut self, scoped_slot: &ScopedSlot) -> RefMut<Option<LabelId>> {
+    fn label_slot(&mut self, scoped_slot: &ScopedSlot) -> RefMut<'_, Option<LabelId>> {
         let frame = self
             .frames
             .get_mut(scoped_slot.0 .0)

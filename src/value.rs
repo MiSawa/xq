@@ -15,7 +15,7 @@ use num::Float;
 use serde::{
     de::{Error, MapAccess, SeqAccess, Visitor},
     ser::{SerializeMap, SerializeSeq},
-    serde_if_integer128, Deserialize, Deserializer, Serialize, Serializer,
+    Deserialize, Deserializer, Serialize, Serializer,
 };
 
 use crate::Number;
@@ -152,7 +152,7 @@ impl Object {
         self.0.remove(key)
     }
 
-    pub fn entry(&mut self, key: RcString) -> std::collections::hash_map::Entry<RcString, Value> {
+    pub fn entry(&mut self, key: RcString) -> std::collections::hash_map::Entry<'_, RcString, Value> {
         self.0.entry(key)
     }
 }
@@ -342,20 +342,18 @@ impl<'de> Deserialize<'de> for Value {
                 Ok(Value::number(v))
             }
 
-            serde_if_integer128! {
-                fn visit_i128<E>(self, v: i128) -> Result<Self::Value, E>
-                where
-                    E: serde::de::Error,
-                {
-                    Ok(Value::number(v))
-                }
+            fn visit_i128<E>(self, v: i128) -> Result<Self::Value, E>
+            where
+                E: serde::de::Error,
+            {
+                Ok(Value::number(v))
+            }
 
-                fn visit_u128<E>(self, v: u128) -> Result<Self::Value, E>
-                where
-                    E: serde::de::Error,
-                {
-                    Ok(Value::number(v))
-                }
+            fn visit_u128<E>(self, v: u128) -> Result<Self::Value, E>
+            where
+                E: serde::de::Error,
+            {
+                Ok(Value::number(v))
             }
 
             fn visit_f64<E>(self, v: f64) -> Result<Self::Value, E>
