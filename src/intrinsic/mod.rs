@@ -345,7 +345,7 @@ pub(crate) fn group_by(context: Value, keys: Value) -> Result<Value> {
         .fold::<(Option<Value>, Vec<Vec<Value>>), _>(
             (None, Vec::new()),
             |(prev_key, mut groups), (key, value)| {
-                if prev_key.map_or(false, |prev_key| prev_key == key) {
+                if prev_key.is_some_and(|prev_key| prev_key == key) {
                     groups.last_mut().expect("Shouldn't be empty").push(value);
                 } else {
                     groups.push(vec![value]);
@@ -380,16 +380,14 @@ pub(crate) fn unique_by(context: Value, keys: Value) -> Result<Value> {
         .fold::<(Option<Value>, Vec<Value>), _>(
             (None, Vec::new()),
             |(prev_key, mut values), (key, value)| {
-                if !prev_key.map_or(false, |prev_key| prev_key == key) {
+                if prev_key.is_none_or(|prev_key| prev_key != key) {
                     values.push(value);
                 }
                 (Some(key), values)
             },
         )
         .1
-        .into_iter()
-        .map(Into::into)
-        .collect_vec();
+        .into_iter().collect_vec();
     Ok(Array::from_vec(arr).into())
 }
 

@@ -448,12 +448,12 @@ impl Ord for Value {
         if let res @ (Less | Greater) = type_ord(self).cmp(&type_ord(other)) {
             return res;
         }
-        return match (&self, &other) {
+        match (&self, &other) {
             (Null, Null) => Equal,
             (Boolean(lhs), Boolean(rhs)) => Ord::cmp(lhs, rhs),
             (Number(lhs), Number(rhs)) => Ord::cmp(&lhs, &rhs),
             (String(lhs), String(rhs)) => Ord::cmp(&lhs, &rhs),
-            (Array(lhs), Array(rhs)) => return Iterator::cmp(lhs.iter(), rhs.iter()),
+            (Array(lhs), Array(rhs)) => Iterator::cmp(lhs.iter(), rhs.iter()),
             (Object(lhs), Object(rhs)) => {
                 let lhs_keys = lhs.keys().sorted_unstable().collect_vec();
                 let rhs_keys = rhs.keys().sorted_unstable().collect_vec();
@@ -470,6 +470,6 @@ impl Ord for Value {
             (Null | Boolean(_) | Number(_) | String(_) | Array(_) | Object(_), _) => {
                 unreachable!()
             }
-        };
+        }
     }
 }

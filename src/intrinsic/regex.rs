@@ -50,7 +50,7 @@ pub(crate) fn split_match_impl(context: Value, pattern: Value, flags: Value) -> 
     };
     let (regex, global) = compile_regex(&pattern, &flags)?;
 
-    let mut b2c: Vec<usize> = std::iter::repeat(0).take(s.len() + 1).collect();
+    let mut b2c: Vec<usize> = std::iter::repeat_n(0, s.len() + 1).collect();
     for i in 0..s.len() {
         if s.is_char_boundary(i) {
             b2c[i + 1] = b2c[i] + 1;
