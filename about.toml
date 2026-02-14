@@ -19,7 +19,7 @@ accepted = ["MPL-2.0"]
 accepted = ["BSD-3-Clause"]
 
 [unicode-ident]
-accepted = ["Unicode-DFS-2016"]
+accepted = ["Unicode-3.0"]
 
 [colored_json]
 accepted = ["EPL-2.0"]

@@ -115,14 +115,12 @@ impl Frame {
     fn new(variable_cnt: usize, closure_cnt: usize, label_cnt: usize) -> Self {
         Self {
             slots: Rc::new(RefCell::new(
-                std::iter::repeat(None).take(variable_cnt).collect(),
+                std::iter::repeat_n(None, variable_cnt).collect(),
             )),
             closure_slots: Rc::new(RefCell::new(
-                std::iter::repeat(None).take(closure_cnt).collect(),
+                std::iter::repeat_n(None, closure_cnt).collect(),
             )),
-            label_slots: Rc::new(RefCell::new(
-                std::iter::repeat(None).take(label_cnt).collect(),
-            )),
+            label_slots: Rc::new(RefCell::new(std::iter::repeat_n(None, label_cnt).collect())),
         }
     }
 }
@@ -294,7 +292,7 @@ impl State {
         self.iterators.top_mut()
     }
 
-    fn slot(&mut self, scoped_slot: &ScopedSlot) -> RefMut<Option<Value>> {
+    fn slot(&mut self, scoped_slot: &ScopedSlot) -> RefMut<'_, Option<Value>> {
         let frame = self
             .frames
             .get_mut(scoped_slot.0 .0)
@@ -309,7 +307,7 @@ impl State {
         })
     }
 
-    fn closure_slot(&mut self, scoped_slot: &ScopedSlot) -> RefMut<Option<Closure>> {
+    fn closure_slot(&mut self, scoped_slot: &ScopedSlot) -> RefMut<'_, Option<Closure>> {
         let frame = self
             .frames
             .get_mut(scoped_slot.0 .0)
@@ -324,7 +322,7 @@ impl State {
         })
     }
 
-    fn label_slot(&mut self, scoped_slot: &ScopedSlot) -> RefMut<Option<LabelId>> {
+    fn label_slot(&mut self, scoped_slot: &ScopedSlot) -> RefMut<'_, Option<LabelId>> {
         let frame = self
             .frames
             .get_mut(scoped_slot.0 .0)
@@ -356,8 +354,10 @@ impl State {
             self.frames.clone()
         };
         if self.frames.len() <= scope_id.0 {
-            self.frames
-                .extend(std::iter::repeat(None).take(scope_id.0 - self.frames.len() + 1))
+            self.frames.extend(std::iter::repeat_n(
+                None,
+                scope_id.0 - self.frames.len() + 1,
+            ))
         }
         self.frames[scope_id.0] = Some(Frame::new(variable_cnt, closure_cnt, label_cnt));
         self.frame_stack.push((return_address, saved, chain_ret));

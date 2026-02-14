@@ -594,7 +594,7 @@ lexer! {
 mod test {
     use super::{Lexer, StringFragment, Token};
 
-    fn string_fragment(s: &str) -> Token {
+    fn string_fragment(s: &str) -> Token<'_> {
         Token::StringFragment(StringFragment::String(s))
     }
     fn assert_lex(q: &str, expected_tokens: &[Token]) {

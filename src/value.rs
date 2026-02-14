@@ -15,7 +15,7 @@ use num::Float;
 use serde::{
     de::{Error, MapAccess, SeqAccess, Visitor},
     ser::{SerializeMap, SerializeSeq},
-    serde_if_integer128, Deserialize, Deserializer, Serialize, Serializer,
+    Deserialize, Deserializer, Serialize, Serializer,
 };
 
 use crate::Number;
@@ -152,7 +152,10 @@ impl Object {
         self.0.remove(key)
     }
 
-    pub fn entry(&mut self, key: RcString) -> std::collections::hash_map::Entry<RcString, Value> {
+    pub fn entry(
+        &mut self,
+        key: RcString,
+    ) -> std::collections::hash_map::Entry<'_, RcString, Value> {
         self.0.entry(key)
     }
 }
@@ -342,20 +345,18 @@ impl<'de> Deserialize<'de> for Value {
                 Ok(Value::number(v))
             }
 
-            serde_if_integer128! {
-                fn visit_i128<E>(self, v: i128) -> Result<Self::Value, E>
-                where
-                    E: serde::de::Error,
-                {
-                    Ok(Value::number(v))
-                }
+            fn visit_i128<E>(self, v: i128) -> Result<Self::Value, E>
+            where
+                E: serde::de::Error,
+            {
+                Ok(Value::number(v))
+            }
 
-                fn visit_u128<E>(self, v: u128) -> Result<Self::Value, E>
-                where
-                    E: serde::de::Error,
-                {
-                    Ok(Value::number(v))
-                }
+            fn visit_u128<E>(self, v: u128) -> Result<Self::Value, E>
+            where
+                E: serde::de::Error,
+            {
+                Ok(Value::number(v))
             }
 
             fn visit_f64<E>(self, v: f64) -> Result<Self::Value, E>
@@ -450,12 +451,12 @@ impl Ord for Value {
         if let res @ (Less | Greater) = type_ord(self).cmp(&type_ord(other)) {
             return res;
         }
-        return match (&self, &other) {
+        match (&self, &other) {
             (Null, Null) => Equal,
             (Boolean(lhs), Boolean(rhs)) => Ord::cmp(lhs, rhs),
             (Number(lhs), Number(rhs)) => Ord::cmp(&lhs, &rhs),
             (String(lhs), String(rhs)) => Ord::cmp(&lhs, &rhs),
-            (Array(lhs), Array(rhs)) => return Iterator::cmp(lhs.iter(), rhs.iter()),
+            (Array(lhs), Array(rhs)) => Iterator::cmp(lhs.iter(), rhs.iter()),
             (Object(lhs), Object(rhs)) => {
                 let lhs_keys = lhs.keys().sorted_unstable().collect_vec();
                 let rhs_keys = rhs.keys().sorted_unstable().collect_vec();
@@ -472,6 +473,6 @@ impl Ord for Value {
             (Null | Boolean(_) | Number(_) | String(_) | Array(_) | Object(_), _) => {
                 unreachable!()
             }
-        };
+        }
     }
 }

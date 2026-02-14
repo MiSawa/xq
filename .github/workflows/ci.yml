@@ -11,7 +11,7 @@ on:
 env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: full
-  RUSTFLAGS: -D warnings
+  RUSTFLAGS: -D warnings -A unused_assignments
 
 jobs:
   build:

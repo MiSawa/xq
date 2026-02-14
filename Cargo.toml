@@ -7,7 +7,7 @@ description = "A reimplementation of jq."
 license = "MIT"
 repository = "https://github.com/MiSawa/xq"
 readme = "README.md"
-exclude = [".github"]
+exclude = [".github", "flake.nix", "flake.lock"]
 
 [package.metadata.binstall]
 pkg-url = "{ repo }/releases/download/v{ version }/{ name }-v{ version }-{ target }.tar.gz"
