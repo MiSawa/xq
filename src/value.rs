@@ -152,7 +152,10 @@ impl Object {
         self.0.remove(key)
     }
 
-    pub fn entry(&mut self, key: RcString) -> std::collections::hash_map::Entry<'_, RcString, Value> {
+    pub fn entry(
+        &mut self,
+        key: RcString,
+    ) -> std::collections::hash_map::Entry<'_, RcString, Value> {
         self.0.entry(key)
     }
 }

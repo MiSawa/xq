@@ -387,7 +387,8 @@ pub(crate) fn unique_by(context: Value, keys: Value) -> Result<Value> {
             },
         )
         .1
-        .into_iter().collect_vec();
+        .into_iter()
+        .collect_vec();
     Ok(Array::from_vec(arr).into())
 }
 
