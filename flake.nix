@@ -60,6 +60,12 @@
                 help = "release to crates.io";
                 command = ''nix shell 'nixpkgs#cargo-release' --command 'cargo' 'release' "$@"'';
               }
+              {
+                name = "generate-license";
+                category = "development";
+                help = "generate list of licenses using cargo-about";
+                command = "nix shell 'nixpkgs#cargo-about' --command 'cargo' 'about' 'generate' 'about.hbs'";
+              }
             ];
             packages = [
               pkgs.clang
