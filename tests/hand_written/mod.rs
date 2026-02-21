@@ -768,6 +768,45 @@ test!(
 );
 
 test!(
+    strptime_positive_offset,
+    r#"
+    strptime("%Y-%m-%dT%H:%M:%S%z") | todate
+    "#,
+    r#"
+    "2026-02-21T07:00:00+0900"
+    "#,
+    r#"
+    "2026-02-20T22:00:00Z"
+    "#
+);
+
+test!(
+    strptime_negative_offset,
+    r#"
+    strptime("%Y-%m-%dT%H:%M:%S%z") | todate
+    "#,
+    r#"
+    "2026-02-21T20:00:00-0500"
+    "#,
+    r#"
+    "2026-02-22T01:00:00Z"
+    "#
+);
+
+test!(
+    strptime_utc_offset,
+    r#"
+    strptime("%Y-%m-%dT%H:%M:%S%z") | todate
+    "#,
+    r#"
+    "2026-02-21T09:00:00+0000"
+    "#,
+    r#"
+    "2026-02-21T09:00:00Z"
+    "#
+);
+
+test!(
     sort_by_min_by_max_by,
     r#"
     sort_by(.a), sort_by(.a,.b), min_by(.a), min_by(.a,.b), max_by(.a), max_by(.a,.b)
