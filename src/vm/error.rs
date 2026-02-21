@@ -38,6 +38,8 @@ pub enum QueryExecutionError {
     IncompatibleBinaryOperator(&'static str, Value, Value),
     #[error("Cannot repeat string `{0:?}` times")]
     StringRepeatByNonUSize(Number),
+    #[error("Repeat string result too long")]
+    StringRepeatTooLong,
     #[error("Cannot divide/modulo by zero")]
     DivModByZero,
     #[error("Tried to construct an object with non-string key `{0:?}`")]

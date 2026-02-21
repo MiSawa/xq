@@ -153,11 +153,11 @@ test!(
     "abc"
     "#,
     r#"
-    null
+    ""
     "abcabcabc"
     null
     null
-    null
+    ""
     "abcabcabc"
     null
     null
