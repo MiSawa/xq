@@ -1,7 +1,10 @@
 use std::rc::Rc;
 
 use time::{Date, Month, OffsetDateTime, PrimitiveDateTime, Time, UtcOffset};
-use time_fmt::{format::format_zoned_offset_date_time, parse::parse_date_time_maybe_with_zone};
+use time_fmt::{
+    format::format_zoned_offset_date_time,
+    parse::{parse_date_time_maybe_with_zone, TimeZoneSpecifier},
+};
 use time_tz::{system::get_timezone, Offset, TimeZone};
 
 use crate::{
@@ -134,9 +137,11 @@ pub(crate) fn parse_time(context: Value, format: Value) -> Result<Value> {
         .ok_or(QueryExecutionError::InvalidArgType("strptime", context))?;
     let format = try_unwrap_string(&format)
         .ok_or(QueryExecutionError::InvalidArgType("strptime", format))?;
-    let dt = parse_date_time_maybe_with_zone(format.as_ref(), time.as_ref())?
-        .0
-        .assume_utc();
+    let (pdt, zone) = parse_date_time_maybe_with_zone(format.as_ref(), time.as_ref())?;
+    let dt = match zone {
+        Some(TimeZoneSpecifier::Offset(offset)) => pdt.assume_offset(offset).to_offset(UtcOffset::UTC),
+        _ => pdt.assume_utc(),
+    };
     Ok(time_to_array(&dt))
 }
 
