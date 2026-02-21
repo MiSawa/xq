@@ -139,7 +139,9 @@ pub(crate) fn parse_time(context: Value, format: Value) -> Result<Value> {
         .ok_or(QueryExecutionError::InvalidArgType("strptime", format))?;
     let (pdt, zone) = parse_date_time_maybe_with_zone(format.as_ref(), time.as_ref())?;
     let dt = match zone {
-        Some(TimeZoneSpecifier::Offset(offset)) => pdt.assume_offset(offset).to_offset(UtcOffset::UTC),
+        Some(TimeZoneSpecifier::Offset(offset)) => {
+            pdt.assume_offset(offset).to_offset(UtcOffset::UTC)
+        }
         _ => pdt.assume_utc(),
     };
     Ok(time_to_array(&dt))
