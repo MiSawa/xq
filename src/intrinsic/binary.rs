@@ -101,12 +101,18 @@ fn multiply(lhs: Value, rhs: Value) -> Result<Value, QueryExecutionError> {
     Ok(match (lhs, rhs) {
         (Number(lhs), Number(rhs)) => Value::number(lhs * rhs),
         (String(lhs), Number(rhs)) => {
-            if rhs <= Zero::zero() || rhs.is_nan() {
+            if rhs < Zero::zero() || rhs.is_nan() {
                 Value::Null
             } else {
                 let repeat = rhs
                     .to_usize()
                     .ok_or(QueryExecutionError::StringRepeatByNonUSize(rhs))?;
+                let result_len = (lhs.len() as u64)
+                    .checked_mul(repeat as u64)
+                    .ok_or(QueryExecutionError::StringRepeatTooLong)?;
+                if result_len >= i32::MAX as u64 {
+                    return Err(QueryExecutionError::StringRepeatTooLong);
+                }
                 Value::string((*lhs).clone().repeat(repeat))
             }
         }

@@ -9,6 +9,16 @@ test_no_panic!(
 );
 
 test_no_panic!(
+    string_repeat_large,
+    r#"
+    "a"*1E15
+    "#,
+    r#"
+    null
+    "#
+);
+
+test_no_panic!(
     todate,
     r#"
     todate#.749;011111111111111
