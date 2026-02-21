@@ -78,6 +78,6 @@ serde_yaml = { version = "0.8.23", optional = true }
 is-terminal = "0.4.7"
 
 [dev-dependencies]
-criterion = "0.3.5"
+criterion = "0.8.0"
 trycmd = "0.13.3"
 
